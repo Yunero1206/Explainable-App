@@ -15,17 +15,24 @@ Current phase: **Phase 1A-R active**.
 - `npm run build` pass.
 - Các lỗi trước về missing/duplicate gap delta, reopen revision identity và single-event source reconciliation đã được đóng.
 
-## Chưa được accept
+## Slice 1 Canonical Closure (Accepted)
 
-Canonical transition slice (Slice 1) đã pass. Đã đóng 2 counterexample (strict transition event cardinality và strict carry-forward identity).
+- Accepted canonical implementation commit: `b994ac94fcae09632071579e29ce025317fb31bd`
+- Slice 1 canonical closure is accepted.
+
 Gates chạy thành công:
-- `cmd.exe /c "npm run lint"` (exit 0)
-- `cmd.exe /c "npm test"` (exit 0, 23 tests passed in canonical-record.test.ts, 24 tests / 2 files total)
-- `cmd.exe /c "npm run build"` (exit 0)
+- `cmd.exe /c "npm run lint"`: exit 0
+- `cmd.exe /c "npm test"`: exit 0
+  - canonical file: 22 tests passed
+  - full `npm test`: 23 tests passed across 2 files
+  - (Note: the earlier 23-canonical / 24-full counts were incorrect)
+- `cmd.exe /c "npm run build"`: exit 0
+
+## Phase 1A-R Pending Work (Chưa được accept)
 
 Phần còn lại vẫn chưa được chứng minh:
-- canonical invariant cluster đã pass slice 1, nhưng Phase 1A-R chưa complete;
-- runtime integration, persistence/reload và end-to-end demo chưa được audit hoàn tất;
+- Phase 1A-R remains active.
+- runtime integration, persistence/reload, deterministic demo and V0 gate remain pending.
 - V0 chưa complete.
 
 ## Đường đi ngắn nhất đến V0
