@@ -9,9 +9,10 @@
 - Persistence/Reload: pending, inactive
 - V0 status: not accepted
 - Active micro-slice: `AR-S0`
-- Active status: `READY FOR HANDSHAKE`
-- Last verified implementation SHA: none
+- Active status: `COMPLETE — AWAITING USER CONTINUE`
+- Last verified implementation SHA: `1e40e3dc2363d0c7a9afd80a7f52ab1e5010e1c2`
 - Last checkpoint SHA: none
+- Queued next micro-slice: `AR-S1`
 
 ## AR-S0 — Control-plane reset
 
@@ -84,11 +85,17 @@ Install the architecture-reset project truth and checkpoint mechanism without ch
 
 ### Completed
 
-- None.
+- Replaced project/contract state files and established new control plane layout.
+- Deleted superseded CURRENT_SLICE, execute-v0-slice, and INSTALL_FIRST files.
+- Normalized branch to main.
 
 ### Gate results
 
-- Not run.
+- `git branch --show-current`: main
+- `git rev-parse HEAD`: 1e40e3dc2363d0c7a9afd80a7f52ab1e5010e1c2
+- `git status --short`: Verified dirty control-plane only before commit
+- `git diff --check`: Passed, no whitespace errors
+- Verified superseded files absent in cached index. No application files changed.
 
 ### Dirty files / WIP
 
