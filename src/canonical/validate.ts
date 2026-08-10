@@ -315,15 +315,20 @@ export function validateCanonicalRecord(record: CanonicalCaseRecord): string[] {
         if (!g.status_reason) errors.push(`Revision ${rev.revision_id} Gap ${g.id} changed status but lacks status_reason`);
         if (!g.status_source_ids || g.status_source_ids.length === 0) errors.push(`Revision ${rev.revision_id} Gap ${g.id} changed status but lacks status_source_ids`);
 
-        const hasMatchingEvent = rev.events.some(ev => 
-          ev.gap_transition && 
-          ev.gap_transition.gap_id === g.id &&
-          ev.gap_transition.transition_revision_id === rev.revision_id &&
-          ev.gap_transition.resulting_status === g.status &&
-          ev.gap_transition.previous_status === previousStatus
-        );
-        if (!hasMatchingEvent) {
-          errors.push(`Revision ${rev.revision_id} Gap ${g.id} changed status but lacks a corresponding structured transition event`);
+        const transitionEvents = rev.events.filter(ev => ev.gap_transition?.gap_id === g.id);
+        if (transitionEvents.length !== 1) {
+          errors.push(`Revision ${rev.revision_id} Gap ${g.id} changed status but has ${transitionEvents.length} transition events`);
+        } else {
+          const ev = transitionEvents[0];
+          if (ev.gap_transition!.transition_revision_id !== rev.revision_id) {
+            errors.push(`Revision ${rev.revision_id} Gap ${g.id} transition event ${ev.id} transition_revision_id ${ev.gap_transition!.transition_revision_id} mismatches containing revision`);
+          }
+          if (ev.gap_transition!.resulting_status !== g.status) {
+            errors.push(`Revision ${rev.revision_id} Gap ${g.id} transition event ${ev.id} resulting_status ${ev.gap_transition!.resulting_status} mismatches actual gap status`);
+          }
+          if (ev.gap_transition!.previous_status !== previousStatus) {
+            errors.push(`Revision ${rev.revision_id} Gap ${g.id} transition event ${ev.id} previous_status ${ev.gap_transition!.previous_status} mismatches actual previous status`);
+          }
         }
 
         const deltas = rev.delta.changes.filter(d => d.entity_type === 'gap' && d.entity_id === g.id);
@@ -344,14 +349,30 @@ export function validateCanonicalRecord(record: CanonicalCaseRecord): string[] {
           if (g.status_source_ids) {
             const gapSources = new Set(g.status_source_ids);
             const deltaSources = new Set(delta.source_ids);
-            const event = rev.events.find(ev => ev.gap_transition?.gap_id === g.id);
-            const eventSources = new Set(event?.gap_transition?.source_ids || []);
+            const eventSources = new Set(transitionEvents.length === 1 ? (transitionEvents[0].gap_transition?.source_ids || []) : []);
 
             const setsMatch = (a: Set<string>, b: Set<string>) => a.size === b.size && [...a].every(v => b.has(v));
             if (!setsMatch(gapSources, deltaSources) || !setsMatch(gapSources, eventSources)) {
                errors.push(`Revision ${rev.revision_id} Gap ${g.id} transition sources mismatch between gap, event, and delta`);
             }
           }
+        }
+      } else if (parentGap) {
+        if (g.status_revision_id !== parentGap.status_revision_id) {
+           errors.push(`Revision ${rev.revision_id} Gap ${g.id} unchanged status but status_revision_id altered from ${parentGap.status_revision_id} to ${g.status_revision_id}`);
+        }
+        if (g.status_reason !== parentGap.status_reason) {
+           errors.push(`Revision ${rev.revision_id} Gap ${g.id} unchanged status but status_reason altered`);
+        }
+        
+        const gSources = new Set(g.status_source_ids || []);
+        const parentSources = new Set(parentGap.status_source_ids || []);
+        const setsMatch = (a: Set<string>, b: Set<string>) => a.size === b.size && [...a].every(v => b.has(v));
+        if (!setsMatch(gSources, parentSources)) {
+           errors.push(`Revision ${rev.revision_id} Gap ${g.id} unchanged status but status_source_ids altered`);
+        }
+        if (parentGap.status_source_ids === undefined && g.status_source_ids !== undefined) {
+           errors.push(`Revision ${rev.revision_id} Gap ${g.id} unchanged initially open gap artificially added transition metadata`);
         }
       }
 

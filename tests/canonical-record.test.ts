@@ -488,10 +488,86 @@ describe('Canonical Record Invariants', () => {
     
     // 11. missing transition event
     errors = runTest({ ...rValidResolve, events: [...record.revisions[0].events] });
-    expect(errors).toContain("Revision R02 Gap G01 changed status but lacks a corresponding structured transition event");
+    expect(errors).toContain("Revision R02 Gap G01 changed status but has 0 transition events");
+    
+    // 12. duplicate events with the same transition tuple
+    errors = runTest({ ...rValidResolve, events: [...rValidResolve.events, { ...validTransitionEvent, id: "EV99" as EventId }] });
+    expect(errors).toContain("Revision R02 Gap G01 changed status but has 2 transition events");
+
+    // 13. extra event with mismatched sources
+    errors = runTest({ ...rValidResolve, events: [...rValidResolve.events, { ...validTransitionEvent, id: "EV99" as EventId, gap_transition: { ...validTransitionEvent.gap_transition, source_ids: ["U02" as StatementId] } }] });
+    expect(errors).toContain("Revision R02 Gap G01 changed status but has 2 transition events");
+
+    // 14. extra event with an additional source
+    errors = runTest({ ...rValidResolve, events: [...rValidResolve.events, { ...validTransitionEvent, id: "EV99" as EventId, gap_transition: { ...validTransitionEvent.gap_transition, source_ids: ["U01" as StatementId, "U02" as StatementId] } }] });
+    expect(errors).toContain("Revision R02 Gap G01 changed status but has 2 transition events");
+
+    // 15. extra event with a missing source
+    errors = runTest({ ...rValidResolve, events: [...rValidResolve.events, { ...validTransitionEvent, id: "EV99" as EventId, gap_transition: { ...validTransitionEvent.gap_transition, source_ids: [] } }] });
+    expect(errors).toContain("Revision R02 Gap G01 changed status but has 2 transition events");
+
+    // 16. second gap_transition event referencing the same gap but with a conflicting previous_status or resulting_status
+    errors = runTest({ ...rValidResolve, events: [...rValidResolve.events, { ...validTransitionEvent, id: "EV99" as EventId, gap_transition: { ...validTransitionEvent.gap_transition, resulting_status: "open" } }] });
+    expect(errors).toContain("Revision R02 Gap G01 changed status but has 2 transition events");
     
     // valid resolve passes
     expect(runTest(rValidResolve)).toHaveLength(0);
+  });
+
+  it('strict carry-forward for unchanged gaps', () => {
+    const record = createValidBaseline();
+    
+    const rValidResolve: CaseRevision = { 
+      ...record.revisions[0], 
+      revision_id: "R02", 
+      parent_revision_id: "R01", 
+      gaps: [{ ...record.revisions[0].gaps[0], status: "resolved", status_revision_id: "R02", status_reason: "reason", status_source_ids: ["U01"] }],
+      delta: { changes: [{ entity_type: "gap", entity_id: "G01", operation: "resolved", reason: "res", source_ids: ["U01"] }] },
+      events: [...record.revisions[0].events, {
+        id: "EV2" as EventId, time: "2023-01-01", actor: "Actor", action: "resolved", target: "G01", evidence_ids: [], assessment: "Established within current record",
+        gap_transition: { gap_id: "G01" as GapId, previous_status: "open", resulting_status: "resolved", transition_revision_id: "R02", source_ids: ["U01"] }
+      }] 
+    };
+
+    const runCarryForward = (gaps: CaseRevision['gaps'], parentRev: CaseRevision) => {
+      const parentRevs = parentRev.revision_id === record.revisions[0].revision_id ? [] : [parentRev];
+      const rec = { ...record, revisions: [...record.revisions, ...parentRevs, { ...parentRev, revision_id: "R03", parent_revision_id: parentRev.revision_id, gaps, delta: { changes: [] }, events: [] }] };
+      return validateCanonicalRecord(rec as CanonicalCaseRecord);
+    };
+
+    // 1. Carried-forward resolved identity
+    let errors = runCarryForward(rValidResolve.gaps, rValidResolve);
+    if (errors.length > 0) console.log("Test 1 Errors: ", errors);
+    expect(errors).toHaveLength(0);
+
+    // 2. Initially open carry-forward without metadata
+    errors = runCarryForward(record.revisions[0].gaps, record.revisions[0]);
+    if (errors.length > 0) console.log("Test 2 Errors: ", errors);
+    expect(errors).toHaveLength(0);
+
+    // 3. Newly introduced status_revision_id on an unchanged gap
+    errors = runCarryForward([{ ...record.revisions[0].gaps[0], status_revision_id: "R03" as RevisionId, status_reason: "reason", status_source_ids: ["U01"] }], record.revisions[0]);
+    expect(errors).toContain("Revision R03 Gap G01 unchanged initially open gap artificially added transition metadata");
+
+    // 4. Changed existing status_revision_id on an unchanged resolved gap
+    errors = runCarryForward([{ ...rValidResolve.gaps[0], status_revision_id: "R03" as RevisionId }], rValidResolve);
+    expect(errors).toContain("Revision R03 Gap G01 unchanged status but status_revision_id altered from R02 to R03");
+
+    // 5. Rewritten status_reason
+    errors = runCarryForward([{ ...rValidResolve.gaps[0], status_reason: "new reason" }], rValidResolve);
+    expect(errors).toContain("Revision R03 Gap G01 unchanged status but status_reason altered");
+
+    // 6. Cleared status_reason
+    errors = runCarryForward([{ ...rValidResolve.gaps[0], status_reason: undefined }], rValidResolve);
+    expect(errors).toContain("Revision R03 Gap G01 unchanged status but status_reason altered");
+
+    // 7. Rewritten status_source_ids
+    errors = runCarryForward([{ ...rValidResolve.gaps[0], status_source_ids: ["U02"] }], rValidResolve);
+    expect(errors).toContain("Revision R03 Gap G01 unchanged status but status_source_ids altered");
+
+    // 8. Cleared or missing status_source_ids
+    errors = runCarryForward([{ ...rValidResolve.gaps[0], status_source_ids: undefined }], rValidResolve);
+    expect(errors).toContain("Revision R03 Gap G01 unchanged status but status_source_ids altered");
   });
 
   it('projector uses the requested/current revision, excludes future state, rejects missing revisions, does not mutate input and returns deeply frozen data', () => {
