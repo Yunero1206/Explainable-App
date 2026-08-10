@@ -23,11 +23,15 @@ export function TestModeBanner({
   const [copied, setCopied] = useState(false);
 
   // Production safety: hide in production build
-  if ((import.meta as any).env?.PROD || process.env.NODE_ENV === 'production') {
+  const isProd = typeof process !== 'undefined' && process.env.NODE_ENV === 'production';
+  const meta = import.meta as { env?: { PROD?: boolean } };
+  const isViteProd = typeof meta !== 'undefined' && !!meta.env?.PROD;
+  if (isProd || isViteProd) {
     return null;
   }
 
-  const turns = (quickbiteFixture as any).turns || [];
+  const fixtureObj = quickbiteFixture as { turns?: { input_match?: string; output?: unknown }[] };
+  const turns = Array.isArray(fixtureObj.turns) ? fixtureObj.turns : [];
   const totalTurns = turns.length;
   const isSequenceComplete = turnCount >= totalTurns;
 

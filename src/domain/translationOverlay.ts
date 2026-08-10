@@ -36,6 +36,67 @@ export function getTranslationKey(caseId: string, revisionId: string, locale: st
   return `${caseId}_${revisionId}_${locale}`;
 }
 
+/**
+ * Parse and validate a raw translation response.
+ * Returns a validated TranslationOverlay or null if parsing fails.
+ */
+export function parseTranslationResponse(rawResponse: unknown): TranslationOverlay | null {
+  if (typeof rawResponse !== 'object' || rawResponse === null) return null;
+
+  const envelope = rawResponse as Record<string, unknown>;
+  if (envelope.success !== true) return null;
+
+  const overlayCandidate: Record<string, unknown> = {};
+  if (typeof envelope.title === 'string') overlayCandidate.title = envelope.title;
+  if (typeof envelope.objective === 'string') overlayCandidate.objective = envelope.objective;
+  if (Array.isArray(envelope.events)) overlayCandidate.events = envelope.events;
+  if (Array.isArray(envelope.claims)) overlayCandidate.claims = envelope.claims;
+  if (Array.isArray(envelope.gaps)) overlayCandidate.gaps = envelope.gaps;
+  if (Array.isArray(envelope.actions)) overlayCandidate.actions = envelope.actions;
+
+  const result = TranslationOverlaySchema.safeParse(overlayCandidate);
+  if (!result.success) return null;
+
+  return result.data;
+}
+
+/**
+ * Validate that a translation overlay is still applicable to the current request.
+ * Rejects stale overlays where case/revision/locale have changed since the request.
+ */
+export function isOverlayStale(
+  overlayKey: string,
+  currentCaseId: string,
+  currentRevisionId: string,
+  currentLocale: string
+): boolean {
+  const expectedKey = getTranslationKey(currentCaseId, currentRevisionId, currentLocale);
+  return overlayKey !== expectedKey;
+}
+
+/**
+ * Validate overlay IDs against the requested projection's known entity IDs.
+ * Filters out overlay entries whose IDs don't match the projection (unknown/mismatched).
+ */
+export function filterOverlayToProjection(
+  overlay: TranslationOverlay,
+  projectionIds: {
+    eventIds: Set<string>;
+    claimIds: Set<string>;
+    gapIds: Set<string>;
+    actionIds: Set<string>;
+  }
+): TranslationOverlay {
+  return {
+    title: overlay.title,
+    objective: overlay.objective,
+    events: overlay.events?.filter(e => projectionIds.eventIds.has(e.id)),
+    claims: overlay.claims?.filter(c => projectionIds.claimIds.has(c.id)),
+    gaps: overlay.gaps?.filter(g => projectionIds.gapIds.has(g.id)),
+    actions: overlay.actions?.filter(a => projectionIds.actionIds.has(a.id)),
+  };
+}
+
 export function applyTranslationOverlay(
   projection: PresentationCaseData,
   overlay: TranslationOverlay | undefined

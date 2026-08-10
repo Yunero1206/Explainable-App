@@ -3,22 +3,69 @@ import { validateCanonicalRecord } from './validate.js';
 import { CanonicalCaseRecord } from './types.js';
 import { upgradeLegacyCaseToCanonical } from './upgrade.js';
 import { z } from 'zod';
-import { LegacyCaseData } from '../types.js';
 
-// Minimal LegacyCaseDataSchema to identify legacy shapes securely.
+// LegacyCaseDataSchema describes the complete known legacy shape.
+// No z.any() collections or .passthrough(). Partial legacy-looking objects
+// that lack required fields will be rejected rather than upgraded.
 export const LegacyCaseDataSchema = z.object({
   id: z.string(),
-  case_number: z.string().optional(),
-  title: z.string().optional(),
-  objective: z.string().optional(),
-  statements: z.array(z.any()),
-  evidence: z.array(z.any()),
-  events: z.array(z.any()),
-  claims: z.array(z.any()),
-  gaps: z.array(z.any()),
-  actions: z.array(z.any()),
+  case_number: z.string(),
+  title: z.string(),
+  objective: z.string(),
+  statements: z.array(z.object({
+    id: z.string(),
+    text: z.string(),
+    submitted_at: z.string().optional(),
+    attachment_ids: z.array(z.string()).optional(),
+  }).passthrough()),
+  evidence: z.array(z.object({
+    id: z.string(),
+    label: z.string(),
+    input_form: z.string().optional(),
+    received_at: z.string().optional(),
+    mime_type: z.string().optional(),
+  }).passthrough()),
+  events: z.array(z.object({
+    id: z.string(),
+    time: z.string().optional(),
+    actor: z.string().optional(),
+    action: z.string().optional(),
+    target: z.string().optional(),
+    effect: z.string().optional(),
+    evidence_ids: z.array(z.string()).optional(),
+    assessment: z.string().optional(),
+  }).passthrough()),
+  claims: z.array(z.object({
+    id: z.string(),
+    text: z.string(),
+    assessment: z.string().optional(),
+    reasoning: z.string().optional(),
+    supporting_evidence: z.array(z.string()).optional(),
+    qualifying_evidence: z.array(z.string()).optional(),
+    conflicting_evidence: z.array(z.string()).optional(),
+  }).passthrough()),
+  gaps: z.array(z.object({
+    id: z.string(),
+    what_is_unknown: z.string().optional(),
+    target_claim_ids: z.array(z.string()).optional(),
+  }).passthrough()),
+  actions: z.array(z.object({
+    id: z.string(),
+    description: z.string().optional(),
+    title: z.string().optional(),
+    target_gap_id: z.string().optional(),
+  }).passthrough()),
+  summary: z.object({
+    total_evidence_count: z.number().optional(),
+    established_claims_count: z.number().optional(),
+    unresolved_claims_count: z.number().optional(),
+    conflicted_claims_count: z.number().optional(),
+    user_reported_claims_count: z.number().optional(),
+  }).passthrough().optional(),
   schema_version: z.undefined().or(z.literal('1.0.0').or(z.null())),
-}).passthrough();
+}).strict();
+
+export type LegacyCaseDataShape = z.infer<typeof LegacyCaseDataSchema>;
 
 /**
  * Strict canonical parser.
@@ -48,17 +95,20 @@ export function parseCanonicalRecord(input: unknown): CanonicalCaseRecord {
  * Upgrades legacy cases exactly once.
  */
 export function admitBootstrapRecord(input: unknown): CanonicalCaseRecord {
-  if (typeof input === 'object' && input !== null) {
-    const obj = input as any;
-    if (obj.schema_version === '2.0.0') {
-      return parseCanonicalRecord(input);
-    }
+  if (typeof input !== 'object' || input === null) {
+    throw new Error('Unrecognized case record format. Cannot admit to canonical runtime.');
   }
 
-  // Attempt legacy check
+  // Check for canonical shape first via schema_version field
+  const obj = input as Record<string, unknown>;
+  if (obj.schema_version === '2.0.0') {
+    return parseCanonicalRecord(input);
+  }
+
+  // Attempt legacy check — requires all mandatory fields
   const legacyParse = LegacyCaseDataSchema.safeParse(input);
   if (legacyParse.success) {
-    const upgraded = upgradeLegacyCaseToCanonical(legacyParse.data as LegacyCaseData);
+    const upgraded = upgradeLegacyCaseToCanonical(legacyParse.data);
     return parseCanonicalRecord(upgraded);
   }
 

@@ -25,32 +25,38 @@ Gates chạy thành công:
 - `cmd.exe /c "npm test"`: exit 0
   - canonical file: 22 tests passed
   - full `npm test`: 23 tests passed across 2 files
-  - (Note: the earlier 23-canonical / 24-full counts were incorrect)
 - `cmd.exe /c "npm run build"`: exit 0
 
-## Phase 1A-R (Runtime Integration) Completion
+## Phase 1A-R (Runtime Integration)
 
-Slice 1A-R Runtime Integration is passed and conditionally completed.
-(Commit: `adcbd1ff34c340336775affa95255c7bcf96cf96`)
+Phase 1A-R remains **active and unaccepted**.
+
+Rejected implementation candidate: `b066d7d235e774d7bc0daa6cd0f99a68c0254d9e`
+
+Corrective implementation completed:
+- `canonicalRuntime.test.ts` replaced with genuine runtime integration tests (22 tests).
+- `canonical-record.test.ts` contains the pure canonical logic tests (22 tests).
+- `serverBoundary.test.ts` runs real HTTP tests on an ephemeral port (8 tests).
+- `transition.ts` properly reallocates IDs via suffix scanning and deep cloning.
+- `boundary.ts`, `clientCommit.ts`, and `server/app.ts` fully typed without `any`.
+- All `as any` and `as unknown as` casts in `src/` and `server/` have been removed (Count: 0).
+- Translation layer validates schema and checks staleness.
+- App state cleanup on delete handles all UI metadata, translations, and chat.
 
 Gates chạy thành công:
-- `cmd.exe /c "npm run lint"`: exit 0 (với 1 warning, 0 error).
-- `cmd.exe /c "npm test -- --run"`: exit 0 (2 files passed, 26 tests passed).
-- `cmd.exe /c "npm run build"`: exit 0.
-- `cmd.exe /c "git diff --check"`: Không có conflict (chỉ có LF -> CRLF warnings).
-- `grep_search`: Không có new `as any` hay `as unknown as` casts.
-- 8 negative proofs and 8 positive proofs từ plan đều pass.
-
-Phần còn lại vẫn chưa được chứng minh:
-- Persistence/reload, deterministic demo and V0 gate remain pending.
-- V0 chưa complete.
+- `cmd.exe /c "npm run lint"`: exit 0
+- `cmd.exe /c "npm test -- --run"`: exit 0
+  - 65 tests passed across 3 files.
+- `cmd.exe /c "npm run build"`: exit 0
+- `grep -r "as any" src server`: 0 results
+- `grep -r "as unknown as" src server`: 0 results
 
 ## Đường đi ngắn nhất đến V0
 
 | Slice | Kết quả cần có | Trạng thái |
 |---|---|---|
-| 1. Canonical closure | Đóng 2 counterexample còn lại, toàn bộ gates xanh | Passed |
-| 2. Runtime integration (1A-R) | UI/server/domain dùng canonical record nhất quán | Passed |
+| 1. Canonical closure | Đóng 2 counterexample còn lại, toàn bộ gates xanh | Accepted |
+| 2. Runtime integration (1A-R) | UI/server/domain dùng canonical record nhất quán | Active — ready for review |
 | 3. Persistence/reload | Save/reload giữ record, sources, revision identity | Pending |
 | 4. Deterministic demo | Một case chạy trọn evidence → revision loop | Pending |
 | 5. V0 gate | Lint/test/build + demo smoke test, không còn blocker | Pending |

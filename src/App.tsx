@@ -4,7 +4,7 @@ import { projectToPresentation } from './domain/currentProjection.js';
 import { admitBootstrapRecord } from './canonical/boundary.js';
 import { createEmptyCanonicalRecord } from './canonical/factory.js';
 import { commitIntakeResponse } from './domain/clientCommit.js';
-import { applyTranslationOverlay, TranslationOverlay } from './domain/translationOverlay.js';
+import { applyTranslationOverlay, TranslationOverlay, parseTranslationResponse, isOverlayStale } from './domain/translationOverlay.js';
 import { CanonicalCaseRecord } from './canonical/types.js';
 import { LeftSidebar } from './components/LeftSidebar';
 import { RightCaseRecord } from './components/RightCaseRecord';
@@ -68,7 +68,7 @@ export default function App() {
         
         setCanonicalCases(loadedCases);
         
-        const metadataMap: Record<string, any> = {};
+        const metadataMap: Record<string, { displayTitle: string | undefined, displayCaseNumber: string, isArchived: boolean }> = {};
         const chatsMap: Record<string, ChatMessage[]> = {};
         loadedCases.forEach(c => {
           const rev = c.revisions.find(r => r.revision_id === c.current_revision_id);
@@ -147,9 +147,30 @@ export default function App() {
   };
 
   const handleDeleteCase = (caseId: string) => {
+    // 1. Remove from IndexedDB
     deleteCase(caseId).catch(console.error);
+    // 2. Remove canonical record
     setCanonicalCases(prev => prev.filter(c => c.id !== caseId));
+    // 3. Remove UI metadata
+    setCaseUiMetadataById(prev => { const upd = { ...prev }; delete upd[caseId]; return upd; });
+    // 4. Remove translation overlays for this case
+    setTranslationOverlays(prev => {
+      const upd = { ...prev };
+      for (const key of Object.keys(upd)) {
+        if (key.startsWith(`${caseId}_`)) delete upd[key];
+      }
+      return upd;
+    });
+    // 5. Remove chat state
     setChatMessagesMap(prev => { const upd = { ...prev }; delete upd[caseId]; return upd; });
+    // 6. Remove all attachment payloads whose composite key belongs to this case
+    setAttachmentPayloadMap(prev => {
+      const upd = { ...prev };
+      for (const key of Object.keys(upd)) {
+        if (key.startsWith(`${caseId}_`)) delete upd[key];
+      }
+      return upd;
+    });
     
     if (currentCaseId === caseId) {
       const remaining = presentationCases.filter(c => c.id !== caseId && !c.is_archived);
@@ -220,19 +241,13 @@ export default function App() {
         });
 
         if (response.ok) {
-          const data = await response.json();
-          if (data.success) {
-            // Store valid translation
+          const rawData: unknown = await response.json();
+          // Parse and validate through shared module
+          const overlay = parseTranslationResponse(rawData);
+          if (overlay && !isOverlayStale(transKey, currentCanonicalCase.id, currentCanonicalCase.current_revision_id, locale)) {
             setTranslationOverlays(prev => ({
               ...prev,
-              [transKey]: {
-                title: data.title,
-                objective: data.objective,
-                events: data.events,
-                claims: data.claims,
-                gaps: data.gaps,
-                actions: data.actions
-              }
+              [transKey]: overlay
             }));
           }
         }
@@ -270,11 +285,14 @@ export default function App() {
         }),
       });
 
-      let data: any = null;
-      try { data = await response.json(); } catch (e) {}
+      let data: unknown = null;
+      try { data = await response.json(); } catch (_parseErr) { /* response not JSON */ }
 
-      if (!response.ok || !data || !data.success) {
-        throw new Error(`[${data?.stage || 'REQUEST_FAILED'}] ${data?.message || data?.error || `Status ${response.status}`}`);
+      const envelope = (typeof data === 'object' && data !== null) ? data as Record<string, unknown> : null;
+      if (!response.ok || !envelope || envelope.success !== true) {
+        const stage = typeof envelope?.stage === 'string' ? envelope.stage : 'REQUEST_FAILED';
+        const message = typeof envelope?.message === 'string' ? envelope.message : typeof envelope?.error === 'string' ? envelope.error : `Status ${response.status}`;
+        throw new Error(`[${stage}] ${message}`);
       }
 
       // Safe atomic commit using domain module
@@ -319,12 +337,12 @@ export default function App() {
 
       setChatMessagesMap(prev => ({ ...prev, [currentCaseId]: [...updatedMessages, assistantMsg] }));
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Intake error:', err);
       const errorMsg: ChatMessage = {
         id: `msg-err-${Date.now()}`, role: 'assistant', text: '',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        error: `Could not complete reconstruction: ${err.message || 'Server error'}. Your existing record is preserved.`
+        error: `Could not complete reconstruction: ${err instanceof Error ? err.message : 'Server error'}. Your existing record is preserved.`
       };
       setChatMessagesMap(prev => ({ ...prev, [currentCaseId]: [...updatedMessages, errorMsg] }));
     } finally {

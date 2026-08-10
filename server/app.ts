@@ -2,8 +2,15 @@ import express from 'express';
 import { parseCanonicalRecord } from '../src/canonical/boundary.js';
 import { CanonicalCaseRecord } from '../src/canonical/types.js';
 
+interface IntakePayload {
+  message?: string;
+  attachments?: unknown[];
+  locale?: string;
+  dev_inference_mode?: string;
+}
+
 interface AppDependencies {
-  runIntakeTransition: (priorRecord: CanonicalCaseRecord, intakePayload: any, inferenceMode?: string) => Promise<CanonicalCaseRecord>;
+  runIntakeTransition: (priorRecord: CanonicalCaseRecord, intakePayload: IntakePayload, inferenceMode?: string) => Promise<CanonicalCaseRecord>;
 }
 
 export function createApp(deps: AppDependencies) {
@@ -16,7 +23,8 @@ export function createApp(deps: AppDependencies) {
     try {
       const isProd = process.env.NODE_ENV === 'production';
       const headerMode = (req.headers['x-et-dev-inference-mode'] as string)?.toLowerCase();
-      const bodyMode = req.body?.dev_inference_mode?.toLowerCase();
+      const body = req.body as Record<string, unknown>;
+      const bodyMode = typeof body?.dev_inference_mode === 'string' ? body.dev_inference_mode.toLowerCase() : undefined;
       const requestedMode = headerMode || bodyMode || 'live';
       
       if (isProd && requestedMode === 'replay') {
@@ -24,17 +32,23 @@ export function createApp(deps: AppDependencies) {
       }
 
       const inferenceMode = requestedMode === 'replay' ? 'replay' : 'live';
-      const { prior_record, ...intakePayload } = req.body;
+      const { prior_record, ...intakePayload } = body;
 
       if (!prior_record) {
         return res.status(400).json({ error: 'RECONSTRUCTION_FAILED', stage: 'MISSING_PRIOR_RECORD', message: 'A prior canonical record is required.' });
       }
 
-      // 1. Strict validation of prior record
+      // 1. Strict validation of prior record — rejects legacy/presentation objects
       const parsedPriorRecord = parseCanonicalRecord(prior_record);
 
-      // 2. Invoke injected dependency
-      const nextRecord = await deps.runIntakeTransition(parsedPriorRecord, intakePayload, inferenceMode);
+      // 2. Invoke injected dependency with typed payload
+      const typedPayload: IntakePayload = {
+        message: typeof intakePayload.message === 'string' ? intakePayload.message : undefined,
+        attachments: Array.isArray(intakePayload.attachments) ? intakePayload.attachments : undefined,
+        locale: typeof intakePayload.locale === 'string' ? intakePayload.locale : undefined,
+        dev_inference_mode: typeof intakePayload.dev_inference_mode === 'string' ? intakePayload.dev_inference_mode : undefined,
+      };
+      const nextRecord = await deps.runIntakeTransition(parsedPriorRecord, typedPayload, inferenceMode);
 
       // 3. Strict validation of the result
       const parsedNextRecord = parseCanonicalRecord(nextRecord);
@@ -43,14 +57,15 @@ export function createApp(deps: AppDependencies) {
         success: true,
         case: parsedNextRecord
       });
-    } catch (error: any) {
-      const stage = error.stage || 'REQUEST_FAILED';
+    } catch (error: unknown) {
+      const stage = (error instanceof Error && 'stage' in error) ? (error as { stage: string }).stage : 'REQUEST_FAILED';
+      const message = error instanceof Error ? error.message : 'Intake processing failed.';
       console.error(`Error in /api/intake [${stage}]:`, error);
-      const statusCode = (stage === 'REPLAY_MISMATCH' || stage === 'VALIDATION_FAILED') ? 400 : 500;
+      const statusCode = (stage === 'REPLAY_MISMATCH' || stage === 'VALIDATION_FAILED' || stage === 'TRANSITION_VALIDATION_FAILED') ? 400 : 500;
       return res.status(statusCode).json({
         error: 'RECONSTRUCTION_FAILED',
         stage,
-        message: error.message || 'Intake processing failed.',
+        message,
       });
     }
   });
@@ -58,7 +73,14 @@ export function createApp(deps: AppDependencies) {
   app.post('/api/translate-case', async (req, res) => {
     // Basic translation proxy for the PresentationCaseData overlay
     try {
-      const { events = [], claims = [], gaps = [], actions = [], title = '', objective = '', locale = 'en' } = req.body;
+      const body = req.body as Record<string, unknown>;
+      const events = Array.isArray(body.events) ? body.events : [];
+      const claims = Array.isArray(body.claims) ? body.claims : [];
+      const gaps = Array.isArray(body.gaps) ? body.gaps : [];
+      const actions = Array.isArray(body.actions) ? body.actions : [];
+      const title = typeof body.title === 'string' ? body.title : '';
+      const objective = typeof body.objective === 'string' ? body.objective : '';
+      const locale = typeof body.locale === 'string' ? body.locale : 'en';
       
       const { GoogleGenAI } = await import('@google/genai');
       const apiKey = process.env.GEMINI_API_KEY;
@@ -82,10 +104,14 @@ ACTIONS: ${JSON.stringify(actions, null, 2)}
       });
       
       if (!response?.text) throw new Error('Empty response');
-      const translatedData = JSON.parse(response.text.trim());
+      const translatedData: unknown = JSON.parse(response.text.trim());
       
-      return res.json({ success: true, ...translatedData });
-    } catch (error: any) {
+      if (typeof translatedData !== 'object' || translatedData === null) {
+        throw new Error('Invalid translation response');
+      }
+      
+      return res.json({ success: true, ...(translatedData as Record<string, unknown>) });
+    } catch (error: unknown) {
       console.error('Translation failed:', error);
       return res.json({ success: false, ...req.body }); // fallback
     }

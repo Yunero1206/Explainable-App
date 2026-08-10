@@ -31,7 +31,8 @@ export async function runReconstructionProvider(
   const runtimeInfo = getInferenceRuntimeInfo(mode);
 
   if (mode === 'replay') {
-    const turns = (quickbiteFixture as any).turns || [];
+    const fixtureObj = quickbiteFixture as { turns?: { input_match?: string; output?: unknown }[] };
+    const turns = Array.isArray(fixtureObj.turns) ? fixtureObj.turns : [];
 
     const normalizeText = (str: string): string => {
       return (str || '')

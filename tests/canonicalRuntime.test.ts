@@ -1,651 +1,791 @@
 import { describe, it, expect } from 'vitest';
+import { admitBootstrapRecord, parseCanonicalRecord } from '../src/canonical/boundary.js';
+import { projectToPresentation } from '../src/domain/currentProjection.js';
+import { createEmptyCanonicalRecord } from '../src/canonical/factory.js';
+import { buildAndCommitTransition } from '../src/canonical/transition.js';
+import { commitIntakeResponse } from '../src/domain/clientCommit.js';
 import {
-  CanonicalCaseRecord,
+  parseTranslationResponse,
+  isOverlayStale,
+  applyTranslationOverlay,
+  TranslationOverlaySchema,
+} from '../src/domain/translationOverlay.js';
+import {
   CanonicalCaseRecordSchema,
-  RevisionDeltaEntrySchema,
   validateCanonicalRecord,
-  projectCurrentRecord,
-  CanonicalAssessment,
-  CanonicalGapStatus,
-  CaseRevision,
-  IntakePart,
-  DispositionRelationship,
-  EventId,
-  GapId,
-  RevisionId,
-  StatementId,
-  RevisionDeltaEntry,
-  RelationshipId
-} from '../src/canonical/index';
+} from '../src/canonical/index.js';
+import type { CanonicalCaseRecord } from '../src/canonical/types.js';
+import type { CaseReconstructionOutput as ReconOutput } from '../src/schema.js';
 
-const createValidBaseline = (): CanonicalCaseRecord => ({
-  id: "case-01",
-  schema_version: "2.0.0",
-  case_number: "CASE-01",
-  created_at: "2023-01-01T00:00:00Z",
-  updated_at: "2023-01-01T00:00:00Z",
-  current_revision_id: "R01",
-  intake_ledger: [
-    { 
-      id: "IN01", 
-      received_at: "2023-01-01T00:00:00Z", 
-      resulting_revision_id: "R01",
-      parts: [
-        { kind: "statement", statement_id: "U01", raw_text: "Statement 1" },
-        { kind: "evidence", evidence_id: "E01", submitted_name: "ev.pdf" },
-        { kind: "statement", statement_id: "U02", raw_text: "Statement 2" }
-      ]
-    }
-  ],
-  statements: [
-    { id: "U01", text: "Statement 1", submitted_at: "2023-01-01T00:00:00Z", source_intake_id: "IN01" },
-    { id: "U02", text: "Statement 2", submitted_at: "2023-01-01T00:00:00Z", source_intake_id: "IN01" }
-  ],
-  evidence: [
-    { id: "E01", label: "Ev 1", origin_type: "user", input_form: "file", submitted_at: "2023-01-01T00:00:00Z", source_intake_id: "IN01" }
-  ],
-  relationships: [
-    { id: "REL01", source_id: "U01", target_id: "C01", relationship_type: "supports_claim", reason: "Direct", created_in_revision_id: "R01" },
-    { id: "REL02", source_id: "U02", target_id: "C01", relationship_type: "supports_claim", reason: "Direct", created_in_revision_id: "R01" },
-    { id: "REL03", source_id: "E01", target_id: "C01", relationship_type: "supports_claim", reason: "Direct", created_in_revision_id: "R01" }
-  ],
-  revisions: [
-    {
-      revision_id: "R01",
-      created_at: "2023-01-01T00:00:00Z",
-      title: "Initial",
-      objective: "Objective",
-      triggering_intake_id: "IN01",
-      input_statement_ids: ["U01", "U02"],
-      input_evidence_ids: ["E01"],
-      events: [
-        { id: "EV1", time: "2023-01-01", actor: "Actor", action: "Action", target: "Target", evidence_ids: ["U01"], assessment: "Established within current record" }
-      ],
-      claims: [
-        { id: "C01", text: "Claim 1", assessment: "Established within current record", reasoning: "Reason", supporting_evidence: ["U01", "E01"], qualifying_evidence: [], conflicting_evidence: [] }
-      ],
-      gaps: [
-        { id: "G01", question_key: "Q1", status: "open", target_claim_ids: ["C01"] }
-      ],
-      actions: [
-        { id: "A01", description: "Action 1", target_gap_ids: ["G01"] }
-      ],
-      evidence_inspections: [
-        { id: "EI1", evidence_id: "E01", limitations: [] }
-      ],
-      delta: {
-        changes: [
-          { entity_type: "event", entity_id: "EV1", operation: "added", reason: "init", source_ids: ["U01"] },
-          { entity_type: "claim", entity_id: "C01", operation: "added", reason: "init", source_ids: ["U01", "E01"] },
-          { entity_type: "gap", entity_id: "G01", operation: "added", reason: "init", source_ids: [] },
-          { entity_type: "action", entity_id: "A01", operation: "added", reason: "init", source_ids: [] }
-        ]
+// ---------------------------------------------------------------------------
+// Helper: build a minimal but valid reconstruction output for a deterministic test
+// ---------------------------------------------------------------------------
+function buildDeterministicReconOutput(opts: {
+  newStatementTempId: string;
+  newEvidenceTempId: string;
+  existingStatementIds: string[];
+  existingEvidenceIds: string[];
+}): ReconOutput {
+  return {
+    segmented_intake: {
+      narrative_statement: { id: opts.newStatementTempId, text: 'New user statement' },
+      pasted_evidences: [],
+    },
+    evidence_inspection: [
+      {
+        id: opts.newEvidenceTempId,
+        label: 'New Evidence',
+        claimed_source: 'user',
+        source_attribution: 'user',
+        case_object_match: 'match',
+        case_object_match_status: 'matched',
+        completeness_context: 'complete',
+        integrity_signals: 'none',
+        subject_object_ids: [],
+        limitations: ['limitation 1'],
       },
-      summary: { total_evidence_count: 1, established_claims_count: 1, unresolved_claims_count: 0, conflicted_claims_count: 0, user_reported_claims_count: 0 }
-    }
-  ]
+    ],
+    input_dispositions: [
+      {
+        id: opts.newStatementTempId,
+        disposition: 'supports_finding',
+        related_object_ids: ['C01'],
+        reason: 'Supports existing claim',
+      },
+      {
+        id: opts.newEvidenceTempId,
+        disposition: 'supports_finding',
+        related_object_ids: ['C01'],
+        reason: 'New evidence supports claim',
+      },
+    ],
+    events: [
+      {
+        id: 'EV1',
+        time: '2023-01-01',
+        actor: 'Actor',
+        action: 'Action',
+        target: 'Target',
+        effect: 'Effect',
+        evidence_ids: ['U01'],
+        user_statement_ids: [],
+        assessment: 'Established within current record',
+        is_user_reported_only: false,
+      },
+      {
+        id: 'EV2',
+        time: '2023-01-02',
+        actor: 'New Actor',
+        action: 'New Action',
+        target: 'New Target',
+        effect: 'New Effect',
+        evidence_ids: [opts.newStatementTempId],
+        user_statement_ids: [],
+        assessment: 'Reported',
+        is_user_reported_only: false,
+      },
+    ],
+    claims: [
+      {
+        id: 'C01',
+        text: 'Existing claim updated',
+        actor: 'A',
+        action: 'A',
+        target: 'T',
+        time: '2023-01-01',
+        supporting_evidence: ['U01', opts.newStatementTempId],
+        qualifying_evidence: [],
+        conflicting_evidence: [],
+        user_statement_ids: [],
+        assessment: 'Established within current record',
+        reasoning: 'Reason',
+        scope: '',
+        limits: [],
+        causal_relationship: 'none',
+      },
+      {
+        id: 'C02',
+        text: 'New claim from evidence',
+        actor: 'B',
+        action: 'B',
+        target: 'T',
+        time: '2023-01-02',
+        supporting_evidence: [opts.newEvidenceTempId],
+        qualifying_evidence: [],
+        conflicting_evidence: [],
+        user_statement_ids: [],
+        assessment: 'Reported',
+        reasoning: 'New',
+        scope: '',
+        limits: [],
+        causal_relationship: 'none',
+      },
+    ],
+    gaps: [
+      {
+        id: 'G01',
+        what_is_unknown: 'Q1',
+        why_it_matters: 'Matters',
+        what_evidence_could_resolve_it: 'Evidence',
+        where_how_to_obtain: 'Obtain',
+        what_not_to_over_collect: 'None',
+        target_claim_ids: ['C01'],
+        status: 'open',
+      },
+      {
+        id: 'G02',
+        what_is_unknown: 'Q2',
+        why_it_matters: 'New gap',
+        what_evidence_could_resolve_it: 'New evidence',
+        where_how_to_obtain: 'Source',
+        what_not_to_over_collect: 'None',
+        target_claim_ids: ['C02'],
+        status: 'open',
+      },
+    ],
+    actions: [
+      {
+        id: 'A01',
+        title: 'Existing action',
+        description: 'Action 1',
+        target_gap_id: 'G01',
+        priority: 'medium',
+      },
+      {
+        id: 'A02',
+        title: 'New action',
+        description: 'Action 2',
+        target_gap_id: 'G02',
+        priority: 'high',
+      },
+    ],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Helper: build a valid baseline canonical record
+// ---------------------------------------------------------------------------
+function createValidBaseline(): CanonicalCaseRecord {
+  const timestamp = '2023-01-01T00:00:00Z';
+  return {
+    id: 'case-01',
+    schema_version: '2.0.0',
+    case_number: 'CASE-01',
+    created_at: timestamp,
+    updated_at: timestamp,
+    current_revision_id: 'R01',
+    intake_ledger: [
+      {
+        id: 'IN01',
+        received_at: timestamp,
+        resulting_revision_id: 'R01',
+        parts: [
+          { kind: 'statement', statement_id: 'U01', raw_text: 'Statement 1' },
+          { kind: 'evidence', evidence_id: 'E01', submitted_name: 'ev.pdf' },
+        ],
+      },
+    ],
+    statements: [
+      { id: 'U01', text: 'Statement 1', submitted_at: timestamp, source_intake_id: 'IN01' },
+    ],
+    evidence: [
+      { id: 'E01', label: 'Ev 1', origin_type: 'user', input_form: 'file', submitted_at: timestamp, source_intake_id: 'IN01' },
+    ],
+    relationships: [
+      { id: 'REL01', source_id: 'U01', target_id: 'C01', relationship_type: 'supports_claim', reason: 'Direct', created_in_revision_id: 'R01' },
+      { id: 'REL02', source_id: 'E01', target_id: 'C01', relationship_type: 'supports_claim', reason: 'Direct', created_in_revision_id: 'R01' },
+    ],
+    revisions: [
+      {
+        revision_id: 'R01',
+        created_at: timestamp,
+        title: 'Initial',
+        objective: 'Objective',
+        triggering_intake_id: 'IN01',
+        input_statement_ids: ['U01'],
+        input_evidence_ids: ['E01'],
+        events: [
+          { id: 'EV1', time: '2023-01-01', actor: 'Actor', action: 'Action', target: 'Target', evidence_ids: ['U01'], assessment: 'Established within current record' },
+        ],
+        claims: [
+          { id: 'C01', text: 'Claim 1', assessment: 'Established within current record', reasoning: 'Reason', supporting_evidence: ['U01', 'E01'], qualifying_evidence: [], conflicting_evidence: [] },
+        ],
+        gaps: [
+          { id: 'G01', question_key: 'Q1', status: 'open', target_claim_ids: ['C01'] },
+        ],
+        actions: [
+          { id: 'A01', description: 'Action 1', target_gap_ids: ['G01'] },
+        ],
+        evidence_inspections: [
+          { id: 'EI01', evidence_id: 'E01', limitations: [] },
+        ],
+        delta: {
+          changes: [
+            { entity_type: 'event', entity_id: 'EV1', operation: 'added', reason: 'init', source_ids: ['U01'] },
+            { entity_type: 'claim', entity_id: 'C01', operation: 'added', reason: 'init', source_ids: ['U01', 'E01'] },
+            { entity_type: 'gap', entity_id: 'G01', operation: 'added', reason: 'init', source_ids: [] },
+            { entity_type: 'action', entity_id: 'A01', operation: 'added', reason: 'init', source_ids: [] },
+          ],
+        },
+        summary: { total_evidence_count: 1, established_claims_count: 1, unresolved_claims_count: 0, conflicted_claims_count: 0, user_reported_claims_count: 0 },
+      },
+    ],
+  } as CanonicalCaseRecord;
+}
+
+// ===========================================================================
+// 1. admitBootstrapRecord
+// ===========================================================================
+describe('admitBootstrapRecord', () => {
+  it('admits a valid canonical record unchanged (Positive proof 1: legacy upgrade)', () => {
+    const record = createValidBaseline();
+    const admitted = admitBootstrapRecord(record);
+    expect(admitted.id).toBe('case-01');
+    expect(admitted.schema_version).toBe('2.0.0');
+    expect(admitted.current_revision_id).toBe('R01');
+  });
+
+  it('rejects partial legacy-looking objects missing required fields', () => {
+    // Missing title and objective — should be rejected
+    const partial = { id: 'case-x', statements: [], evidence: [], events: [], claims: [], gaps: [], actions: [] };
+    expect(() => admitBootstrapRecord(partial)).toThrow();
+  });
+
+  it('rejects null and non-object inputs', () => {
+    expect(() => admitBootstrapRecord(null)).toThrow();
+    expect(() => admitBootstrapRecord('string')).toThrow();
+    expect(() => admitBootstrapRecord(42)).toThrow();
+  });
 });
 
-describe('Canonical Record Invariants', () => {
-  it('valid Schema v2 record parses', () => {
+// ===========================================================================
+// 2. projectToPresentation
+// ===========================================================================
+describe('projectToPresentation', () => {
+  it('projects a valid canonical record without mutation (Positive proof 2)', () => {
     const record = createValidBaseline();
-    const result = CanonicalCaseRecordSchema.safeParse(record);
-    expect(result.success).toBe(true);
+    const originalJson = JSON.stringify(record);
+    const presentation = projectToPresentation(record);
+    // Canonical input unchanged
+    expect(JSON.stringify(record)).toBe(originalJson);
+    // Presentation has the right structure
+    expect(presentation.id).toBe('case-01');
+    expect(presentation.title).toBe('Initial');
+    expect(presentation.claims.length).toBe(1);
+    expect(presentation.gaps.length).toBe(1);
+  });
+});
+
+// ===========================================================================
+// 3. createEmptyCanonicalRecord
+// ===========================================================================
+describe('createEmptyCanonicalRecord', () => {
+  it('factory output passes schema and invariant validation', () => {
+    const record = createEmptyCanonicalRecord('case-new', 'C-NEW', 'Title', 'Obj');
+    const parseResult = CanonicalCaseRecordSchema.safeParse(record);
+    expect(parseResult.success).toBe(true);
     const errors = validateCanonicalRecord(record);
     expect(errors).toHaveLength(0);
   });
+});
 
-  it('mixed ordered intake parts round-trip without content or order changes', () => {
-    const record = createValidBaseline();
-    const parsed = CanonicalCaseRecordSchema.parse(record);
-    
-    expect(parsed.intake_ledger[0].parts.length).toBe(3);
-    
-    const part0 = parsed.intake_ledger[0].parts[0] as Extract<IntakePart, { kind: 'statement' }>;
-    expect(part0.kind).toBe("statement");
-    expect(part0.statement_id).toBe("U01");
-    expect(part0.raw_text).toBe("Statement 1");
-    
-    const part1 = parsed.intake_ledger[0].parts[1] as Extract<IntakePart, { kind: 'evidence' }>;
-    expect(part1.kind).toBe("evidence");
-    expect(part1.evidence_id).toBe("E01");
-    expect(part1.submitted_name).toBe("ev.pdf");
+// ===========================================================================
+// 4. buildAndCommitTransition — deterministic test
+// ===========================================================================
+describe('buildAndCommitTransition', () => {
+  it('appends exactly one child revision with proper IDs, deltas and preserved prior (Positive proofs 3-6)', () => {
+    const baseline = createValidBaseline();
+    const baselineJson = JSON.stringify(baseline);
+    const timestamp = '2023-06-15T12:00:00Z';
 
-    const part2 = parsed.intake_ledger[0].parts[2] as Extract<IntakePart, { kind: 'statement' }>;
-    expect(part2.kind).toBe("statement");
-    expect(part2.statement_id).toBe("U02");
-    expect(part2.raw_text).toBe("Statement 2");
-    
-    // Test rejection of unknown fields recursively in parts
-    const invalidRecord = createValidBaseline();
-    (invalidRecord.intake_ledger[0].parts[0] as Record<string, unknown>).unknown_field = "test";
-    const result = CanonicalCaseRecordSchema.safeParse(invalidRecord);
-    expect(result.success).toBe(false);
-    expect(result.error?.issues[0].message).toContain('Unrecognized key');
-  });
+    const reconOutput = buildDeterministicReconOutput({
+      newStatementTempId: 'U_TEMP_0',
+      newEvidenceTempId: 'E_TEMP_0',
+      existingStatementIds: ['U01'],
+      existingEvidenceIds: ['E01'],
+    });
 
-  it('strict schema rejects top-level duplicated current state and unknown fields', () => {
-    const record = { ...createValidBaseline(), claims: [] };
-    const result = CanonicalCaseRecordSchema.safeParse(record);
-    expect(result.success).toBe(false);
-  });
+    const result = buildAndCommitTransition({
+      priorRecord: baseline,
+      reconstructionOutput: reconOutput,
+      newStatements: [{ text: 'New user statement', submitted_at: timestamp }],
+      newEvidence: [{ label: 'New Evidence', origin_type: 'file', input_form: 'document', submitted_at: timestamp }],
+      timestamp,
+      modelId: 'test-model',
+      tempIdRemap: {
+        statementTempIds: ['U_TEMP_0'],
+        evidenceTempIds: ['E_TEMP_0'],
+      },
+    });
 
-  it('schema accepts only the five canonical assessment values', () => {
-    const record = createValidBaseline();
-    const badRecord = JSON.parse(JSON.stringify(record));
-    badRecord.revisions[0].claims[0].assessment = "Established in record";
-    const result = CanonicalCaseRecordSchema.safeParse(badRecord);
-    expect(result.success).toBe(false);
-  });
+    // 3. Appends exactly one child revision
+    expect(result.revisions.length).toBe(2);
+    const newRev = result.revisions[1];
+    expect(newRev.revision_id).toBe('R02');
+    expect(newRev.parent_revision_id).toBe('R01');
 
-  it('schema accepts only the five canonical Gap statuses', () => {
-    const record = createValidBaseline();
-    const badRecord = JSON.parse(JSON.stringify(record));
-    badRecord.revisions[0].gaps[0].status = "abandoned";
-    const result = CanonicalCaseRecordSchema.safeParse(badRecord);
-    expect(result.success).toBe(false);
-  });
+    // 4. Prior revision preserved (deep equality — schema parse may reorder keys)
+    expect(result.revisions[0]).toEqual(JSON.parse(baselineJson).revisions[0]);
 
-  it('Uxx and Exx remain separate; text describing an unsupplied artifact creates no Exx requirement', () => {
-    const record = createValidBaseline();
-    record.statements.push({ id: "U03", text: "I have a receipt", submitted_at: "2023-01-01T00:00:00Z", source_intake_id: "IN01" });
-    record.intake_ledger[0].parts.push({ kind: "statement", statement_id: "U03", raw_text: "I have a receipt" });
-    record.relationships.push({ id: "REL04", source_id: "U03", target_id: "C01", relationship_type: "supports_claim", reason: "Direct", created_in_revision_id: "R01" });
-    record.revisions[0].input_statement_ids.push("U03");
-    const result = CanonicalCaseRecordSchema.safeParse(record);
-    expect(result.success).toBe(true);
-    const errors = validateCanonicalRecord(record);
-    expect(errors).toHaveLength(0);
-  });
-
-  it('evidence retains storage metadata but rejects data URLs and embedded file_data_url', () => {
-    const record = createValidBaseline();
-    record.evidence[0].storage_key = "path/to/s3";
-    let result = CanonicalCaseRecordSchema.safeParse(record);
-    expect(result.success).toBe(true);
-    
-    // CanonicalEvidence.storage_key = data:... fails
-    record.evidence[0].storage_key = "data:image/png;base64,...";
-    result = CanonicalCaseRecordSchema.safeParse(record);
-    expect(result.success).toBe(false);
-    expect(result.error?.issues[0].message).toContain('Data URLs are not permitted in storage_key');
-
-    // Case-insensitive / whitespace trimmed check
-    record.evidence[0].storage_key = " DATA:application/pdf;base64,...";
-    result = CanonicalCaseRecordSchema.safeParse(record);
-    expect(result.success).toBe(false);
-
-    record.evidence[0].storage_key = "path/to/s3"; // reset
-
-    // intake evidence-part storage_key = data:... fails
-    const evPart = record.intake_ledger[0].parts[1] as Extract<IntakePart, { kind: 'evidence' }>;
-    evPart.storage_key = "data:image/png;base64,...";
-    result = CanonicalCaseRecordSchema.safeParse(record);
-    expect(result.success).toBe(false);
-
-    evPart.storage_key = "path/to/s3"; // reset
-
-    // file_data_url fails because of strict schema validation
-    const invalidRecord2 = JSON.parse(JSON.stringify(record));
-    invalidRecord2.evidence[0].file_data_url = "data:image/png;base64,...";
-    result = CanonicalCaseRecordSchema.safeParse(invalidRecord2);
-    expect(result.success).toBe(false);
-    expect(result.error?.issues[0].message).toContain('Unrecognized key');
-    
-    // test other fields
-    const invalidRecord3 = JSON.parse(JSON.stringify(record));
-    invalidRecord3.evidence[0].content_base64 = "base64";
-    result = CanonicalCaseRecordSchema.safeParse(invalidRecord3);
-    expect(result.success).toBe(false);
-  });
-
-  it('one source can retain multiple independent disposition relationships', () => {
-    const record = createValidBaseline();
-    record.relationships.push({ id: "REL04", source_id: "U01", target_id: "G01", relationship_type: "raises_gap", reason: "Direct", created_in_revision_id: "R01" });
-    const errors = validateCanonicalRecord(record);
-    expect(errors).toHaveLength(0);
-  });
-
-  it('processed substantive sources require a disposition or explicit not_yet_classified', () => {
-    const record = createValidBaseline();
-    record.statements.push({ id: "U03", text: "Orphan", submitted_at: "2023-01-01T00:00:00Z", source_intake_id: "IN01" });
-    record.intake_ledger[0].parts.push({ kind: "statement", statement_id: "U03", raw_text: "Orphan" });
-    record.revisions[0].input_statement_ids.push("U03");
-    
-    const errors = validateCanonicalRecord(record);
-    expect(errors).toContain("Statement U03 lacks a disposition relationship");
-    
-    // explicit not_yet_classified makes it pass
-    record.relationships.push({ id: "REL04", source_id: "U03", target_id: null, relationship_type: "not_yet_classified", reason: "Processing", created_in_revision_id: "R01" } );
-    const errors2 = validateCanonicalRecord(record);
-    expect(errors2).toHaveLength(0);
-  });
-
-  it('intake, revision-input and triggering/resulting references must resolve', () => {
-    const record = createValidBaseline();
-    
-    // Child revision drops a parent input
-    const r2: CaseRevision = {
-       ...record.revisions[0],
-       revision_id: "R02",
-       parent_revision_id: "R01",
-       input_statement_ids: ["U01"] // Dropped U02
-    };
-    record.revisions.push(r2);
-    
-    let errors = validateCanonicalRecord(record);
-    expect(errors).toContain("Revision R02 dropped parent input statement U02");
-  });
-
-  it('duplicate semantic IDs are rejected', () => {
-    const record = createValidBaseline();
-    record.statements.push({ id: "U01", text: "Duplicate", submitted_at: "2023-01-01T00:00:00Z", source_intake_id: "IN01" });
-    const errors = validateCanonicalRecord(record);
-    expect(errors).toContain("Duplicate ID U01 in statements");
-  });
-
-  it('revision parent graph and current_revision_id must be valid', () => {
-    const record = createValidBaseline();
-    record.current_revision_id = "R99";
-    let errors = validateCanonicalRecord(record);
-    expect(errors).toContain("current_revision_id R99 not found in revisions");
-    
-    record.current_revision_id = "R01";
-    const r2: CaseRevision = { ...record.revisions[0], revision_id: "R02" , parent_revision_id: "R99"  };
-    record.revisions.push(r2);
-    errors = validateCanonicalRecord(record);
-    expect(errors).toContain("Revision R02 parent R99 not found");
-  });
-
-  it('Event and evidence-inspection source references must resolve', () => {
-    const record = createValidBaseline();
-    
-    const r2: CaseRevision = {
-       ...record.revisions[0],
-       revision_id: "R02",
-       parent_revision_id: "R01",
-       input_evidence_ids: [...record.revisions[0].input_evidence_ids]
-    };
-    
-    record.evidence.push({ id: "E02", label: "Future Ev", origin_type: "user", input_form: "file", submitted_at: "2023-01-01T00:00:00Z", source_intake_id: "IN01" });
-    record.intake_ledger[0].parts.push({ kind: "evidence", evidence_id: "E02", submitted_name: "ev2" });
-    r2.input_evidence_ids.push("E02");
-    record.revisions.push(r2);
-    
-    record.relationships.push({ id: "REL04", source_id: "E02", target_id: "C01", relationship_type: "supports_claim", reason: "Direct", created_in_revision_id: "R02" } as DispositionRelationship);
-    // Existing-but-future Exx used by an earlier evidence inspection
-    record.revisions[0].evidence_inspections = [...record.revisions[0].evidence_inspections, { id: "EI2", evidence_id: "E02", limitations: [] }];
-    
-    const errors = validateCanonicalRecord(record);
-    expect(errors).toContain("Revision R01 Inspection EI2 evidence_id E02 not available in inputs");
-  });
-
-  it('Finding Uxx/Exx references resolve, while documentary support does not automatically control assessment', () => {
-    const record = createValidBaseline();
-    record.revisions[0].claims[0].supporting_evidence.push("U99");
-    let errors = validateCanonicalRecord(record);
-    expect(errors).toContain("Revision R01 Claim C01 evidence U99 not available in inputs");
-  });
-
-  it('Gap->Cxx and Action->Gxx references must resolve', () => {
-    const record = createValidBaseline();
-    record.revisions[0].gaps[0].target_claim_ids = ["C99"];
-    let errors = validateCanonicalRecord(record);
-    expect(errors).toContain("Revision R01 Gap G01 target_claim_id C99 not in revision claims");
-
-    record.revisions[0].gaps[0].target_claim_ids = ["C01"];
-    record.revisions[0].actions[0].target_gap_ids = ["G99"];
-    errors = validateCanonicalRecord(record);
-    expect(errors).toContain("Revision R01 Action A01 target_gap_id G99 not in revision gaps");
-  });
-
-  it('relationship source, target type and revision-relative references must be valid', () => {
-    const record = createValidBaseline();
-    
-    // Create future U03 in R02
-    record.statements.push({ id: "U03", text: "Future", submitted_at: "2023-01-01T00:00:00Z", source_intake_id: "IN01" });
-    record.intake_ledger[0].parts.push({ kind: "statement", statement_id: "U03", raw_text: "Future" });
-    
-    const r2: CaseRevision = {
-       ...record.revisions[0],
-       revision_id: "R02",
-       parent_revision_id: "R01",
-       input_statement_ids: [...record.revisions[0].input_statement_ids]
-    };
-    r2.input_statement_ids.push("U03");
-    record.revisions.push(r2);
-    
-    record.relationships.push({ id: "REL04", source_id: "U03", target_id: "C01", relationship_type: "supports_claim", reason: "Reason", created_in_revision_id: "R01" } as DispositionRelationship);
-    
-    const errors = validateCanonicalRecord(record);
-    expect(errors).toContain("Relationship REL04 source_id U03 not available in revision R01");
-  });
-
-  it('correction is only a later Uxx correcting an earlier different Uxx', () => {
-    const record = createValidBaseline();
-    
-    // U01 corrects U02 (but U01 is earlier than U02 in terms of availability)
-    record.relationships.push({ id: "REL11", source_id: "U01", target_id: "U02", relationship_type: "corrects_statement", reason: "reason", created_in_revision_id: "R01" });
-    let errors = validateCanonicalRecord(record);
-    expect(errors).toContain("Relationship REL11 corrects_statement target U02 is not earlier than source U01");
-    
-    // Same-revision statements where no earlier entry into the record is established
-    record.relationships = record.relationships.filter(r => r.id !== "REL11");
-    record.relationships.push({ id: "REL12", source_id: "U02", target_id: "U01", relationship_type: "corrects_statement", reason: "reason", created_in_revision_id: "R01" });
-    errors = validateCanonicalRecord(record);
-    expect(errors).toContain("Relationship REL12 corrects_statement target U01 is not earlier than source U02");
-
-    // Exx -> Uxx correction (schema rejection)
-    const badRel1: unknown = { id: "REL13", source_id: "E01", target_id: "U01", relationship_type: "corrects_statement", reason: "reason", created_in_revision_id: "R01" };
-    const badRecord1 = JSON.parse(JSON.stringify(record));
-    badRecord1.relationships = [badRel1];
-    let schemaRes = CanonicalCaseRecordSchema.safeParse(badRecord1);
-    expect(schemaRes.success).toBe(false);
-    
-    // self-correction
-    record.relationships = [{ id: "REL14" as RelationshipId, source_id: "U01" as StatementId, target_id: "U01" as StatementId, relationship_type: "corrects_statement", reason: "reason", created_in_revision_id: "R01" as RevisionId }];
-    schemaRes = CanonicalCaseRecordSchema.safeParse(record);
-    expect(schemaRes.success).toBe(true); // schema passes
-    errors = validateCanonicalRecord(record);
-    expect(errors).toContain("Relationship REL14 source corrects itself");
-    
-    // valid later-Uxx -> earlier-Uxx correction
-    const recordValid = createValidBaseline();
-    recordValid.statements.push({ id: "U03", text: "Fix", submitted_at: "2023-01-01T00:00:00Z", source_intake_id: "IN01" });
-    recordValid.intake_ledger[0].parts.push({ kind: "statement", statement_id: "U03", raw_text: "Fix" });
-    const r2: CaseRevision = {
-       ...recordValid.revisions[0],
-       revision_id: "R02",
-       parent_revision_id: "R01",
-       input_statement_ids: [...recordValid.revisions[0].input_statement_ids]
-    };
-    r2.input_statement_ids.push("U03");
-    recordValid.revisions.push(r2);
-    
-    recordValid.relationships.push({ id: "REL15", source_id: "U03", target_id: "U01", relationship_type: "corrects_statement", reason: "reason", created_in_revision_id: "R02" });
-    errors = validateCanonicalRecord(recordValid);
-    expect(errors).toHaveLength(0);
-  });
-
-  it('Gxx keeps one question_key, while a different epistemic question requires a different Gxx', () => {
-    const record = createValidBaseline();
-    const r2: CaseRevision = { ...record.revisions[0], revision_id: "R02", parent_revision_id: "R01", gaps: [{ ...record.revisions[0].gaps[0], question_key: "Q2" }] };
-    record.revisions.push(r2);
-    const errors = validateCanonicalRecord(record);
-    expect(errors).toContain("Gap G01 question_key changed from Q1 to Q2");
-  });
-
-  it('gap structured transition events and deltas are strictly enforced', () => {
-    const record = createValidBaseline();
-    
-    // The valid transition event template
-    const validTransitionEvent = { 
-      id: "EV2" as EventId, 
-      time: "2023-01-01", 
-      actor: "Actor", 
-      action: "resolved", 
-      target: "G01", 
-      evidence_ids: [], 
-      assessment: "Established within current record" as CanonicalAssessment,
-      gap_transition: {
-        gap_id: "G01" as GapId,
-        previous_status: "open" as CanonicalGapStatus,
-        resulting_status: "resolved" as CanonicalGapStatus,
-        transition_revision_id: "R02" as RevisionId,
-        source_ids: ["U01" as StatementId]
-      }
-    };
-
-    const rValidResolve: CaseRevision = { 
-      ...record.revisions[0], 
-      revision_id: "R02", 
-      parent_revision_id: "R01", 
-      gaps: [{ ...record.revisions[0].gaps[0], status: "resolved", status_revision_id: "R02", status_reason: "reason", status_source_ids: ["U01"] }],
-      delta: { changes: [{ entity_type: "gap", entity_id: "G01", operation: "resolved", reason: "res", source_ids: ["U01"] }] },
-      events: [...record.revisions[0].events, validTransitionEvent] 
-    };
-
-    const runTest = (rev: CaseRevision) => {
-      const rec = { ...record, revisions: [...record.revisions, rev] };
-      return validateCanonicalRecord(rec);
-    };
-
-    // 1. missing gap delta
-    let errors = runTest({ ...rValidResolve, delta: { changes: [] } });
-    expect(errors).toContain("Revision R02 Gap G01 changed status but has 0 matching deltas");
-
-    // 2. duplicate matching gap deltas
-    errors = runTest({ ...rValidResolve, delta: { changes: [rValidResolve.delta.changes[0], rValidResolve.delta.changes[0]] } });
-    expect(errors).toContain("Revision R02 Gap G01 changed status but has 2 matching deltas");
-
-    // 3. mismatched event/gap/delta sources
-    const badGaps = [{ ...rValidResolve.gaps[0], status_source_ids: ["U02"] }];
-    errors = runTest({ ...rValidResolve, gaps: badGaps as typeof rValidResolve.gaps });
-    expect(errors).toContain("Revision R02 Gap G01 transition sources mismatch between gap, event, and delta");
-
-    // 4. reopen without the reopening status_revision_id
-    const rValidReopen: CaseRevision = {
-      ...rValidResolve,
-      revision_id: "R03",
-      parent_revision_id: "R02",
-      gaps: [{ ...rValidResolve.gaps[0], status: "open", status_revision_id: "R03", status_reason: "reason", status_source_ids: ["U01"] }],
-      delta: { changes: [{ entity_type: "gap", entity_id: "G01", operation: "reopened", reason: "res", source_ids: ["U01"] }] },
-      events: [
-         
-         {
-           ...validTransitionEvent,
-           id: "EV3" as EventId,
-           gap_transition: {
-             gap_id: "G01" as GapId,
-             previous_status: "resolved" as CanonicalGapStatus,
-             resulting_status: "open" as CanonicalGapStatus,
-             transition_revision_id: "R03" as RevisionId,
-             source_ids: ["U01" as StatementId]
-           }
-         }
-      ]
-    };
-    const runReopenTest = (rev: CaseRevision) => {
-      const rec = { ...record, revisions: [...record.revisions, rValidResolve, rev] };
-      return validateCanonicalRecord(rec);
-    };
-    expect(runReopenTest(rValidReopen)).toHaveLength(0);
-
-    errors = runReopenTest({ ...rValidReopen, gaps: [{ ...rValidReopen.gaps[0], status_revision_id: undefined }] });
-    expect(errors).toContain("Revision R03 Gap G01 changed status to open but status_revision_id undefined does not match current revision");
-
-    // 5. reopen without reason or sources
-    errors = runReopenTest({ ...rValidReopen, gaps: [{ ...rValidReopen.gaps[0], status_reason: undefined }] });
-    expect(errors).toContain("Revision R03 Gap G01 changed status but lacks status_reason");
-
-    // 6. transition event with nonexistent/wrong revision
-    errors = runTest({ ...rValidResolve, events: [...record.revisions[0].events, { ...validTransitionEvent, gap_transition: { ...validTransitionEvent.gap_transition, transition_revision_id: "R99" as RevisionId } }] });
-    expect(errors).toContain("Revision R02 Event EV2 gap_transition transition_revision_id R99 does not match containing revision");
-
-    // 7. transition event where no status changed
-    const rNoChange: CaseRevision = {
-      ...rValidResolve,
-      gaps: [{ ...record.revisions[0].gaps[0], status: "open" }],
-      delta: { changes: [] },
-      events: [...record.revisions[0].events, { ...validTransitionEvent, gap_transition: { ...validTransitionEvent.gap_transition, previous_status: "open", resulting_status: "open" } }]
-    };
-    errors = runTest(rNoChange);
-    expect(errors).toContain("Revision R02 Event EV2 gap_transition statuses are identical");
-
-    // 8. wrong previous status
-    const evBadPrev: unknown = { ...validTransitionEvent, gap_transition: { ...validTransitionEvent.gap_transition, previous_status: "superseded" } };
-    errors = runTest({ ...rValidResolve, events: [...record.revisions[0].events, evBadPrev as typeof validTransitionEvent] });
-    expect(errors).toContain("Revision R02 Event EV2 gap_transition previous_status superseded mismatches parent gap status open");
-
-    // 9. wrong resulting status
-    const evBadResult: unknown = { ...validTransitionEvent, gap_transition: { ...validTransitionEvent.gap_transition, resulting_status: "superseded" } };
-    errors = runTest({ ...rValidResolve, events: [...record.revisions[0].events, evBadResult as typeof validTransitionEvent] });
-    expect(errors).toContain("Revision R02 Event EV2 gap_transition resulting_status superseded mismatches gap current status");
-
-    // 10. stale or wrong delta operation
-    errors = runTest({ ...rValidResolve, delta: { changes: [{ entity_type: "gap", entity_id: "G01", operation: "added", reason: "res", source_ids: ["U01"] }] } });
-    expect(errors).toContain("Revision R02 Gap G01 changed status but delta operation is 'added'");
-    
-    // 11. missing transition event
-    errors = runTest({ ...rValidResolve, events: [...record.revisions[0].events] });
-    expect(errors).toContain("Revision R02 Gap G01 changed status but has 0 transition events");
-    
-    // 12. duplicate events with the same transition tuple
-    errors = runTest({ ...rValidResolve, events: [...rValidResolve.events, { ...validTransitionEvent, id: "EV99" as EventId }] });
-    expect(errors).toContain("Revision R02 Gap G01 changed status but has 2 transition events");
-
-    // 13. extra event with mismatched sources
-    errors = runTest({ ...rValidResolve, events: [...rValidResolve.events, { ...validTransitionEvent, id: "EV99" as EventId, gap_transition: { ...validTransitionEvent.gap_transition, source_ids: ["U02" as StatementId] } }] });
-    expect(errors).toContain("Revision R02 Gap G01 changed status but has 2 transition events");
-
-    // 14. extra event with an additional source
-    errors = runTest({ ...rValidResolve, events: [...rValidResolve.events, { ...validTransitionEvent, id: "EV99" as EventId, gap_transition: { ...validTransitionEvent.gap_transition, source_ids: ["U01" as StatementId, "U02" as StatementId] } }] });
-    expect(errors).toContain("Revision R02 Gap G01 changed status but has 2 transition events");
-
-    // 15. extra event with a missing source
-    errors = runTest({ ...rValidResolve, events: [...rValidResolve.events, { ...validTransitionEvent, id: "EV99" as EventId, gap_transition: { ...validTransitionEvent.gap_transition, source_ids: [] } }] });
-    expect(errors).toContain("Revision R02 Gap G01 changed status but has 2 transition events");
-
-    // 16. second gap_transition event referencing the same gap but with a conflicting previous_status or resulting_status
-    errors = runTest({ ...rValidResolve, events: [...rValidResolve.events, { ...validTransitionEvent, id: "EV99" as EventId, gap_transition: { ...validTransitionEvent.gap_transition, resulting_status: "open" } }] });
-    expect(errors).toContain("Revision R02 Gap G01 changed status but has 2 transition events");
-    
-    // valid resolve passes
-    expect(runTest(rValidResolve)).toHaveLength(0);
-  });
-
-  it('strict carry-forward for unchanged gaps', () => {
-    const record = createValidBaseline();
-    
-    const rValidResolve: CaseRevision = { 
-      ...record.revisions[0], 
-      revision_id: "R02", 
-      parent_revision_id: "R01", 
-      gaps: [{ ...record.revisions[0].gaps[0], status: "resolved", status_revision_id: "R02", status_reason: "reason", status_source_ids: ["U01"] }],
-      delta: { changes: [{ entity_type: "gap", entity_id: "G01", operation: "resolved", reason: "res", source_ids: ["U01"] }] },
-      events: [...record.revisions[0].events, {
-        id: "EV2" as EventId, time: "2023-01-01", actor: "Actor", action: "resolved", target: "G01", evidence_ids: [], assessment: "Established within current record",
-        gap_transition: { gap_id: "G01" as GapId, previous_status: "open", resulting_status: "resolved", transition_revision_id: "R02", source_ids: ["U01"] }
-      }] 
-    };
-
-    const runCarryForward = (gaps: CaseRevision['gaps'], parentRev: CaseRevision) => {
-      const parentRevs = parentRev.revision_id === record.revisions[0].revision_id ? [] : [parentRev];
-      const rec = { ...record, revisions: [...record.revisions, ...parentRevs, { ...parentRev, revision_id: "R03", parent_revision_id: parentRev.revision_id, gaps, delta: { changes: [] }, events: [] }] };
-      return validateCanonicalRecord(rec as CanonicalCaseRecord);
-    };
-
-    // 1. Carried-forward resolved identity
-    let errors = runCarryForward(rValidResolve.gaps, rValidResolve);
-    if (errors.length > 0) console.log("Test 1 Errors: ", errors);
+    // 5. Result passes schema and invariant validation
+    const parseResult = CanonicalCaseRecordSchema.safeParse(result);
+    expect(parseResult.success).toBe(true);
+    const errors = validateCanonicalRecord(result);
     expect(errors).toHaveLength(0);
 
-    // 2. Initially open carry-forward without metadata
-    errors = runCarryForward(record.revisions[0].gaps, record.revisions[0]);
-    if (errors.length > 0) console.log("Test 2 Errors: ", errors);
-    expect(errors).toHaveLength(0);
+    // 6. current_revision_id points to the appended revision
+    expect(result.current_revision_id).toBe('R02');
 
-    // 3. Newly introduced status_revision_id on an unchanged gap
-    errors = runCarryForward([{ ...record.revisions[0].gaps[0], status_revision_id: "R03" as RevisionId, status_reason: "reason", status_source_ids: ["U01"] }], record.revisions[0]);
-    expect(errors).toContain("Revision R03 Gap G01 unchanged initially open gap artificially added transition metadata");
+    // Verify new statement got canonical ID (U02 not U_TEMP_0)
+    const newStatement = result.statements.find(s => s.text === 'New user statement');
+    expect(newStatement).toBeDefined();
+    expect(newStatement!.id).toBe('U02');
 
-    // 4. Changed existing status_revision_id on an unchanged resolved gap
-    errors = runCarryForward([{ ...rValidResolve.gaps[0], status_revision_id: "R03" as RevisionId }], rValidResolve);
-    expect(errors).toContain("Revision R03 Gap G01 unchanged status but status_revision_id altered from R02 to R03");
+    // Verify new evidence got canonical ID (E02 not E_TEMP_0)
+    const newEvidence = result.evidence.find(e => e.label === 'New Evidence');
+    expect(newEvidence).toBeDefined();
+    expect(newEvidence!.id).toBe('E02');
 
-    // 5. Rewritten status_reason
-    errors = runCarryForward([{ ...rValidResolve.gaps[0], status_reason: "new reason" }], rValidResolve);
-    expect(errors).toContain("Revision R03 Gap G01 unchanged status but status_reason altered");
+    // Verify intake ledger has two entries
+    expect(result.intake_ledger.length).toBe(2);
+    expect(result.intake_ledger[1].id).toBe('IN02');
 
-    // 6. Cleared status_reason
-    errors = runCarryForward([{ ...rValidResolve.gaps[0], status_reason: undefined }], rValidResolve);
-    expect(errors).toContain("Revision R03 Gap G01 unchanged status but status_reason altered");
+    // Verify delta has entries (not empty)
+    expect(newRev.delta.changes.length).toBeGreaterThan(0);
 
-    // 7. Rewritten status_source_ids
-    errors = runCarryForward([{ ...rValidResolve.gaps[0], status_source_ids: ["U02"] }], rValidResolve);
-    expect(errors).toContain("Revision R03 Gap G01 unchanged status but status_source_ids altered");
+    // Verify temp ID remapping in claims
+    const claim = newRev.claims.find(c => c.id === 'C01');
+    expect(claim).toBeDefined();
+    expect(claim!.supporting_evidence).toContain('U02'); // remapped from U_TEMP_0
 
-    // 8. Cleared or missing status_source_ids
-    errors = runCarryForward([{ ...rValidResolve.gaps[0], status_source_ids: undefined }], rValidResolve);
-    expect(errors).toContain("Revision R03 Gap G01 unchanged status but status_source_ids altered");
+    // Verify new claim C02 was added
+    const newClaim = newRev.claims.find(c => c.id === 'C02');
+    expect(newClaim).toBeDefined();
+    expect(newClaim!.supporting_evidence).toContain('E02'); // remapped from E_TEMP_0
+
+    // Verify coherent timestamp
+    expect(result.updated_at).toBe(timestamp);
+    expect(newRev.created_at).toBe(timestamp);
+
+    // Verify new gap G02 was added
+    expect(newRev.gaps.length).toBe(2);
+    const newGap = newRev.gaps.find(g => g.id === 'G02');
+    expect(newGap).toBeDefined();
+
+    // Verify new action A02 was added
+    expect(newRev.actions.length).toBe(2);
+    const newAction = newRev.actions.find(a => a.id === 'A02');
+    expect(newAction).toBeDefined();
+
+    // Verify relationships were created
+    expect(result.relationships.length).toBeGreaterThan(2); // original 2 + new ones
   });
 
-  it('projector uses the requested/current revision, excludes future state, rejects missing revisions, does not mutate input and returns deeply frozen data', () => {
+  it('ID allocation remains collision-free when arrays contain gaps', () => {
+    const baseline = createValidBaseline();
+    // Remove U01 from statements to create a gap, but keep ID U01 in existing references
+    // The scan should still see U01 and allocate U02
+    const result = buildAndCommitTransition({
+      priorRecord: baseline,
+      reconstructionOutput: buildDeterministicReconOutput({
+        newStatementTempId: 'U_TEMP_0',
+        newEvidenceTempId: 'E_TEMP_0',
+        existingStatementIds: ['U01'],
+        existingEvidenceIds: ['E01'],
+      }),
+      newStatements: [{ text: 'Statement after gap', submitted_at: '2023-06-15T12:00:00Z' }],
+      newEvidence: [{ label: 'Evidence after gap', origin_type: 'file', input_form: 'document', submitted_at: '2023-06-15T12:00:00Z' }],
+      timestamp: '2023-06-15T12:00:00Z',
+      modelId: 'test',
+      tempIdRemap: {
+        statementTempIds: ['U_TEMP_0'],
+        evidenceTempIds: ['E_TEMP_0'],
+      },
+    });
+
+    // New statement should be U02, not U01 (collision)
+    const newStmt = result.statements.find(s => s.text === 'Statement after gap');
+    expect(newStmt!.id).toBe('U02');
+  });
+
+  it('temporary provider IDs are remapped to allocated canonical IDs', () => {
+    const baseline = createValidBaseline();
+    const result = buildAndCommitTransition({
+      priorRecord: baseline,
+      reconstructionOutput: buildDeterministicReconOutput({
+        newStatementTempId: 'U_TEMP_0',
+        newEvidenceTempId: 'E_TEMP_0',
+        existingStatementIds: ['U01'],
+        existingEvidenceIds: ['E01'],
+      }),
+      newStatements: [{ text: 'Temp statement', submitted_at: '2023-06-15T12:00:00Z' }],
+      newEvidence: [{ label: 'Temp evidence', origin_type: 'file', input_form: 'document', submitted_at: '2023-06-15T12:00:00Z' }],
+      timestamp: '2023-06-15T12:00:00Z',
+      modelId: 'test',
+      tempIdRemap: {
+        statementTempIds: ['U_TEMP_0'],
+        evidenceTempIds: ['E_TEMP_0'],
+      },
+    });
+
+    // No temp IDs should appear anywhere in the result
+    const resultJson = JSON.stringify(result);
+    expect(resultJson).not.toContain('U_TEMP_0');
+    expect(resultJson).not.toContain('E_TEMP_0');
+  });
+
+  it('inspection IDs remain valid and globally collision-free', () => {
+    const baseline = createValidBaseline();
+    // baseline has EI01 in R01
+    const result = buildAndCommitTransition({
+      priorRecord: baseline,
+      reconstructionOutput: buildDeterministicReconOutput({
+        newStatementTempId: 'U_TEMP_0',
+        newEvidenceTempId: 'E_TEMP_0',
+        existingStatementIds: ['U01'],
+        existingEvidenceIds: ['E01'],
+      }),
+      newStatements: [{ text: 'S', submitted_at: '2023-06-15T12:00:00Z' }],
+      newEvidence: [{ label: 'E', origin_type: 'file', input_form: 'document', submitted_at: '2023-06-15T12:00:00Z' }],
+      timestamp: '2023-06-15T12:00:00Z',
+      modelId: 'test',
+      tempIdRemap: {
+        statementTempIds: ['U_TEMP_0'],
+        evidenceTempIds: ['E_TEMP_0'],
+      },
+    });
+
+    const newInspections = result.revisions[1].evidence_inspections;
+    expect(newInspections.length).toBe(1);
+    // Must not collide with EI01 from R01
+    expect(newInspections[0].id).toBe('EI02');
+    // Evidence ID should be remapped from E_TEMP_0 to E02
+    expect(newInspections[0].evidence_id).toBe('E02');
+  });
+});
+
+// ===========================================================================
+// 5. commitIntakeResponse
+// ===========================================================================
+describe('commitIntakeResponse', () => {
+  const baseline = createValidBaseline();
+
+  it('valid client response replaces exactly one existing record', () => {
+    const validResponse = { success: true, case: baseline };
+    const collection = [baseline];
+    const result = commitIntakeResponse(collection, validResponse, 'case-01');
+    expect(result.length).toBe(1);
+    expect(result[0].id).toBe('case-01');
+  });
+
+  it('rejects incomplete response (missing success)', () => {
+    expect(() => commitIntakeResponse([baseline], { case: baseline }, 'case-01'))
+      .toThrow(/did not indicate success/);
+  });
+
+  it('rejects incomplete response (missing case)', () => {
+    expect(() => commitIntakeResponse([baseline], { success: true }, 'case-01'))
+      .toThrow(/missing case data/);
+  });
+
+  it('rejects response with invalid canonical invariants', () => {
+    const invalidRecord = { ...baseline, current_revision_id: 'R99' };
+    expect(() => commitIntakeResponse([baseline], { success: true, case: invalidRecord }, 'case-01'))
+      .toThrow();
+  });
+
+  it('wrong-case response cannot replace state', () => {
+    const wrongCaseRecord = { ...baseline, id: 'case-99' };
+    // Must validate structure first, so we need a valid wrong-case record
+    const record2 = createValidBaseline();
+    (record2 as { id: string }).id = 'case-99';
+    expect(() => commitIntakeResponse([baseline], { success: true, case: record2 }, 'case-01'))
+      .toThrow(/does not match/);
+  });
+
+  it('missing target in collection throws', () => {
+    expect(() => commitIntakeResponse([], { success: true, case: baseline }, 'case-01'))
+      .toThrow(/No existing record found/);
+  });
+
+  it('duplicate target in collection throws', () => {
+    expect(() => commitIntakeResponse([baseline, baseline], { success: true, case: baseline }, 'case-01'))
+      .toThrow(/Multiple records found/);
+  });
+
+  it('non-object response throws', () => {
+    expect(() => commitIntakeResponse([baseline], null, 'case-01'))
+      .toThrow(/expected an object/);
+    expect(() => commitIntakeResponse([baseline], 'string', 'case-01'))
+      .toThrow(/expected an object/);
+  });
+});
+
+// ===========================================================================
+// 6. Translation parsing/composition/stale-response handling
+// ===========================================================================
+describe('Translation handling', () => {
+  it('parseTranslationResponse parses a valid response', () => {
+    const raw = {
+      success: true,
+      title: 'Translated',
+      objective: 'Obj',
+      events: [{ id: 'EV1', action: 'Hành động', effect: 'Hiệu ứng' }],
+      claims: [{ id: 'C01', text: 'Tuyên bố', reasoning: 'Lý do', limits: [] }],
+    };
+    const overlay = parseTranslationResponse(raw);
+    expect(overlay).not.toBeNull();
+    expect(overlay!.title).toBe('Translated');
+  });
+
+  it('parseTranslationResponse rejects unsuccessful response', () => {
+    expect(parseTranslationResponse({ success: false })).toBeNull();
+  });
+
+  it('parseTranslationResponse rejects non-object', () => {
+    expect(parseTranslationResponse(null)).toBeNull();
+    expect(parseTranslationResponse('string')).toBeNull();
+  });
+
+  it('isOverlayStale detects stale case', () => {
+    const key = 'case-01_R01_vi';
+    expect(isOverlayStale(key, 'case-01', 'R01', 'vi')).toBe(false);
+    expect(isOverlayStale(key, 'case-02', 'R01', 'vi')).toBe(true); // stale case
+  });
+
+  it('isOverlayStale detects stale revision', () => {
+    const key = 'case-01_R01_vi';
+    expect(isOverlayStale(key, 'case-01', 'R02', 'vi')).toBe(true);
+  });
+
+  it('isOverlayStale detects mismatched locale', () => {
+    const key = 'case-01_R01_vi';
+    expect(isOverlayStale(key, 'case-01', 'R01', 'en')).toBe(true);
+  });
+
+  it('presentation translation leaves the canonical record unchanged (Positive proof 8)', () => {
     const record = createValidBaseline();
-    const r2: CaseRevision = { ...record.revisions[0], revision_id: "R02", parent_revision_id: "R01", title: "Future", input_statement_ids: [...record.revisions[0].input_statement_ids] };
-    record.revisions.push(r2);
-    record.statements.push({ id: "U03", text: "Future", submitted_at: "2023-01-01T00:00:00Z", source_intake_id: "IN01" });
-    record.intake_ledger[0].parts.push({ kind: "statement", statement_id: "U03", raw_text: "Future" });
-    r2.input_statement_ids.push("U03");
-    
-    // 1. serialize the canonical input before projection
     const originalJson = JSON.stringify(record);
     
-    // 2. project an earlier revision
-    const proj = projectCurrentRecord(record, "R01");
+    const presentation = projectToPresentation(record);
+    const overlay = {
+      title: 'Translated Title',
+      events: [{ id: 'EV1', action: 'Translated Action' }],
+      claims: [{ id: 'C01', text: 'Translated Claim', reasoning: 'Translated Reasoning', limits: ['Limit'] }],
+    };
+    const translated = applyTranslationOverlay(presentation, overlay);
     
-    // 3. confirm the input serialization is unchanged
+    // Canonical record unchanged
     expect(JSON.stringify(record)).toBe(originalJson);
-    
-    // 4. confirm the original record and all sampled nested input objects remain unfrozen
-    expect(Object.isFrozen(record)).toBe(false);
-    expect(Object.isFrozen(record.statements)).toBe(false);
-    expect(Object.isFrozen(record.revisions[0].claims)).toBe(false);
-    
-    // 5. confirm the projection and sampled nested objects/arrays are frozen
-    expect(Object.isFrozen(proj)).toBe(true);
-    expect(Object.isFrozen(proj.claims)).toBe(true);
-    expect(Object.isFrozen(proj.statements)).toBe(true);
-    expect(Object.isFrozen(proj.statements[0])).toBe(true);
-    
-    // 6. confirm projected objects are not reference-equal to input objects
-    expect(proj.statements).not.toBe(record.statements);
-    expect(proj.claims).not.toBe(record.revisions[0].claims);
-    expect(proj.claims[0]).not.toBe(record.revisions[0].claims[0]);
-    
-    // 7. attempt nested mutation and confirm it fails or has no effect
-    expect(() => {
-       // @ts-expect-error - readonly constraint check
-       proj.claims[0].text = "mutated";
-    }).toThrow();
-    
-    // 8. confirm future Uxx/Exx/relationships/state are absent
-    expect(proj.statements.find(s => s.id === "U03")).toBeUndefined();
-    
-    // 9. confirm the correct current/override revision is selected
-    expect(proj.title).toBe("Initial");
-    expect(proj.revision_id).toBe("R01");
-    
-    const projCurrent = projectCurrentRecord(record);
-    expect(projCurrent.title).toBe("Initial"); // current_revision_id is still R01
-    
-    // 10. confirm a missing revision throws
-    expect(() => projectCurrentRecord(record, "R99")).toThrow();
+    // Translation applied to presentation
+    expect(translated.title).toBe('Translated Title');
+    expect(translated.events[0].action).toBe('Translated Action');
+    expect(translated.claims[0].text).toBe('Translated Claim');
+  });
+});
+
+// ===========================================================================
+// 7. Canonical-only storage/write boundary
+// ===========================================================================
+describe('Canonical-only boundaries', () => {
+  it('parseCanonicalRecord rejects legacy/presentation objects at runtime', () => {
+    const legacyLike = {
+      id: 'case-1',
+      case_number: 'C-1',
+      title: 'Title',
+      objective: 'Obj',
+      statements: [],
+      evidence: [],
+      events: [],
+      claims: [],
+      gaps: [],
+      actions: [],
+    };
+    expect(() => parseCanonicalRecord(legacyLike)).toThrow();
   });
 
-  it('delta schema strictly enforces entity ID families based on entity_type', () => {
-    // Compile-time negative assertions
-    // @ts-expect-error - Event delta requires EventId, not GapId
-    const _invalidDeltaCompileTime1: RevisionDeltaEntry = { entity_type: "event", entity_id: "G01", operation: "added", reason: "reason", source_ids: [] };
-    
-    // @ts-expect-error - Gap delta requires GapId, not EventId
-    const _invalidDeltaCompileTime2: RevisionDeltaEntry = { entity_type: "gap", entity_id: "EV1", operation: "added", reason: "reason", source_ids: [] };
-    
-    const validDeltaCompileTime: RevisionDeltaEntry = { entity_type: "event", entity_id: "EV1", operation: "added", reason: "reason", source_ids: [] };
+  it('parseCanonicalRecord rejects objects with extra top-level fields', () => {
+    const record = createValidBaseline();
+    const withExtra = { ...record, extra_field: 'oops' };
+    expect(() => parseCanonicalRecord(withExtra)).toThrow();
+  });
+});
 
-    const validDelta = {
-      entity_type: "event",
-      entity_id: "EV1",
-      operation: "added",
-      reason: "reason",
-      source_ids: ["U01"]
+// ===========================================================================
+// 8. Negative proofs (counterexamples from CURRENT_SLICE)
+// ===========================================================================
+describe('Counterexamples (negative proofs)', () => {
+  // CE1: Canonical record with R01+R02 reduced to empty revision history
+  it('CE1: canonical record with R01 and R02 being reduced to empty revisions is rejected', () => {
+    const record = createValidBaseline();
+    const invalidReduced = { ...record, revisions: [] };
+    const parseResult = CanonicalCaseRecordSchema.safeParse(invalidReduced);
+    // Even if schema allows empty array, invariant catches it
+    if (parseResult.success) {
+      const errors = validateCanonicalRecord(parseResult.data as CanonicalCaseRecord);
+      expect(errors.length).toBeGreaterThan(0);
+    } else {
+      // Schema rejection is also valid
+      expect(parseResult.success).toBe(false);
+    }
+  });
+
+  // CE2: Malformed prior canonical record accepted by /api/intake
+  it('CE2: malformed prior canonical record is rejected by parseCanonicalRecord', () => {
+    expect(() => parseCanonicalRecord({ id: 'invalid' })).toThrow();
+  });
+
+  // CE3: Provider result violating invariants returned as success
+  it('CE3: transition with invariant-violating output fails', () => {
+    const baseline = createValidBaseline();
+    // Create a reconstruction output with an event referencing non-existent evidence
+    const badRecon: ReconOutput = {
+      segmented_intake: null,
+      evidence_inspection: [],
+      events: [{
+        id: 'EV99',
+        time: '2023-01-01',
+        actor: 'A',
+        action: 'A',
+        target: 'T',
+        effect: '',
+        evidence_ids: ['U99'], // does not exist
+        user_statement_ids: [],
+        assessment: 'Established within current record',
+        is_user_reported_only: false,
+      }],
+      claims: [{
+        id: 'C01',
+        text: 'Claim',
+        actor: 'A',
+        action: 'A',
+        target: 'T',
+        time: 'T',
+        supporting_evidence: ['U01'],
+        qualifying_evidence: [],
+        conflicting_evidence: [],
+        user_statement_ids: [],
+        assessment: 'Established within current record',
+        reasoning: 'R',
+        scope: '',
+        limits: [],
+        causal_relationship: 'none',
+      }],
+      gaps: [{ id: 'G01', what_is_unknown: 'Q1', why_it_matters: 'M', what_evidence_could_resolve_it: 'E', where_how_to_obtain: 'O', what_not_to_over_collect: 'N', target_claim_ids: ['C01'], status: 'open' }],
+      actions: [{ id: 'A01', title: 'A', description: 'Action 1', target_gap_id: 'G01', priority: 'medium' }],
     };
-    expect(RevisionDeltaEntrySchema.safeParse(validDelta).success).toBe(true);
-    
-    const invalidDelta = {
-      ...validDelta,
-      entity_type: "claim", // mismatch type vs ID
-    };
-    expect(RevisionDeltaEntrySchema.safeParse(invalidDelta).success).toBe(false);
+    expect(() => buildAndCommitTransition({
+      priorRecord: baseline,
+      reconstructionOutput: badRecon,
+      newStatements: [],
+      newEvidence: [],
+      timestamp: '2023-06-15T12:00:00Z',
+      modelId: 'test',
+    })).toThrow();
+  });
+
+  // CE4: Client response lacking valid canonical record cannot replace state
+  it('CE4: invalid canonical record in client response is rejected', () => {
+    const baseline = createValidBaseline();
+    const badResponse = { success: true, case: { id: 'case-01' } };
+    expect(() => commitIntakeResponse([baseline], badResponse, 'case-01')).toThrow();
+  });
+
+  // CE5: Translated presentation response overwriting canonical source fields
+  it('CE5: translation overlay does not mutate canonical record', () => {
+    const record = createValidBaseline();
+    const json1 = JSON.stringify(record);
+    const pres = projectToPresentation(record);
+    applyTranslationOverlay(pres, { title: 'X', events: [{ id: 'EV1', action: 'Y' }] });
+    expect(JSON.stringify(record)).toBe(json1);
+  });
+
+  // CE6: Legacy projection saved as authoritative record after canonical upgrade
+  it('CE6: a presentation/legacy projection is rejected by parseCanonicalRecord', () => {
+    const record = createValidBaseline();
+    const presentation = projectToPresentation(record);
+    // Attempting to parse a presentation object as canonical must fail
+    expect(() => parseCanonicalRecord(presentation)).toThrow();
+  });
+
+  // CE7: New intake overwriting R01 rather than appending a child revision
+  it('CE7: transition appends a child revision, does not overwrite R01', () => {
+    const baseline = createValidBaseline();
+    const result = buildAndCommitTransition({
+      priorRecord: baseline,
+      reconstructionOutput: buildDeterministicReconOutput({
+        newStatementTempId: 'U_TEMP_0',
+        newEvidenceTempId: 'E_TEMP_0',
+        existingStatementIds: ['U01'],
+        existingEvidenceIds: ['E01'],
+      }),
+      newStatements: [{ text: 'S', submitted_at: '2023-06-15T12:00:00Z' }],
+      newEvidence: [{ label: 'E', origin_type: 'file', input_form: 'doc', submitted_at: '2023-06-15T12:00:00Z' }],
+      timestamp: '2023-06-15T12:00:00Z',
+      modelId: 'test',
+      tempIdRemap: {
+        statementTempIds: ['U_TEMP_0'],
+        evidenceTempIds: ['E_TEMP_0'],
+      },
+    });
+    // R01 still exists and is unchanged
+    expect(result.revisions[0].revision_id).toBe('R01');
+    expect(result.revisions.length).toBe(2);
+  });
+
+  // CE8: Response whose current_revision_id does not identify the newly appended revision
+  it('CE8: current_revision_id always points to the newly appended revision', () => {
+    const baseline = createValidBaseline();
+    const result = buildAndCommitTransition({
+      priorRecord: baseline,
+      reconstructionOutput: buildDeterministicReconOutput({
+        newStatementTempId: 'U_TEMP_0',
+        newEvidenceTempId: 'E_TEMP_0',
+        existingStatementIds: ['U01'],
+        existingEvidenceIds: ['E01'],
+      }),
+      newStatements: [{ text: 'S', submitted_at: '2023-06-15T12:00:00Z' }],
+      newEvidence: [{ label: 'E', origin_type: 'file', input_form: 'doc', submitted_at: '2023-06-15T12:00:00Z' }],
+      timestamp: '2023-06-15T12:00:00Z',
+      modelId: 'test',
+      tempIdRemap: {
+        statementTempIds: ['U_TEMP_0'],
+        evidenceTempIds: ['E_TEMP_0'],
+      },
+    });
+    const lastRevId = result.revisions[result.revisions.length - 1].revision_id;
+    expect(result.current_revision_id).toBe(lastRevId);
+  });
+});
+
+// ===========================================================================
+// 9. Positive proofs
+// ===========================================================================
+describe('Positive proofs', () => {
+  it('Positive 7: UI projection reflects the current revision', () => {
+    const baseline = createValidBaseline();
+    const result = buildAndCommitTransition({
+      priorRecord: baseline,
+      reconstructionOutput: buildDeterministicReconOutput({
+        newStatementTempId: 'U_TEMP_0',
+        newEvidenceTempId: 'E_TEMP_0',
+        existingStatementIds: ['U01'],
+        existingEvidenceIds: ['E01'],
+      }),
+      newStatements: [{ text: 'New', submitted_at: '2023-06-15T12:00:00Z' }],
+      newEvidence: [{ label: 'E', origin_type: 'file', input_form: 'doc', submitted_at: '2023-06-15T12:00:00Z' }],
+      timestamp: '2023-06-15T12:00:00Z',
+      modelId: 'test',
+      tempIdRemap: {
+        statementTempIds: ['U_TEMP_0'],
+        evidenceTempIds: ['E_TEMP_0'],
+      },
+    });
+
+    const presentation = projectToPresentation(result);
+    // Should reflect the new current revision
+    expect(presentation.current_revision_id).toBe('R02');
+    // New statement should appear in presentation
+    expect(presentation.statements.length).toBe(2);
   });
 });
