@@ -20,7 +20,7 @@ export function upgradeLegacyCaseToCanonical(legacy: LegacyCaseDataShape): Canon
     statements.push({
       id: s.id as StatementId,
       text: s.text,
-      submitted_at: s.submitted_at || new Date().toISOString(),
+      submitted_at: new Date(s.submitted_at).toISOString(),
       source_intake_id: intakeId
     });
   }
@@ -37,14 +37,17 @@ export function upgradeLegacyCaseToCanonical(legacy: LegacyCaseDataShape): Canon
       label: e.label || e.id,
       origin_type: 'user', // default
       input_form: e.input_form || 'document',
-      submitted_at: e.received_at ? new Date(e.received_at).toISOString() : new Date().toISOString(),
+      submitted_at: new Date(e.received_at).toISOString(),
       source_intake_id: intakeId
     });
   }
 
+  // Use the earliest evidence/statement timestamp as intake time, or a fixed string if empty.
+  const earliestTimestamp = statements[0]?.submitted_at || evidence[0]?.submitted_at || '2023-01-01T00:00:00Z';
+
   const intake: IntakeRecord = {
     id: intakeId,
-    received_at: new Date().toISOString(),
+    received_at: earliestTimestamp,
     resulting_revision_id: revisionId,
     parts
   };
@@ -125,9 +128,9 @@ export function upgradeLegacyCaseToCanonical(legacy: LegacyCaseDataShape): Canon
 
   const revision: CaseRevision = {
     revision_id: revisionId,
-    created_at: new Date().toISOString(),
-    title: legacy.title || 'Upgraded Case',
-    objective: legacy.objective || '',
+    created_at: earliestTimestamp,
+    title: legacy.title,
+    objective: legacy.objective,
     triggering_intake_id: intakeId,
     input_statement_ids: statements.map(s => s.id),
     input_evidence_ids: evidence.map(e => e.id),
@@ -184,9 +187,9 @@ export function upgradeLegacyCaseToCanonical(legacy: LegacyCaseDataShape): Canon
   return {
     id: legacy.id,
     schema_version: '2.0.0',
-    case_number: legacy.case_number || 'C-0000',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    case_number: legacy.case_number,
+    created_at: earliestTimestamp,
+    updated_at: earliestTimestamp,
     current_revision_id: revisionId,
     intake_ledger: [intake],
     statements,

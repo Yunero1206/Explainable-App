@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { saveCase, deleteCase, getAllCases } from './storage/caseStore.js';
-import { projectToPresentation } from './domain/currentProjection.js';
+import { projectCurrentRecord } from './domain/currentProjection.js';
 import { admitBootstrapRecord } from './canonical/boundary.js';
 import { createEmptyCanonicalRecord } from './canonical/factory.js';
 import { commitIntakeResponse } from './domain/clientCommit.js';
-import { applyTranslationOverlay, TranslationOverlay, parseTranslationResponse, isOverlayStale } from './domain/translationOverlay.js';
+import { applyTranslation, TranslationOverlay, acceptTranslationResponse, TranslationContext } from './domain/translationOverlay.js';
+import { cleanupCaseState } from './domain/cleanup.js';
 import { CanonicalCaseRecord } from './canonical/types.js';
 import { LeftSidebar } from './components/LeftSidebar';
 import { RightCaseRecord } from './components/RightCaseRecord';
@@ -104,9 +105,9 @@ export default function App() {
 
   // Compute PresentationCaseData array for the UI
   const presentationCases: PresentationCaseData[] = canonicalCases.map(c => {
-    const baseProj = projectToPresentation(c);
+    const baseProj = projectCurrentRecord(c);
     const meta = caseUiMetadataById[c.id];
-    const transKey = `${c.id}_${c.current_revision_id}_${locale}`;
+    const transKey = `${c.id}::${c.current_revision_id}::${locale}`;
     const overlay = translationOverlays[transKey];
     
     // Apply UI metadata
@@ -118,10 +119,10 @@ export default function App() {
     // Rehydrate Blobs
     baseProj.evidence = baseProj.evidence.map(e => ({
       ...e,
-      file_data_url: attachmentPayloadMap[`${c.id}_${e.id}`]
+      file_data_url: attachmentPayloadMap[`${c.id}::${e.id}`]
     }));
 
-    return applyTranslationOverlay(baseProj, overlay);
+    return applyTranslation(baseProj, overlay);
   });
 
   const currentPresentationCase = presentationCases.find(p => p.id === currentCaseId) || null;
@@ -149,25 +150,25 @@ export default function App() {
   const handleDeleteCase = (caseId: string) => {
     // 1. Remove from IndexedDB
     deleteCase(caseId).catch(console.error);
-    // 2. Remove canonical record
-    setCanonicalCases(prev => prev.filter(c => c.id !== caseId));
-    // 3. Remove UI metadata
-    setCaseUiMetadataById(prev => { const upd = { ...prev }; delete upd[caseId]; return upd; });
-    // 4. Remove translation overlays for this case
-    setTranslationOverlays(prev => {
-      const upd = { ...prev };
-      for (const key of Object.keys(upd)) {
-        if (key.startsWith(`${caseId}_`)) delete upd[key];
-      }
-      return upd;
+    
+    // 2. Pure boundary cleanup of state
+    const nextState = cleanupCaseState(caseId, {
+      canonicalCases,
+      caseUiMetadataById,
+      chatMessagesMap,
+      translationOverlays
     });
-    // 5. Remove chat state
-    setChatMessagesMap(prev => { const upd = { ...prev }; delete upd[caseId]; return upd; });
-    // 6. Remove all attachment payloads whose composite key belongs to this case
+    
+    setCanonicalCases(nextState.canonicalCases);
+    setCaseUiMetadataById(nextState.caseUiMetadataById);
+    setChatMessagesMap(nextState.chatMessagesMap);
+    setTranslationOverlays(nextState.translationOverlays);
+
+    // 3. Remove all attachment payloads whose composite key belongs to this case
     setAttachmentPayloadMap(prev => {
       const upd = { ...prev };
       for (const key of Object.keys(upd)) {
-        if (key.startsWith(`${caseId}_`)) delete upd[key];
+        if (key.startsWith(`${caseId}::`)) delete upd[key];
       }
       return upd;
     });
@@ -215,17 +216,52 @@ export default function App() {
     setCurrentCaseId(caseId);
   };
 
+  const latestContextRef = React.useRef<TranslationContext | null>(null);
+
+  React.useEffect(() => {
+    if (currentCanonicalCase) {
+      const baseProj = projectCurrentRecord(currentCanonicalCase);
+      latestContextRef.current = {
+        caseId: currentCanonicalCase.id,
+        revisionId: currentCanonicalCase.current_revision_id,
+        locale: locale,
+        projectionIds: {
+          eventIds: new Set(baseProj.events.map(e => e.id)),
+          claimIds: new Set(baseProj.claims.map(c => c.id)),
+          gapIds: new Set(baseProj.gaps.map(g => g.id)),
+          actionIds: new Set(baseProj.actions.map(a => a.id))
+        }
+      };
+    } else {
+      latestContextRef.current = null;
+    }
+  }, [currentCanonicalCase, locale]);
+
   React.useEffect(() => {
     if (!currentCanonicalCase) return;
     if (currentCanonicalCase.revisions[0].events.length === 0 && currentCanonicalCase.revisions[0].claims.length === 0) return;
     
-    const transKey = `${currentCanonicalCase.id}_${currentCanonicalCase.current_revision_id}_${locale}`;
+    const transKey = `${currentCanonicalCase.id}::${currentCanonicalCase.current_revision_id}::${locale}`;
     if (translationOverlays[transKey] || locale === 'en') return; // 'en' is base
 
     const translateCase = async () => {
       try {
         setIsAnalyzing(true);
-        const baseProj = projectToPresentation(currentCanonicalCase);
+        const baseProj = projectCurrentRecord(currentCanonicalCase);
+        
+        // Capture the original context at the time of the request
+        const originalContext: TranslationContext = {
+          caseId: currentCanonicalCase.id,
+          revisionId: currentCanonicalCase.current_revision_id,
+          locale: locale,
+          projectionIds: {
+            eventIds: new Set(baseProj.events.map(e => e.id)),
+            claimIds: new Set(baseProj.claims.map(c => c.id)),
+            gapIds: new Set(baseProj.gaps.map(g => g.id)),
+            actionIds: new Set(baseProj.actions.map(a => a.id))
+          }
+        };
+
         const response = await fetch('/api/translate-case', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -242,13 +278,17 @@ export default function App() {
 
         if (response.ok) {
           const rawData: unknown = await response.json();
-          // Parse and validate through shared module
-          const overlay = parseTranslationResponse(rawData);
-          if (overlay && !isOverlayStale(transKey, currentCanonicalCase.id, currentCanonicalCase.current_revision_id, locale)) {
-            setTranslationOverlays(prev => ({
-              ...prev,
-              [transKey]: overlay
-            }));
+          // The exact function called by App.tsx after the asynchronous translation response returns
+          if (latestContextRef.current) {
+            try {
+              const overlay = acceptTranslationResponse(rawData, originalContext, latestContextRef.current);
+              setTranslationOverlays(prev => ({
+                ...prev,
+                [transKey]: overlay
+              }));
+            } catch (err) {
+              console.warn('Translation overlay rejected:', err);
+            }
           }
         }
       } catch (err) {
@@ -310,7 +350,7 @@ export default function App() {
           // Match by some criteria or let the UI re-read attachments. In this simplified version, we just store what we have.
           replacedRecord.evidence.forEach(e => {
             const att = attachments.find(a => a.name === e.label || a.id === e.storage_key);
-            if (att && att.dataUrl) upd[`${currentCaseId}_${e.id}`] = att.dataUrl;
+            if (att && att.dataUrl) upd[`${currentCaseId}::${e.id}`] = att.dataUrl;
           });
           return upd;
         });

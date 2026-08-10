@@ -33,7 +33,7 @@ export const TranslationOverlaySchema = z.object({
 export type TranslationOverlay = z.infer<typeof TranslationOverlaySchema>;
 
 export function getTranslationKey(caseId: string, revisionId: string, locale: string): string {
-  return `${caseId}_${revisionId}_${locale}`;
+  return `${caseId}::${revisionId}::${locale}`;
 }
 
 /**
@@ -97,7 +97,50 @@ export function filterOverlayToProjection(
   };
 }
 
-export function applyTranslationOverlay(
+export interface TranslationContext {
+  caseId: string;
+  revisionId: string;
+  locale: string;
+  projectionIds: {
+    eventIds: Set<string>;
+    claimIds: Set<string>;
+    gapIds: Set<string>;
+    actionIds: Set<string>;
+  };
+}
+
+/**
+ * Validates and accepts a translation response at the client boundary.
+ * Proves that:
+ * - The raw response is not malformed.
+ * - The current application state has not moved on (stale rejection).
+ * - Only entity IDs permitted by the current projection are stored (unknown ID rejection).
+ */
+export function acceptTranslationResponse(
+  rawResponse: unknown,
+  originalContext: TranslationContext,
+  currentContext: TranslationContext
+): TranslationOverlay {
+  // 1. Stale rejection
+  if (
+    originalContext.caseId !== currentContext.caseId ||
+    originalContext.revisionId !== currentContext.revisionId ||
+    originalContext.locale !== currentContext.locale
+  ) {
+    throw new Error('Translation response rejected: context is stale');
+  }
+
+  // 2. Malformed rejection
+  const parsed = parseTranslationResponse(rawResponse);
+  if (!parsed) {
+    throw new Error('Translation response rejected: malformed response');
+  }
+
+  // 3. Filter unknown/stable IDs not permitted in the projection
+  return filterOverlayToProjection(parsed, currentContext.projectionIds);
+}
+
+export function applyTranslation(
   projection: PresentationCaseData,
   overlay: TranslationOverlay | undefined
 ): PresentationCaseData {

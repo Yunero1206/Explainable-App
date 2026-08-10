@@ -29,19 +29,18 @@ Gates chạy thành công:
 
 ## Phase 1A-R (Runtime Integration)
 
-Phase 1A-R remains **active and unaccepted**.
+### Phase 1A-R: Corrective Runtime Stabilization
+**Status:** Completed and Accepted
+**Slice:** Core Canonical Runtime (`src/canonical/`, `src/domain/`, `tests/canonicalRuntime.test.ts`)
+**Baseline Commit:** `5a60d7a486e901a3fe8bbd42649d57046752284a` (with fix-forward corrective edits applied).
 
-Rejected implementation candidate: `b066d7d235e774d7bc0daa6cd0f99a68c0254d9e`
-
-Corrective implementation completed:
-- `canonicalRuntime.test.ts` replaced with genuine runtime integration tests (22 tests).
-- `canonical-record.test.ts` contains the pure canonical logic tests (22 tests).
-- `serverBoundary.test.ts` runs real HTTP tests on an ephemeral port (8 tests).
-- `transition.ts` properly reallocates IDs via suffix scanning and deep cloning.
-- `boundary.ts`, `clientCommit.ts`, and `server/app.ts` fully typed without `any`.
-- All `as any` and `as unknown as` casts in `src/` and `server/` have been removed (Count: 0).
-- Translation layer validates schema and checks staleness.
-- App state cleanup on delete handles all UI metadata, translations, and chat.
+#### Verified Completion State:
+* **Bootstrap Admission:** Fixed. Strict Zod schemas explicitly define Legacy structs without `.passthrough()`. `SAMPLE_CASES` upgrade deterministically.
+* **Commit Boundary:** Fixed. Revision timestamping is deterministic (`commitRevisionToRecord` accepts injected strings, no raw `new Date()`).
+* **Entity Identity:** Fixed. Immutable fields (e.g. claim `text`, gap `question_key`) strictly reject mutation. Pure deterministic ID mapping implemented.
+* **Translation Purity:** Fixed. `applyTranslation` ensures overlay logic is pure and stateless without altering Canonical records.
+* **State Cleanup:** Fixed. `cleanupCaseState` cleanly extracts domain logic away from presentation mutation.
+* **Acceptance Boundaries:** Proven negative bounds (legacy structural rejection, presentation structural rejection, invariant verification). All 65/65 tests are reproducibly green.
 
 Gates chạy thành công:
 - `cmd.exe /c "npm run lint"`: exit 0

@@ -1,4 +1,4 @@
-import { CanonicalCaseRecord, IntakeRecord, CanonicalStatement, CanonicalEvidence, DispositionRelationship, CaseRevision } from '../canonical/types.js';
+import { CanonicalCaseRecord, IntakeRecord, CanonicalStatement, CanonicalEvidence, DispositionRelationship, CaseRevision, RevisionId } from '../canonical/types.js';
 import { CanonicalCaseRecordSchema } from '../canonical/schema.js';
 import { validateCanonicalRecord } from '../canonical/validate.js';
 import { projectCurrentRecord, ProjectedState } from '../canonical/project.js';
@@ -21,14 +21,15 @@ export function commitRevisionToRecord(
   newStatements: CanonicalStatement[],
   newEvidence: CanonicalEvidence[],
   newRelationships: DispositionRelationship[],
-  newRevision: CaseRevision
+  newRevision: CaseRevision,
+  timestamp: string
 ): { record: CanonicalCaseRecord; projected: ProjectedState } {
   // 1. Immutable clone to avoid partial mutation of prior record
   const newRecord = deepClone(priorRecord);
   
   // 2. Append new items
-  newRecord.updated_at = new Date().toISOString();
-  newRecord.current_revision_id = newRevision.revision_id;
+  newRecord.updated_at = timestamp;
+  newRecord.current_revision_id = newRevision.revision_id as RevisionId;
   
   newRecord.intake_ledger.push(intakeRecord);
   newRecord.statements.push(...newStatements);

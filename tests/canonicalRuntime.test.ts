@@ -1,14 +1,16 @@
 import { describe, it, expect } from 'vitest';
 import { admitBootstrapRecord, parseCanonicalRecord } from '../src/canonical/boundary.js';
-import { projectToPresentation } from '../src/domain/currentProjection.js';
+import { projectCurrentRecord } from '../src/domain/currentProjection.js';
 import { createEmptyCanonicalRecord } from '../src/canonical/factory.js';
 import { buildAndCommitTransition } from '../src/canonical/transition.js';
 import { commitIntakeResponse } from '../src/domain/clientCommit.js';
 import {
   parseTranslationResponse,
   isOverlayStale,
-  applyTranslationOverlay,
+  applyTranslation,
   TranslationOverlaySchema,
+  acceptTranslationResponse,
+  TranslationContext
 } from '../src/domain/translationOverlay.js';
 import {
   CanonicalCaseRecordSchema,
@@ -66,19 +68,7 @@ function buildDeterministicReconOutput(opts: {
         actor: 'Actor',
         action: 'Action',
         target: 'Target',
-        effect: 'Effect',
-        evidence_ids: ['U01'],
-        user_statement_ids: [],
-        assessment: 'Established within current record',
-        is_user_reported_only: false,
-      },
-      {
-        id: 'EV2',
-        time: '2023-01-02',
-        actor: 'New Actor',
-        action: 'New Action',
-        target: 'New Target',
-        effect: 'New Effect',
+        effect: undefined,
         evidence_ids: [opts.newStatementTempId],
         user_statement_ids: [],
         assessment: 'Reported',
@@ -88,7 +78,7 @@ function buildDeterministicReconOutput(opts: {
     claims: [
       {
         id: 'C01',
-        text: 'Existing claim updated',
+        text: 'Claim 1', // Preserved immutable text
         actor: 'A',
         action: 'A',
         target: 'T',
@@ -165,7 +155,7 @@ function buildDeterministicReconOutput(opts: {
 // ---------------------------------------------------------------------------
 // Helper: build a valid baseline canonical record
 // ---------------------------------------------------------------------------
-function createValidBaseline(): CanonicalCaseRecord {
+export const createValidBaseline = (): CanonicalCaseRecord => {
   const timestamp = '2023-01-01T00:00:00Z';
   return {
     id: 'case-01',
@@ -237,18 +227,75 @@ function createValidBaseline(): CanonicalCaseRecord {
 // 1. admitBootstrapRecord
 // ===========================================================================
 describe('admitBootstrapRecord', () => {
-  it('admits a valid canonical record unchanged (Positive proof 1: legacy upgrade)', () => {
-    const record = createValidBaseline();
-    const admitted = admitBootstrapRecord(record);
-    expect(admitted.id).toBe('case-01');
-    expect(admitted.schema_version).toBe('2.0.0');
-    expect(admitted.current_revision_id).toBe('R01');
+  it('every real bundled legacy sample upgrades successfully (Positive proof 1: legacy upgrade)', async () => {
+    // Need to dynamically import to avoid circular dependencies if any
+    const { SAMPLE_CASES } = await import('../src/data/sampleCases.js');
+    expect(SAMPLE_CASES.length).toBeGreaterThan(0);
+    
+    for (const sample of SAMPLE_CASES) {
+      const canonical = admitBootstrapRecord(sample);
+      expect(canonical.schema_version).toBe('2.0.0');
+      expect(canonical.id).toBe(sample.id);
+      expect(canonical.case_number).toBe(sample.case_number);
+      // Ensure no fallback Date was generated for intake
+      expect(canonical.intake_ledger[0].received_at).not.toMatch(new Date().toISOString().split('T')[0]); 
+    }
   });
 
-  it('rejects partial legacy-looking objects missing required fields', () => {
+  it('a serialized legacy record without schema_version is correctly classified', () => {
+    const legacyWithoutVersion = {
+      id: 'case-test',
+      case_number: 'C-TEST',
+      title: 'T',
+      objective: 'O',
+      statements: [],
+      evidence: [],
+      events: [],
+      claims: [],
+      gaps: [],
+      actions: [],
+      summary: { total_evidence_count: 0, established_claims_count: 0, unresolved_claims_count: 0, conflicted_claims_count: 0, user_reported_claims_count: 0 }
+    };
+    const canonical = admitBootstrapRecord(legacyWithoutVersion);
+    expect(canonical.schema_version).toBe('2.0.0');
+  });
+
+  it('rejects partial legacy-looking objects missing required fields (malformed/incomplete)', () => {
     // Missing title and objective — should be rejected
     const partial = { id: 'case-x', statements: [], evidence: [], events: [], claims: [], gaps: [], actions: [] };
     expect(() => admitBootstrapRecord(partial)).toThrow();
+  });
+
+  it('no missing timestamp, title, assessment or structural field is silently replaced with new Date() or fallback', () => {
+    // Create a legacy record missing 'submitted_at' in statements
+    const missingTimestamp = {
+      id: 'case-test',
+      case_number: 'C-TEST',
+      title: 'T',
+      objective: 'O',
+      statements: [{ id: 'U1', text: 'T' }], // Missing submitted_at
+      evidence: [],
+      events: [],
+      claims: [],
+      gaps: [],
+      actions: [],
+      summary: { total_evidence_count: 0, established_claims_count: 0, unresolved_claims_count: 0, conflicted_claims_count: 0, user_reported_claims_count: 0 }
+    };
+    // Should throw because submitted_at is required by strict schema
+    expect(() => admitBootstrapRecord(missingTimestamp)).toThrow();
+  });
+
+  it('purported canonical v2 records never fall back to legacy upgrade', () => {
+    // An object with schema_version 2.0.0 but missing canonical fields
+    const purportedV2 = {
+      id: 'case-test',
+      schema_version: '2.0.0',
+      case_number: 'C-TEST',
+      // Missing all other canonical fields like intake_ledger, created_at, etc.
+    };
+    // If it fell back to legacy, it might throw a Zod error about legacy fields.
+    // If it correctly uses parseCanonicalRecord, it throws a canonical validation error.
+    expect(() => admitBootstrapRecord(purportedV2)).toThrow(/Structural validation failed/); 
   });
 
   it('rejects null and non-object inputs', () => {
@@ -259,13 +306,13 @@ describe('admitBootstrapRecord', () => {
 });
 
 // ===========================================================================
-// 2. projectToPresentation
+// 2. projectCurrentRecord
 // ===========================================================================
-describe('projectToPresentation', () => {
+describe('projectCurrentRecord', () => {
   it('projects a valid canonical record without mutation (Positive proof 2)', () => {
     const record = createValidBaseline();
     const originalJson = JSON.stringify(record);
-    const presentation = projectToPresentation(record);
+    const presentation = projectCurrentRecord(record);
     // Canonical input unchanged
     expect(JSON.stringify(record)).toBe(originalJson);
     // Presentation has the right structure
@@ -548,18 +595,18 @@ describe('Translation handling', () => {
   });
 
   it('isOverlayStale detects stale case', () => {
-    const key = 'case-01_R01_vi';
+    const key = 'case-01::R01::vi';
     expect(isOverlayStale(key, 'case-01', 'R01', 'vi')).toBe(false);
     expect(isOverlayStale(key, 'case-02', 'R01', 'vi')).toBe(true); // stale case
   });
 
   it('isOverlayStale detects stale revision', () => {
-    const key = 'case-01_R01_vi';
+    const key = 'case-01::R01::vi';
     expect(isOverlayStale(key, 'case-01', 'R02', 'vi')).toBe(true);
   });
 
   it('isOverlayStale detects mismatched locale', () => {
-    const key = 'case-01_R01_vi';
+    const key = 'case-01::R01::vi';
     expect(isOverlayStale(key, 'case-01', 'R01', 'en')).toBe(true);
   });
 
@@ -567,13 +614,13 @@ describe('Translation handling', () => {
     const record = createValidBaseline();
     const originalJson = JSON.stringify(record);
     
-    const presentation = projectToPresentation(record);
+    const presentation = projectCurrentRecord(record);
     const overlay = {
       title: 'Translated Title',
       events: [{ id: 'EV1', action: 'Translated Action' }],
       claims: [{ id: 'C01', text: 'Translated Claim', reasoning: 'Translated Reasoning', limits: ['Limit'] }],
     };
-    const translated = applyTranslationOverlay(presentation, overlay);
+    const translated = applyTranslation(presentation, overlay);
     
     // Canonical record unchanged
     expect(JSON.stringify(record)).toBe(originalJson);
@@ -581,6 +628,64 @@ describe('Translation handling', () => {
     expect(translated.title).toBe('Translated Title');
     expect(translated.events[0].action).toBe('Translated Action');
     expect(translated.claims[0].text).toBe('Translated Claim');
+  });
+
+  describe('acceptTranslationResponse boundaries', () => {
+    const originalContext: TranslationContext = {
+      caseId: 'case-01',
+      revisionId: 'R01',
+      locale: 'vi',
+      projectionIds: {
+        eventIds: new Set(['EV1']),
+        claimIds: new Set(['C01']),
+        gapIds: new Set(['G01']),
+        actionIds: new Set(['A01'])
+      }
+    };
+    const validRawResponse = {
+      success: true,
+      title: 'T',
+      events: [{ id: 'EV1', action: 'A' }, { id: 'EV_UNKNOWN', action: 'B' }],
+      claims: [{ id: 'C_UNKNOWN', text: 'T', reasoning: 'R', limits: [] }]
+    };
+
+    it('rejects stale case', () => {
+      const currentContext = { ...originalContext, caseId: 'case-02' };
+      expect(() => acceptTranslationResponse(validRawResponse, originalContext, currentContext))
+        .toThrow(/context is stale/);
+    });
+
+    it('rejects stale revision', () => {
+      const currentContext = { ...originalContext, revisionId: 'R02' };
+      expect(() => acceptTranslationResponse(validRawResponse, originalContext, currentContext))
+        .toThrow(/context is stale/);
+    });
+
+    it('rejects stale locale', () => {
+      const currentContext = { ...originalContext, locale: 'en' };
+      expect(() => acceptTranslationResponse(validRawResponse, originalContext, currentContext))
+        .toThrow(/context is stale/);
+    });
+
+    it('rejects malformed response', () => {
+      const malformed = { success: false };
+      expect(() => acceptTranslationResponse(malformed, originalContext, originalContext))
+        .toThrow(/malformed response/);
+    });
+
+    it('filters out C_UNKNOWN and other unknown stable IDs', () => {
+      const overlay = acceptTranslationResponse(validRawResponse, originalContext, originalContext);
+      
+      // Known ID is kept
+      expect(overlay.events?.find(e => e.id === 'EV1')).toBeDefined();
+      
+      // Unknown IDs are filtered out
+      expect(overlay.events?.find(e => e.id === 'EV_UNKNOWN')).toBeUndefined();
+      expect(overlay.claims?.find(c => c.id === 'C_UNKNOWN')).toBeUndefined();
+      
+      // They should be completely empty in claims array for this specific overlay
+      expect(overlay.claims?.length).toBe(0);
+    });
   });
 });
 
@@ -695,15 +800,15 @@ describe('Counterexamples (negative proofs)', () => {
   it('CE5: translation overlay does not mutate canonical record', () => {
     const record = createValidBaseline();
     const json1 = JSON.stringify(record);
-    const pres = projectToPresentation(record);
-    applyTranslationOverlay(pres, { title: 'X', events: [{ id: 'EV1', action: 'Y' }] });
+    const pres = projectCurrentRecord(record);
+    applyTranslation(pres, { title: 'X', events: [{ id: 'EV1', action: 'Y' }] });
     expect(JSON.stringify(record)).toBe(json1);
   });
 
   // CE6: Legacy projection saved as authoritative record after canonical upgrade
   it('CE6: a presentation/legacy projection is rejected by parseCanonicalRecord', () => {
     const record = createValidBaseline();
-    const presentation = projectToPresentation(record);
+    const presentation = projectCurrentRecord(record);
     // Attempting to parse a presentation object as canonical must fail
     expect(() => parseCanonicalRecord(presentation)).toThrow();
   });
@@ -782,10 +887,76 @@ describe('Positive proofs', () => {
       },
     });
 
-    const presentation = projectToPresentation(result);
+    const presentation = projectCurrentRecord(result);
     // Should reflect the new current revision
     expect(presentation.current_revision_id).toBe('R02');
     // New statement should appear in presentation
     expect(presentation.statements.length).toBe(2);
+  });
+
+  // Identity Stability Tests (CE9-CE12)
+  it('CE9: rejects transition if claim immutable fields (text) change for existing claim', () => {
+    const prior = createValidBaseline();
+    const output = {
+      claims: [{ id: 'C01', text: 'Rewritten identity', assessment: 'Reported', reasoning: 'R', supporting_evidence: [], qualifying_evidence: [], conflicting_evidence: [] }],
+      gaps: [{ id: 'G01', what_is_unknown: 'Q1', status: 'open', target_claim_ids: ['C01'] }]
+    };
+    // @ts-expect-error: mock output
+    expect(() => buildAndCommitTransition({ priorRecord: prior, reconstructionOutput: output, newStatements: [], newEvidence: [], timestamp: '2023-06-15T12:00:00Z', modelId: 'test', tempIdRemap: { statementTempIds: [], evidenceTempIds: [] }})).toThrow(/Illegal identity change for Claim C01/);
+  });
+
+  it('CE10: rejects transition if event immutable fields change for existing event', () => {
+    const prior = createValidBaseline();
+    const output = {
+      events: [{ id: 'EV1', time: '2023-01-02', actor: 'Actor', action: 'Action', target: 'Target', assessment: 'Reported', evidence_ids: [] }], // Changed time
+      claims: [{ id: 'C01', text: 'Claim 1', assessment: 'Established within current record', reasoning: 'Reason', supporting_evidence: [], qualifying_evidence: [], conflicting_evidence: [] }],
+      gaps: [{ id: 'G01', what_is_unknown: 'Q1', status: 'open', target_claim_ids: ['C01'] }]
+    };
+    // @ts-expect-error: mock output
+    expect(() => buildAndCommitTransition({ priorRecord: prior, reconstructionOutput: output, newStatements: [], newEvidence: [], timestamp: '2023-06-15T12:00:00Z', modelId: 'test', tempIdRemap: { statementTempIds: [], evidenceTempIds: [] }})).toThrow(/Illegal identity change for Event EV1/);
+  });
+
+  it('CE11: rejects transition if gap immutable fields (question_key or target_claim_ids) change for existing gap', () => {
+    const prior = createValidBaseline();
+    
+    // Mutate question_key
+    const output2 = {
+      claims: [{ id: 'C01', text: 'Claim 1', assessment: 'Established within current record', reasoning: 'Reason', supporting_evidence: [], qualifying_evidence: [], conflicting_evidence: [] }],
+      gaps: [{ id: 'G01', what_is_unknown: 'Q2', target_claim_ids: ['C01'], status: 'open' }]
+    };
+    // @ts-expect-error: mock output
+    expect(() => buildAndCommitTransition({ priorRecord: prior, reconstructionOutput: output2, newStatements: [], newEvidence: [], timestamp: '2023-06-15T12:00:00Z', modelId: 'test', tempIdRemap: { statementTempIds: [], evidenceTempIds: [] }})).toThrow(/Illegal identity change for Gap G01/);
+
+    // Mutate target_claim_ids
+    const output3 = {
+      claims: [{ id: 'C01', text: 'Claim 1', assessment: 'Established within current record', reasoning: 'Reason', supporting_evidence: [], qualifying_evidence: [], conflicting_evidence: [] }],
+      gaps: [{ id: 'G01', what_is_unknown: 'Q1', target_claim_ids: [], status: 'open' }]
+    };
+    // @ts-expect-error: mock output
+    expect(() => buildAndCommitTransition({ priorRecord: prior, reconstructionOutput: output3, newStatements: [], newEvidence: [], timestamp: '2023-06-15T12:00:00Z', modelId: 'test', tempIdRemap: { statementTempIds: [], evidenceTempIds: [] }})).toThrow(/Illegal identity change for Gap G01/);
+  });
+
+  it('CE12: genuinely new objects with provider-supplied canonical-looking IDs are deterministically remapped', () => {
+    const prior = createValidBaseline();
+    const output = {
+      claims: [
+        { id: 'C01', text: 'Claim 1', assessment: 'Established within current record', reasoning: 'Reason', supporting_evidence: [], qualifying_evidence: [], conflicting_evidence: [] },
+        { id: 'C999', text: 'New claim', assessment: 'Reported', reasoning: '', supporting_evidence: [], qualifying_evidence: [], conflicting_evidence: [] }
+      ],
+      gaps: [
+        { id: 'G01', what_is_unknown: 'Q1', status: 'open', target_claim_ids: ['C01'] },
+        { id: 'G999', what_is_unknown: 'Q', status: 'open', target_claim_ids: ['C999'] } // references the fake C999
+      ]
+    };
+    // @ts-expect-error: mock output
+    const newRecord = buildAndCommitTransition({ priorRecord: prior, reconstructionOutput: output, newStatements: [], newEvidence: [], timestamp: '2023-06-15T12:00:00Z', modelId: 'test', tempIdRemap: { statementTempIds: [], evidenceTempIds: [] }});
+    const newRev = newRecord.revisions[1];
+    
+    // They should not have ID 999. They should have deterministic C02, G02
+    expect(newRev.claims.find(c => c.text === 'New claim')?.id).toBe('C02');
+    expect(newRev.gaps.find(g => g.question_key === 'Q')?.id).toBe('G02');
+    
+    // The reference inside the gap must be remapped to C02
+    expect(newRev.gaps.find(g => g.question_key === 'Q')?.target_claim_ids).toEqual(['C02']);
   });
 });

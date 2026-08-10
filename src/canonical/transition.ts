@@ -9,6 +9,7 @@ import {
 import { CaseReconstructionOutput } from '../schema.js';
 import { CanonicalCaseRecordSchema } from './schema.js';
 import { validateCanonicalRecord } from './validate.js';
+import { commitRevisionToRecord } from '../domain/commitBoundary.js';
 
 // ---------------------------------------------------------------------------
 // ID Allocation — scans existing numeric suffixes for collision-free allocation
@@ -231,20 +232,56 @@ export function buildAndCommitTransition(params: BuildTransitionParams): Canonic
 
   // Build delta entries
   const deltaChanges: RevisionDeltaEntry[] = [];
+  const entityRemap = new Map<string, string>();
 
-  // 6a. Events — distinguish stable carry-forward from new
+  // Pre-allocate IDs for genuinely new objects so cross-references can be remapped
+  let evCounterAlloc = existingEVMax;
+  for (const pev of reconstructionOutput.events ?? []) {
+    if (!allEventIds.has(pev.id)) {
+      evCounterAlloc++;
+      entityRemap.set(pev.id, formatId('EV', evCounterAlloc));
+    }
+  }
+  let cCounterAlloc = existingCMax;
+  for (const pc of reconstructionOutput.claims ?? []) {
+    if (!allClaimIds.has(pc.id)) {
+      cCounterAlloc++;
+      entityRemap.set(pc.id, formatId('C', cCounterAlloc));
+    }
+  }
+  let gCounterAlloc = existingGMax;
+  for (const pg of reconstructionOutput.gaps ?? []) {
+    if (!allGapIds.has(pg.id)) {
+      gCounterAlloc++;
+      entityRemap.set(pg.id, formatId('G', gCounterAlloc));
+    }
+  }
+  let aCounterAlloc = existingAMax;
+  for (const pa of reconstructionOutput.actions ?? []) {
+    if (!allActionIds.has(pa.id)) {
+      aCounterAlloc++;
+      entityRemap.set(pa.id, formatId('A', aCounterAlloc));
+    }
+  }
+
+  const resolveEntityId = (id: string) => entityRemap.get(id) ?? id;
+
+  // 6a. Events
   const events: CaseEvent[] = [];
-  let evCounter = Math.max(existingEVMax, scanMaxSuffix([...allEventIds], 'EV'));
   const providerEvents = reconstructionOutput.events ?? [];
 
   for (const pev of providerEvents) {
     const isExisting = allEventIds.has(pev.id);
     const assessment = validateAssessment(pev.assessment);
-
     const remappedEvidenceIds = (pev.evidence_ids ?? []).map(id => remapId(id, remap)) as (StatementId | EvidenceId)[];
 
     if (isExisting) {
-      // Carry forward / update existing event
+      const oldEvent = oldRev?.events.find(e => e.id === pev.id);
+      if (oldEvent) {
+        if (oldEvent.time !== pev.time || oldEvent.actor !== pev.actor || oldEvent.action !== pev.action || oldEvent.target !== pev.target || oldEvent.effect !== pev.effect) {
+          throw new Error(`Illegal identity change for Event ${pev.id}: immutable fields modified`);
+        }
+      }
       const canonEvent: CaseEvent = {
         id: pev.id as EventId,
         time: pev.time,
@@ -256,29 +293,13 @@ export function buildAndCommitTransition(params: BuildTransitionParams): Canonic
         assessment,
       };
       events.push(canonEvent);
-      // Determine if updated
-      const oldEvent = oldRev?.events.find(e => e.id === pev.id);
-      if (oldEvent && (oldEvent.assessment !== assessment || oldEvent.action !== pev.action)) {
-        deltaChanges.push({
-          entity_type: 'event',
-          entity_id: pev.id as EventId,
-          operation: 'updated',
-          reason: 'Updated by reconstruction',
-          source_ids: remappedEvidenceIds,
-        });
+      if (oldEvent && oldEvent.assessment !== assessment) {
+        deltaChanges.push({ entity_type: 'event', entity_id: pev.id as EventId, operation: 'updated', reason: 'Updated by reconstruction', source_ids: remappedEvidenceIds });
       }
     } else {
-      // New event — allocate if ID collides or doesn't match pattern
-      let eventId: EventId;
-      if (/^EV\d+$/.test(pev.id) && !allEventIds.has(pev.id)) {
-        eventId = pev.id as EventId;
-      } else {
-        evCounter++;
-        eventId = formatId('EV', evCounter) as EventId;
-      }
+      const eventId = resolveEntityId(pev.id) as EventId;
       allEventIds.add(eventId);
-
-      const canonEvent: CaseEvent = {
+      events.push({
         id: eventId,
         time: pev.time,
         actor: pev.actor,
@@ -287,21 +308,13 @@ export function buildAndCommitTransition(params: BuildTransitionParams): Canonic
         effect: pev.effect || undefined,
         evidence_ids: remappedEvidenceIds,
         assessment,
-      };
-      events.push(canonEvent);
-      deltaChanges.push({
-        entity_type: 'event',
-        entity_id: eventId,
-        operation: 'added',
-        reason: 'New event from reconstruction',
-        source_ids: remappedEvidenceIds,
       });
+      deltaChanges.push({ entity_type: 'event', entity_id: eventId, operation: 'added', reason: 'New event from reconstruction', source_ids: remappedEvidenceIds });
     }
   }
 
-  // 6b. Claims — distinguish stable from new
+  // 6b. Claims
   const claims: CanonicalClaim[] = [];
-  let cCounter = Math.max(existingCMax, scanMaxSuffix([...allClaimIds], 'C'));
   const providerClaims = reconstructionOutput.claims ?? [];
 
   for (const pc of providerClaims) {
@@ -312,6 +325,10 @@ export function buildAndCommitTransition(params: BuildTransitionParams): Canonic
     const conflictingEvidence = (pc.conflicting_evidence ?? []).map(id => remapId(id, remap)) as (StatementId | EvidenceId)[];
 
     if (isExisting) {
+      const oldClaim = oldRev?.claims.find(c => c.id === pc.id);
+      if (oldClaim && oldClaim.text !== pc.text) {
+        throw new Error(`Illegal identity change for Claim ${pc.id}: immutable text modified`);
+      }
       claims.push({
         id: pc.id as ClaimId,
         text: pc.text,
@@ -321,24 +338,11 @@ export function buildAndCommitTransition(params: BuildTransitionParams): Canonic
         qualifying_evidence: qualifyingEvidence,
         conflicting_evidence: conflictingEvidence,
       });
-      const oldClaim = oldRev?.claims.find(c => c.id === pc.id);
       if (oldClaim && oldClaim.assessment !== assessment) {
-        deltaChanges.push({
-          entity_type: 'claim',
-          entity_id: pc.id as ClaimId,
-          operation: 'updated',
-          reason: 'Assessment changed by reconstruction',
-          source_ids: supportingEvidence,
-        });
+        deltaChanges.push({ entity_type: 'claim', entity_id: pc.id as ClaimId, operation: 'updated', reason: 'Assessment changed by reconstruction', source_ids: supportingEvidence });
       }
     } else {
-      let claimId: ClaimId;
-      if (/^C\d+$/.test(pc.id) && !allClaimIds.has(pc.id)) {
-        claimId = pc.id as ClaimId;
-      } else {
-        cCounter++;
-        claimId = formatId('C', cCounter) as ClaimId;
-      }
+      const claimId = resolveEntityId(pc.id) as ClaimId;
       allClaimIds.add(claimId);
       claims.push({
         id: claimId,
@@ -349,40 +353,41 @@ export function buildAndCommitTransition(params: BuildTransitionParams): Canonic
         qualifying_evidence: qualifyingEvidence,
         conflicting_evidence: conflictingEvidence,
       });
-      deltaChanges.push({
-        entity_type: 'claim',
-        entity_id: claimId,
-        operation: 'added',
-        reason: 'New claim from reconstruction',
-        source_ids: supportingEvidence,
-      });
+      deltaChanges.push({ entity_type: 'claim', entity_id: claimId, operation: 'added', reason: 'New claim from reconstruction', source_ids: supportingEvidence });
     }
   }
 
-  // 6c. Gaps — carry forward with lifecycle transitions
+  // 6c. Gaps
   const gaps: CanonicalGap[] = [];
-  let gCounter = Math.max(existingGMax, scanMaxSuffix([...allGapIds], 'G'));
   const providerGaps = reconstructionOutput.gaps ?? [];
 
   for (const pg of providerGaps) {
     const isExisting = allGapIds.has(pg.id);
     const status = validateGapStatus(pg.status);
+    const mappedTargetClaimIds = (pg.target_claim_ids ?? []).map(resolveEntityId) as ClaimId[];
 
     if (isExisting) {
       const priorGap = priorGapMap.get(pg.id);
+      if (priorGap) {
+        if (priorGap.question_key !== pg.what_is_unknown) {
+           throw new Error(`Illegal identity change for Gap ${pg.id}: immutable question_key modified`);
+        }
+        // Strict array equality for target_claim_ids
+        if (JSON.stringify(priorGap.target_claim_ids.slice().sort()) !== JSON.stringify(mappedTargetClaimIds.slice().sort())) {
+           throw new Error(`Illegal identity change for Gap ${pg.id}: immutable target_claim_ids modified`);
+        }
+      }
       const statusChanged = priorGap && priorGap.status !== status;
-
       const canonGap: CanonicalGap = {
         id: pg.id as GapId,
         question_key: priorGap?.question_key ?? pg.what_is_unknown,
         status,
-        target_claim_ids: (pg.target_claim_ids ?? []) as ClaimId[],
+        target_claim_ids: mappedTargetClaimIds,
         ...(statusChanged ? {
           status_revision_id: nextRevId,
           status_reason: pg.resolution_reason ?? 'Status changed by reconstruction',
           status_source_ids: (pg.resolution_evidence_ids ?? []).map(id => remapId(id, remap)) as (StatementId | EvidenceId)[],
         } : {
-          // Carry forward unchanged transition metadata
           status_revision_id: priorGap?.status_revision_id,
           status_reason: priorGap?.status_reason,
           status_source_ids: priorGap?.status_source_ids,
@@ -391,24 +396,13 @@ export function buildAndCommitTransition(params: BuildTransitionParams): Canonic
       gaps.push(canonGap);
 
       if (statusChanged) {
-        const operation: 'resolved' | 'reopened' | 'updated' =
-          status === 'open' ? 'reopened'
-          : (status === 'resolved' || status === 'superseded' || status === 'unavailable' || status === 'no_longer_material')
-            ? 'resolved'
-            : 'updated';
+        const operation: 'resolved' | 'reopened' | 'updated' = status === 'open' ? 'reopened' : (status === 'resolved' || status === 'superseded' || status === 'unavailable' || status === 'no_longer_material') ? 'resolved' : 'updated';
         const sourceIds = (pg.resolution_evidence_ids ?? []).map(id => remapId(id, remap)) as (StatementId | EvidenceId)[];
-        deltaChanges.push({
-          entity_type: 'gap',
-          entity_id: pg.id as GapId,
-          operation,
-          reason: pg.resolution_reason ?? 'Gap status changed',
-          source_ids: sourceIds,
-        });
+        deltaChanges.push({ entity_type: 'gap', entity_id: pg.id as GapId, operation, reason: pg.resolution_reason ?? 'Gap status changed', source_ids: sourceIds });
 
-        // Create gap transition event
         if (priorGap) {
-          evCounter++;
-          const transEventId = formatId('EV', evCounter) as EventId;
+          evCounterAlloc++;
+          const transEventId = formatId('EV', evCounterAlloc) as EventId;
           allEventIds.add(transEventId);
           events.push({
             id: transEventId,
@@ -418,86 +412,56 @@ export function buildAndCommitTransition(params: BuildTransitionParams): Canonic
             target: pg.id,
             evidence_ids: [],
             assessment: 'Established within current record',
-            gap_transition: {
-              gap_id: pg.id as GapId,
-              previous_status: priorGap.status,
-              resulting_status: status,
-              transition_revision_id: nextRevId,
-              source_ids: sourceIds,
-            },
+            gap_transition: { gap_id: pg.id as GapId, previous_status: priorGap.status, resulting_status: status, transition_revision_id: nextRevId, source_ids: sourceIds },
           });
-          deltaChanges.push({
-            entity_type: 'event',
-            entity_id: transEventId,
-            operation: 'added',
-            reason: `Gap ${pg.id} transition event`,
-            source_ids: sourceIds,
-          });
+          deltaChanges.push({ entity_type: 'event', entity_id: transEventId, operation: 'added', reason: 'Gap transition recorded', source_ids: sourceIds });
         }
       }
     } else {
-      // New gap
-      let gapId: GapId;
-      if (/^G\d+$/.test(pg.id) && !allGapIds.has(pg.id)) {
-        gapId = pg.id as GapId;
-      } else {
-        gCounter++;
-        gapId = formatId('G', gCounter) as GapId;
-      }
+      const gapId = resolveEntityId(pg.id) as GapId;
       allGapIds.add(gapId);
       gaps.push({
         id: gapId,
         question_key: pg.what_is_unknown,
         status,
-        target_claim_ids: (pg.target_claim_ids ?? []) as ClaimId[],
+        target_claim_ids: mappedTargetClaimIds,
         status_revision_id: status === 'open' ? undefined : nextRevId,
-        status_reason: status === 'open' ? undefined : pg.resolution_reason,
+        status_reason: status === 'open' ? undefined : pg.resolution_reason ?? 'New gap opened',
         status_source_ids: status === 'open' ? undefined : (pg.resolution_evidence_ids ?? []).map(id => remapId(id, remap)) as (StatementId | EvidenceId)[],
       });
-      deltaChanges.push({
-        entity_type: 'gap',
-        entity_id: gapId,
-        operation: 'added',
-        reason: 'New gap from reconstruction',
-        source_ids: [],
-      });
+      deltaChanges.push({ entity_type: 'gap', entity_id: gapId, operation: 'added', reason: 'New gap from reconstruction', source_ids: [] });
     }
   }
 
-  // 6d. Actions — distinguish stable from new
+  // 6d. Actions
   const actions: CanonicalAction[] = [];
-  let aCounter = Math.max(existingAMax, scanMaxSuffix([...allActionIds], 'A'));
   const providerActions = reconstructionOutput.actions ?? [];
 
   for (const pa of providerActions) {
     const isExisting = allActionIds.has(pa.id);
+    const mappedTargetGapIds = pa.target_gap_id ? [resolveEntityId(pa.target_gap_id) as GapId] : [];
+
     if (isExisting) {
+      const oldAction = oldRev?.actions.find(a => a.id === pa.id);
+      if (oldAction) {
+        if (oldAction.description !== (pa.description || pa.title || '') || JSON.stringify(oldAction.target_gap_ids.slice().sort()) !== JSON.stringify(mappedTargetGapIds.slice().sort())) {
+          throw new Error(`Illegal identity change for Action ${pa.id}: immutable fields modified`);
+        }
+      }
       actions.push({
         id: pa.id as ActionId,
-        target_gap_ids: [pa.target_gap_id as GapId],
-        description: pa.description,
+        description: pa.description || pa.title || '',
+        target_gap_ids: mappedTargetGapIds,
       });
     } else {
-      let actionId: ActionId;
-      if (/^A\d+$/.test(pa.id) && !allActionIds.has(pa.id)) {
-        actionId = pa.id as ActionId;
-      } else {
-        aCounter++;
-        actionId = formatId('A', aCounter) as ActionId;
-      }
+      const actionId = resolveEntityId(pa.id) as ActionId;
       allActionIds.add(actionId);
       actions.push({
         id: actionId,
-        target_gap_ids: [pa.target_gap_id as GapId],
-        description: pa.description,
+        description: pa.description || pa.title || '',
+        target_gap_ids: mappedTargetGapIds,
       });
-      deltaChanges.push({
-        entity_type: 'action',
-        entity_id: actionId,
-        operation: 'added',
-        reason: 'New action from reconstruction',
-        source_ids: [],
-      });
+      deltaChanges.push({ entity_type: 'action', entity_id: actionId, operation: 'added', reason: 'New action from reconstruction', source_ids: [] });
     }
   }
 
@@ -577,41 +541,27 @@ export function buildAndCommitTransition(params: BuildTransitionParams): Canonic
     summary,
   };
 
-  // 10. Deep-clone the prior record to avoid mutation, then append
-  const newRecord: CanonicalCaseRecord = {
-    id: priorRecord.id,
-    schema_version: priorRecord.schema_version,
-    case_number: priorRecord.case_number,
-    created_at: priorRecord.created_at,
-    updated_at: timestamp,
-    current_revision_id: nextRevId,
-    intake_ledger: [...priorRecord.intake_ledger.map(deepCloneObj), intakeRecord],
-    statements: [...priorRecord.statements.map(deepCloneObj), ...allocatedStatements],
-    evidence: [...priorRecord.evidence.map(deepCloneObj), ...allocatedEvidence],
-    relationships: [...priorRecord.relationships.map(deepCloneObj), ...relationships],
-    revisions: [...priorRecord.revisions.map(deepCloneObj), newRevision],
-  };
-
-  // 11. Schema parse (structural validation)
-  const parseResult = CanonicalCaseRecordSchema.safeParse(newRecord);
-  if (!parseResult.success) {
-    throw Object.assign(
-      new Error(`Transition produced invalid structure: ${parseResult.error.message}`),
-      { stage: 'TRANSITION_VALIDATION_FAILED' }
+  // 10. Delegate immutable append and validation to commitBoundary
+  try {
+    const { record } = commitRevisionToRecord(
+      priorRecord,
+      intakeRecord,
+      allocatedStatements,
+      allocatedEvidence,
+      relationships,
+      newRevision,
+      timestamp
     );
+    return record;
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === 'InvariantValidationError') {
+      throw Object.assign(
+        new Error(`Transition invariant validation failed: ${err.message}`),
+        { stage: 'TRANSITION_VALIDATION_FAILED' }
+      );
+    }
+    throw err;
   }
-  const parsed = parseResult.data as CanonicalCaseRecord;
-
-  // 12. Invariant validation (semantic validation)
-  const errors = validateCanonicalRecord(parsed);
-  if (errors.length > 0) {
-    throw Object.assign(
-      new Error(`Transition invariant validation failed: ${errors.join('; ')}`),
-      { stage: 'TRANSITION_VALIDATION_FAILED' }
-    );
-  }
-
-  return parsed;
 }
 
 // ---------------------------------------------------------------------------

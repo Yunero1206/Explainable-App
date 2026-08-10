@@ -1,14 +1,14 @@
 import { UserStatement, EvidenceItem, CaseEvent, Claim, EvidenceGap, NextAction, PresentationCaseData } from '../types.js';
 import { CanonicalCaseRecord } from '../canonical/types.js';
-import { projectCurrentRecord } from '../canonical/project.js';
+import { projectCurrentRecord as projectCanonicalRecord } from '../canonical/project.js';
 
 /**
  * Projects a CanonicalCaseRecord into the PresentationCaseData structure expected by the UI.
  * This preserves the UI presentation while enforcing the canonical source of truth.
  * Does not perform legacy upgrades. Accepts only a validated CanonicalCaseRecord.
  */
-export function projectToPresentation(canonical: CanonicalCaseRecord): PresentationCaseData {
-  const proj = projectCurrentRecord(canonical);
+export function projectCurrentRecord(canonical: CanonicalCaseRecord): PresentationCaseData {
+  const proj = projectCanonicalRecord(canonical);
 
   const statements: UserStatement[] = proj.statements.map(s => ({
     id: s.id,
