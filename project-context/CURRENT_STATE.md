@@ -1,65 +1,61 @@
 # Current State
 
-Last confirmed baseline: `86372a99fbc66a94cac5dc53e1b4617a3da0350f`
+Audit date: 2026-08-10
 
-Current branch/upstream intent: local working branch pushed to `origin/main`.
+Repository: `Yunero1206/Explainable-App`
 
-Current phase: **Phase 1A-R active**.
+Branch intent: `main` → `origin/main`
 
-## Đã xác nhận ở baseline
+Audited HEAD: `f6eacf784ddc07d89823d013445042c4239e63ad`
 
-- Commit tồn tại trên upstream `main`.
-- `npm run lint` pass khi audit độc lập.
-- Canonical test file: 21 tests pass.
-- Full `npm test`: 22 tests / 2 files pass tại baseline.
-- `npm run build` pass.
-- Các lỗi trước về missing/duplicate gap delta, reopen revision identity và single-event source reconciliation đã được đóng.
+Current phase: **Phase 1A-R Architecture Reset — active and unaccepted**
 
-## Slice 1 Canonical Closure (Accepted)
+Persistence/Reload: **pending and inactive**
 
-- Accepted canonical implementation commit: `b994ac94fcae09632071579e29ce025317fb31bd`
-- Slice 1 canonical closure is accepted.
+Deterministic V0 Behavior: **pending and inactive**
 
-Gates chạy thành công:
-- `cmd.exe /c "npm run lint"`: exit 0
-- `cmd.exe /c "npm test"`: exit 0
-  - canonical file: 22 tests passed
-  - full `npm test`: 23 tests passed across 2 files
-- `cmd.exe /c "npm run build"`: exit 0
+V0: **not accepted**
 
-## Phase 1A-R (Runtime Integration)
+## Rejected candidate chain
 
-### Phase 1A-R: Corrective Runtime Stabilization
-**Status:** Active — unaccepted
-**Slice:** Core Canonical Runtime (`src/canonical/`, `src/domain/`, `tests/canonicalRuntime.test.ts`, `tests/cleanup.test.ts`, etc.)
-**Baseline Commit:** `86372a99fbc66a94cac5dc53e1b4617a3da0350f`
-**Candidate Implementation Commit:** `612bbd0cb0b4aa2cd99af592b53011808161a74d` (pending review)
+1. implementation `612bbd0cb0b4aa2cd99af592b53011808161a74d`;
+2. docs `f6eacf784ddc07d89823d013445042c4239e63ad`.
 
-#### Verified Completion State:
-* **Bootstrap Admission:** Fixed. Strict Zod schemas explicitly define Legacy structs without `.passthrough()`. `SAMPLE_CASES` upgrade deterministically.
-* **Commit Boundary:** Fixed. Revision timestamping is deterministic (`commitRevisionToRecord` accepts injected strings).
-* **Entity Identity:** Fixed. Immutable fields strictly reject mutation. CE9-CE12 tests proven.
-* **Translation Purity:** Fixed. `applyTranslation` ensures overlay logic is pure. `acceptTranslationResponse` rejects stale requests and unknown IDs.
-* **State Cleanup:** Fixed. `cleanupCaseState` cleanly extracts domain logic away from presentation mutation without using ambiguous prefix matching (switched to `::` separator).
-* **Acceptance Boundaries:** Proven negative bounds (legacy structural rejection, presentation structural rejection, invariant verification). All tests are reproducibly green.
+The implementation candidate is rejected. Green compile/build reports do not close its reproduced counterexamples.
 
-Gates chạy thành công:
-- `cmd.exe /c "npm run lint"`: exit 0
-- `cmd.exe /c "npm test tests/canonicalRuntime.test.ts tests/serverBoundary.test.ts"`: exit 0 (55 tests)
-- `cmd.exe /c "npm test"`: exit 0 (128 tests)
-- `cmd.exe /c "npm run build"`: exit 0
-- Unsafe casts added in modified files (`as any` & `as unknown as`): 0
+## Verified source facts at HEAD
 
-## Đường đi ngắn nhất đến V0
+- Reconstruction and translation hard-code `gemini-3.6-flash` separately.
+- Provider output is a complete snapshot with provider-supplied IDs.
+- V2 transition code infers changes by comparing provider arrays with the parent.
+- V2 canonical types discard fields that the UI displays.
+- The presentation projector invents placeholder values for discarded fields.
+- legacy date admission uses `Date.parse`.
+- invalid assessment and gap status silently fall back.
+- entity omission and historical identity remain under-specified.
+- React state updates before IndexedDB save is known to have succeeded.
+- attachment bytes remain in an in-memory App map while `blobStore.ts` is not the active path.
+- chat, UI metadata and translation overlays are not fully restored from persistence.
+- no accepted/rejected model-run audit store exists.
+- `tests/cleanup.test.ts` imports another test file, inflating executions.
+- 81 distinct Vitest definitions can be reported as 128 executions because of duplicate registration.
+- stale dev harnesses contain broad explicit `any` usage and target prior API shapes.
+- both npm and Bun lockfiles are present.
 
-| Slice | Kết quả cần có | Trạng thái |
-|---|---|---|
-| 1. Canonical closure | Đóng 2 counterexample còn lại, toàn bộ gates xanh | Accepted |
-| 2. Runtime integration (1A-R) | UI/server/domain dùng canonical record nhất quán | Active — ready for review |
-| 3. Persistence/reload | Save/reload giữ record, sources, revision identity | Pending |
-| 4. Deterministic demo | Một case chạy trọn evidence → revision loop | Pending |
-| 5. V0 gate | Lint/test/build + demo smoke test, không còn blocker | Pending |
+## Architecture decision
 
-## State update rule
+Replace full-snapshot reconstruction with an explicit proposal/patch boundary.
 
-Chỉ cập nhật file này sau khi agent đã chạy gate thật. Mỗi cập nhật phải ghi commit SHA, command, exit status, test count và phần nào vẫn chưa được chứng minh.
+Pin live inference to stable `gemini-3.5-flash` through one server-owned model config.
+
+Create a full-fidelity Ledger V3 and new IndexedDB V3 database. Leave the V2 database untouched.
+
+## Acceptance boundary
+
+No current runtime slice, Phase 1A-R or V0 is accepted by this file.
+
+Only an independent aggregate audit may change phase/V0 acceptance.
+
+## Active cursor
+
+Read `project-context/ACTIVE_WORK.md`. It is the only source for the active micro-slice and queue.

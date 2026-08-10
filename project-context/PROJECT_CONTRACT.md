@@ -2,83 +2,145 @@
 
 ## Mission
 
-Explainable Trust V0 là một portfolio app có thể chạy được, chứng minh trọn vòng:
+Explainable Trust V0 is an executable portfolio case study demonstrating:
 
-**Evidence → assessment → explanation → action/recovery → revision**
+**Evidence → AI proposal → validated assessment → explanation/action → committed revision**
 
-App phải cho người xem hiểu:
+The viewer must be able to understand:
 
-- kết luận dựa trên evidence nào;
-- đâu là fact, interpretation và unknown/gap;
-- người dùng có thể làm gì tiếp theo;
-- khi có evidence hoặc action mới, kết luận thay đổi thành revision mới như thế nào.
+- which statements and evidence support each assessment;
+- what is observation, interpretation and unresolved gap;
+- what action or recovery step is available;
+- why a later revision differs from its parent;
+- which model run proposed a change and why it was accepted or rejected.
 
-Đây là executable case study, không phải production SaaS.
+This is not a production SaaS.
 
-## V0 output bắt buộc
+## Authority model
 
-V0 được coi là đủ chạy khi một người khác có thể mở app local và hoàn thành một demo case ổn định:
+Gemini is an untrusted inference provider.
 
-1. Mở case mẫu và thấy evidence/source hiện có.
-2. Thấy assessment hiện tại cùng explanation có thể truy ngược về evidence.
-3. Thấy gaps/unknowns và action/recovery phù hợp.
-4. Thực hiện hoặc replay một action/evidence update.
-5. App tạo revision mới thay vì ghi đè lịch sử.
-6. Current projection/timeline phản ánh đúng revision mới.
-7. Reload app vẫn giữ đúng record và revision history.
-8. UI, server và persistence cùng dùng canonical record làm source of truth.
-9. Default demo chạy deterministic; external AI provider không phải điều kiện để demo hoạt động.
-10. Typecheck, full tests và production build đều pass.
+The app owns:
 
-## V0 không yêu cầu
+- all canonical IDs and timestamps;
+- input provenance;
+- proposal schema and reference resolution;
+- parent carry-forward;
+- deterministic delta construction;
+- complete-record validation;
+- atomic persistence;
+- accepted/rejected model-run audit history.
 
-- production-scale security, auth, billing hoặc multi-tenant architecture;
-- Gemini Flash-Lite extraction;
-- redesign/polish lớn;
-- hoàn thiện mọi case study;
-- automation production hoặc monitoring production;
-- thêm framework mới không trực tiếp giúp demo loop chạy đúng.
+Gemini may propose interpretations, explanations, gaps and actions. It may not write canonical state directly.
+
+## V0 model
+
+Use the stable model code `gemini-3.5-flash` through the server-side `@google/genai` client.
+
+Do not use a `latest` alias. Do not add Flash-Lite or a second reasoning model during the architecture reset.
+
+## V0 storage
+
+Use a new IndexedDB V3 database as the local V0 database.
+
+The database must durably store:
+
+- canonical case ledgers;
+- accepted and rejected model runs;
+- attachment blobs outside canonical JSON;
+- required non-epistemic UI metadata;
+- translation overlays only if translation remains enabled.
+
+Do not add an external database, auth, billing, tenancy or remote sync.
+
+Do not destroy the prior V2 IndexedDB database during the reset.
+
+## Required V0 demo
+
+1. Open a deterministic sample case.
+2. Inspect source statements/evidence and their provenance.
+3. Inspect the current assessment, explanation, gaps and actions.
+4. Submit or replay one new statement/evidence/action result.
+5. Produce a structured proposal.
+6. Validate and commit exactly one child revision.
+7. Show a human-readable revision explanation and traceable delta.
+8. Reload the app and recover the same record, model run and current projection.
+9. Demonstrate at least one rejected provider proposal that leaves the parent unchanged.
+10. Pass typecheck, full tests, production build and deterministic demo gates.
+
+Live Gemini is the default interactive mode. Deterministic replay must make the portfolio demo independent of API availability.
+
+## Architecture rule
+
+The provider returns explicit operations, not a complete canonical snapshot.
+
+- New entities use response-local refs, not canonical IDs.
+- Updates target one existing parent entity.
+- Gap lifecycle changes use explicit transition operations.
+- No deletion operation exists in V0.
+- Omitted parent entities are carried forward unchanged by code.
+- Invalid/missing values reject; no enum or timestamp fallback is allowed.
 
 ## Phase map
 
-### Phase 1A — Canonical contract
+### Phase 1A-R Reset — Provider Boundary + Ledger V3
 
-Schema, branded ID families, revision/delta/source relationships, gap/action lifecycle và validation invariants.
+Build and independently validate the proposal contract, full-fidelity V3 ledger, deterministic applicator, server/client boundaries and model-run audit record.
 
-### Phase 1A-R — Recovery and runtime integration
+### Persistence/Reload
 
-Đóng các lỗ contract còn lại, sau đó chứng minh runtime, server, persistence/reload và replay thực sự tuân theo canonical record.
+Commit case, model run and blobs atomically; prove save → reload → replay.
 
-### Phase 1B — Deterministic V0 behavior
+### Deterministic V0 Behavior
 
-Một demo case deterministic chạy trọn vòng trong UI với kết quả có thể lặp lại và kiểm thử.
+Convert QuickBite to proposal fixtures and run the complete mission loop.
 
-### V0 gate
+### V0 Gate
 
-Chạy end-to-end demo và toàn bộ command gates; chỉ sửa blocker cần thiết để bàn giao bản local ổn định.
+Run aggregate tests and a local demo smoke test, then package the portfolio artifact.
+
+## Explicit exclusions
+
+- production auth, security hardening, billing or multi-tenancy;
+- Postgres, Supabase, Neon or another remote database;
+- Flash-Lite extraction split;
+- autonomous external integrations;
+- large dashboard or broad UI redesign;
+- model fine-tuning;
+- every possible case type;
+- self-acceptance by the implementation agent.
 
 ## Definition of Done
 
-Không được tuyên bố V0 complete chỉ vì một subset test pass. V0 chỉ complete khi tất cả điều sau có bằng chứng:
+V0 is not complete until independent evidence proves:
 
-- canonical transition invariants pass cả positive và negative tests;
-- runtime không tạo hoặc dùng một nguồn state song song trái canonical record;
-- save → reload → replay bảo toàn identity, sources, revisions và current projection;
-- demo case hoàn thành đầy đủ vòng mission;
-- `npm run lint` exit 0;
-- full `npm test` exit 0;
-- `npm run build` exit 0;
-- không có known blocker làm demo sai hoặc mất dữ liệu;
-- `CURRENT_STATE.md` ghi đúng gate nào đã chạy và gate nào chưa chạy.
+- provider output cannot supply canonical identity or silently delete parent state;
+- unknown/wrong-family references and invalid enums reject atomically;
+- the ledger preserves every field displayed as assessment/explanation/gap/action;
+- accepted and rejected model runs are auditable;
+- complete candidate validation occurs before persistence and UI replacement;
+- persistence failure cannot leave React state ahead of durable state;
+- save → reload → replay preserves identity, sources, revisions and current projection;
+- the deterministic demo completes the mission loop;
+- `npm run lint`, full `npm test` and `npm run build` exit 0;
+- no known blocker makes the demo misleading or loses data.
+
+Passing a slice or focused test proves only that slice.
 
 ## Evidence policy
 
-- Code, git state và command output tái hiện được là evidence.
-- `task.md`, walkthrough và lời kể của agent không phải bằng chứng độc lập.
-- A passing subset proves only that subset.
-- Không dùng `as any`, `as unknown as`, double casts hoặc fallback để che contract error trong active slice.
-- Nếu request mới mâu thuẫn contract này, agent phải dừng và nêu mâu thuẫn trước khi sửa.
+- Source, git state and reproduced command output are evidence.
+- Agent summaries and walkthroughs are not independent evidence.
+- No test file may import another test file.
+- Shared fixtures belong under `tests/fixtures/`.
+- Do not add `as any`, `as unknown as`, `z.any(`, broad explicit `any` or fallback defaults to hide contract failures.
+- `@ts-expect-error` is allowed only on the exact negative test call.
+- Record distinct test definitions and executions; duplicate registration is a failure.
 
-## Scope authority
+## Execution policy
 
-`PROJECT_CONTRACT.md` chỉ được đổi khi user chấp thuận một thay đổi cấp project. Task agent không được tự sửa mission, V0 Definition of Done hoặc phase boundary để hợp thức hóa implementation hiện tại.
+`project-context/ACTIVE_WORK.md` is the only work cursor.
+
+One execution may complete only one approved micro-slice. After gates, implementation commit, checkpoint commit and push, the agent must stop. It may not activate the next slice.
+
+This contract may change only with explicit user approval.
