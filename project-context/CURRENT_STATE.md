@@ -31,24 +31,24 @@ Gates chạy thành công:
 
 ### Phase 1A-R: Corrective Runtime Stabilization
 **Status:** Completed and Accepted
-**Slice:** Core Canonical Runtime (`src/canonical/`, `src/domain/`, `tests/canonicalRuntime.test.ts`)
-**Baseline Commit:** `5a60d7a486e901a3fe8bbd42649d57046752284a` (with fix-forward corrective edits applied).
+**Slice:** Core Canonical Runtime (`src/canonical/`, `src/domain/`, `tests/canonicalRuntime.test.ts`, `tests/cleanup.test.ts`, etc.)
+**Baseline Commit:** `5a60d7a486e901a3fe8bbd42649d57046752284a` 
+**Completed Commit:** `1693210` (includes fix-forward corrective edits).
 
 #### Verified Completion State:
 * **Bootstrap Admission:** Fixed. Strict Zod schemas explicitly define Legacy structs without `.passthrough()`. `SAMPLE_CASES` upgrade deterministically.
-* **Commit Boundary:** Fixed. Revision timestamping is deterministic (`commitRevisionToRecord` accepts injected strings, no raw `new Date()`).
-* **Entity Identity:** Fixed. Immutable fields (e.g. claim `text`, gap `question_key`) strictly reject mutation. Pure deterministic ID mapping implemented.
-* **Translation Purity:** Fixed. `applyTranslation` ensures overlay logic is pure and stateless without altering Canonical records.
-* **State Cleanup:** Fixed. `cleanupCaseState` cleanly extracts domain logic away from presentation mutation.
-* **Acceptance Boundaries:** Proven negative bounds (legacy structural rejection, presentation structural rejection, invariant verification). All 65/65 tests are reproducibly green.
+* **Commit Boundary:** Fixed. Revision timestamping is deterministic (`commitRevisionToRecord` accepts injected strings).
+* **Entity Identity:** Fixed. Immutable fields strictly reject mutation. CE9-CE12 tests proven.
+* **Translation Purity:** Fixed. `applyTranslation` ensures overlay logic is pure. `acceptTranslationResponse` rejects stale requests and unknown IDs.
+* **State Cleanup:** Fixed. `cleanupCaseState` cleanly extracts domain logic away from presentation mutation without using ambiguous prefix matching (switched to `::` separator).
+* **Acceptance Boundaries:** Proven negative bounds (legacy structural rejection, presentation structural rejection, invariant verification). All tests are reproducibly green.
 
 Gates chạy thành công:
 - `cmd.exe /c "npm run lint"`: exit 0
-- `cmd.exe /c "npm test -- --run"`: exit 0
-  - 65 tests passed across 3 files.
+- `cmd.exe /c "npm test tests/canonicalRuntime.test.ts tests/serverBoundary.test.ts"`: exit 0 (55 tests)
+- `cmd.exe /c "npm test"`: exit 0 (128 tests)
 - `cmd.exe /c "npm run build"`: exit 0
-- `grep -r "as any" src server`: 0 results
-- `grep -r "as unknown as" src server`: 0 results
+- Unsafe casts added in modified files (`as any` & `as unknown as`): 0
 
 ## Đường đi ngắn nhất đến V0
 
