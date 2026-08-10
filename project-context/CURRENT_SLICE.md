@@ -1,87 +1,178 @@
-# Active Slice — Unambiguous Gap Transition Identity
+# Active Slice — Canonical Runtime Source of Truth
 
-Baseline commit: `fe22f8800cb2801f671c5150465e566aa3cac3cd`
+Baseline application/context commit: `64dcdd8d08d022f1004d1fc9d57cb80ae3718bce`
 
-Phase: Phase 1A-R canonical closure.
+Phase: **Phase 1A-R runtime integration**.
 
 ## Objective
 
-Đóng đúng hai lỗ canonical transition còn lại. Không mở runtime, persistence, UI/UX, Gemini extraction, chat, translation, QuickBite replay, deferred backlog hoặc Phase 1B trong slice này.
+Make `CanonicalCaseRecord` the authoritative runtime state across client and server.
+
+The UI may use read-only projections for rendering, but legacy `CaseData`, translated presentation data, chat snapshots or component state must not become a parallel epistemic source of truth.
+
+This slice does not claim persistence/reload, deterministic demo or V0 completion.
+
+## Confirmed baseline problems
+
+The baseline currently contains these runtime contradictions:
+
+1. `src/App.tsx` holds `useState<CaseData[]>` as the active case store.
+2. `hydrateCurrentProjection()` accepts a canonical record but returns legacy `CaseData`.
+3. That projection sets `revisions: []`, discarding canonical revision history.
+4. `saveCase()` persists `CaseData`, so a projected object can overwrite the canonical record.
+5. `/api/intake` receives separate legacy arrays such as `existing_statements`, `existing_evidence` and `existing_revisions`.
+6. `reconcileNextRevision()` creates the legacy revision type rather than a canonical revision.
+7. The server returns a legacy `fullCase`, and the client accepts it without validating the full canonical schema and invariants.
+8. Translation currently writes translated presentation fields back into case state, even though translation must be representational only.
+
+Agent reports are not proof. Reproduce and verify these facts against the actual baseline before proposing changes.
 
 ## Required behavior
 
-### 1. Exactly one structured event per actual transition
+### 1. Canonical client state
 
-Với mỗi gap status change trong một revision:
+* The authoritative in-memory case collection must contain complete `CanonicalCaseRecord` objects.
+* `current_revision_id`, intake ledger, statements, evidence, relationships and every revision must remain available.
+* UI-facing `CaseData` or another view model may exist only as a derived, read-only projection.
+* A projection or chat snapshot must never be submitted as the authoritative prior record or persisted over it.
+* Remove the lossy `revisions: []` behavior from the authoritative path.
 
-- có đúng một matching structured `gap_transition` event;
-- reject khi zero, multiple hoặc ambiguous event;
-- event phải đúng gap, containing revision, previous status và resulting status;
-- source-ID set của event phải bằng gap status sources và matching delta sources;
-- mọi event có `gap_transition` phải được validate độc lập;
-- không dùng `find()` theo cách chỉ check event đầu rồi bỏ qua event dư.
+### 2. Canonical server transition
 
-Phải reject counterexample:
+For every successful intake:
 
-- `G01`: `open → resolved`;
-- gap metadata, delta và `EV2` dùng `[U01]`;
-- thêm `EV3` mô tả cùng transition nhưng dùng `[U02]`;
-- validator hiện trả `[]` nhưng phải trả error.
+1. Receive or construct one complete prior canonical record.
+2. Validate the prior record at the trust boundary.
+3. Convert the new intake/provider result into one canonical intake/revision transition.
+4. Validate the complete resulting record with:
 
-### 2. No transition-identity rewrite without status change
+   * `CanonicalCaseRecordSchema`;
+   * `validateCanonicalRecord`.
+5. Reject the request if schema or canonical invariants fail.
+6. Return the complete validated canonical record.
+7. The client atomically replaces the prior authoritative record only with that validated result.
 
-Khi gap tồn tại ở parent và child với status không đổi:
+The reconstruction-provider schema may remain an inference boundary, but its output must not itself become persisted case state.
 
-- không được tự thêm, xóa hoặc rewrite `status_revision_id`, `status_reason`, `status_source_ids`;
-- nếu parent có transition identity, child phải carry forward cùng identity và source set;
-- nếu initially-open parent không có transition metadata, unchanged child không được tự thêm metadata;
-- non-status `updated` delta không được giả mạo status transition identity.
+### 3. Projection-only rendering
 
-Phải reject counterexample:
+* `projectCurrentRecord()` or an equivalent canonical projector must select the UI’s current state.
+* UI components may receive a presentation adapter, but edits to that adapter must not rewrite canonical history.
+* Translation must remain a locale-specific presentation overlay and must not alter canonical events, claims, gaps, actions, title, objective or revisions.
+* Non-epistemic UI metadata may remain separate only when it cannot overwrite canonical fields.
+* The plan must explicitly account for rename/archive/sample-loading and chat-snapshot behavior where they touch case state.
 
-- parent `G01` open, không có transition metadata;
-- child vẫn open nhưng thêm `status_revision_id: R02`, reason và sources;
-- không có status change.
+### 4. Compatibility boundary
 
-## Regression tests bắt buộc
+* Legacy sample cases or previously stored legacy records may be upgraded once at a named boundary.
+* After upgrade, runtime processing must remain canonical.
+* Do not repeatedly convert canonical → legacy → canonical between turns.
+* Do not use duck typing alone at server, persistence or network trust boundaries.
+* Do not introduce fallback defaults that conceal a malformed canonical record.
 
-Phải chứng minh reject:
+### 5. Persistence boundary for this slice
 
-- multiple structured transition events cho một transition;
-- extra event có mismatched/additional/missing sources;
-- newly introduced hoặc changed `status_revision_id` khi status không đổi;
-- cleared/rewritten reason hoặc sources khi status không đổi.
+Persistence/reload acceptance remains a later slice.
 
-Phải chứng minh valid:
+However, this slice must prevent any active save path from writing a lossy projection over a canonical record. If a minimal storage signature change is required to preserve the runtime invariant, it is in scope; migration, reload and browser lifecycle proof remain pending.
 
-- exactly one correctly sourced resolve event;
-- exactly one correctly sourced reopen event;
-- carried-forward resolved gap với identity không đổi;
-- initially-open gap carry forward không có transition metadata.
+## Counterexamples that must fail
 
-## Expected code scope
+Add independent regression proof that the runtime rejects or prevents:
 
-Chủ yếu:
+1. A canonical record containing `R01` and `R02` being hydrated and then reduced to a record with empty revision history.
+2. A malformed prior canonical record being accepted by `/api/intake`.
+3. A provider/reconciliation result violating canonical invariants being returned as success.
+4. A client response lacking a valid complete canonical record replacing current state.
+5. A translated presentation response overwriting canonical source fields.
+6. A legacy projection being saved or resubmitted as the authoritative record after canonical upgrade.
+7. A new intake overwriting `R01` rather than appending a child revision.
+8. A response whose `current_revision_id` does not identify the newly appended revision.
 
-- `src/canonical/validate.ts`;
-- `tests/canonical-record.test.ts`.
+## Positive proof required
 
-Nếu cần đổi file khác, agent phải nêu file, lý do và invariant liên quan trong plan trước khi edit.
+Add independent proof that:
+
+1. A legacy sample upgrades once to a valid canonical record.
+2. A valid canonical record survives projection without mutation.
+3. One deterministic intake appends exactly one child revision.
+4. The prior revision remains byte-for-byte unchanged.
+5. The returned record passes both schema and canonical invariant validation.
+6. `current_revision_id` points to the appended revision.
+7. The UI projection reflects that current revision.
+8. Presentation translation leaves the canonical record unchanged.
+
+## Expected scope
+
+Likely files include:
+
+* `src/App.tsx`;
+* `server.ts`;
+* `src/domain/currentProjection.ts`;
+* `src/domain/reconcile.ts`;
+* `src/storage/caseStore.ts` only if required to prevent lossy runtime writes;
+* canonical adapter/boundary modules;
+* runtime/server regression tests.
+
+The implementation plan must list every expected file and its invariant before editing. Do not perform a broad UI redesign.
+
+## Explicitly out of scope
+
+* full IndexedDB migration and reload acceptance;
+* save → reload → replay proof;
+* full QuickBite deterministic demo;
+* Gemini Flash-Lite extraction;
+* timeline hierarchy redesign;
+* Gaps/Actions navigation redesign;
+* chat acknowledgement enhancement;
+* production auth, security, billing or multi-tenancy;
+* Phase 1B;
+* V0 completion.
+
+## Failure boundaries
+
+* Do not weaken canonical schema, validator or existing assertions.
+* Do not preserve legacy runtime behavior merely by casting it to canonical types.
+* Add no `as any`, `as unknown as`, double casts or fallback defaults.
+* Record baseline and final unsafe-cast counts for changed files; the diff must add zero unsafe casts.
+* If integration requires persistence/reload work beyond preventing lossy writes, stop and report it for the next slice.
+* If a required counterexample still passes, this slice fails.
+* If a full gate fails outside approved scope, stop and report the blocker.
 
 ## Required verification
 
-Chạy độc lập:
+Run independently and report exact exit status:
 
-- `npm run lint`;
-- `npm test`;
-- `npm run build`.
+* `npm run lint`;
+* focused canonical runtime/server integration tests;
+* full `npm test`;
+* `npm run build`;
+* `git diff --check`.
 
-Report phải có exit status thật, canonical test count, full-suite file/test count và grep `as any` / `as unknown as` trong file đã đổi.
+Report:
+
+* focused test file and test counts;
+* full-suite file and test counts;
+* baseline and final grep counts for `as any` and `as unknown as` in every changed file;
+* exact authoritative runtime type on client and server;
+* exact network request/response canonical boundary;
+* remaining unproved persistence/reload behavior.
+
+A typecheck or projector-only test does not prove runtime integration.
 
 ## Handoff
 
-Nếu pass, commit đúng slice với message:
+If every required counterexample and gate passes:
 
-`fix: enforce unambiguous gap transition identity`
+* update `project-context/CURRENT_STATE.md`;
+* mark only Canonical Runtime Source of Truth as accepted;
+* keep Phase 1A-R active;
+* identify Persistence/Reload as next, without activating it.
 
-Push `main`, cung cấp full SHA. Chỉ được claim **active slice pass**; không được claim Phase 1A-R hoặc V0 complete.
+Commit with:
+
+`fix: make canonical record the runtime source of truth`
+
+Push to `main` and provide the full SHA.
+
+Do not claim Phase 1A-R, Phase 1B or V0 complete.
