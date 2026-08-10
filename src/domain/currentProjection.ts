@@ -61,6 +61,7 @@ export function hydrateCurrentProjection(caseRecord: CanonicalCaseRecord | CaseD
   const events: CaseEvent[] = proj.events.map(ev => ({
     ...ev,
     effect: ev.effect || '',
+    evidence_ids: [...ev.evidence_ids],
     user_statement_ids: [] // Legacy field
   }));
 

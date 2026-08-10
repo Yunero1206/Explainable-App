@@ -227,6 +227,31 @@ export function validateCanonicalRecord(record: CanonicalCaseRecord): string[] {
         if (!revGxxIds.has(ev.gap_transition.gap_id)) {
           errors.push(`Revision ${rev.revision_id} Event ${ev.id} gap_transition gap_id ${ev.gap_transition.gap_id} not in revision gaps`);
         }
+        if (ev.gap_transition.transition_revision_id !== rev.revision_id) {
+          errors.push(`Revision ${rev.revision_id} Event ${ev.id} gap_transition transition_revision_id ${ev.gap_transition.transition_revision_id} does not match containing revision`);
+        }
+        
+        const gInRev = rev.gaps.find(g => g.id === ev.gap_transition!.gap_id);
+        if (gInRev && gInRev.status !== ev.gap_transition.resulting_status) {
+          errors.push(`Revision ${rev.revision_id} Event ${ev.id} gap_transition resulting_status ${ev.gap_transition.resulting_status} mismatches gap current status`);
+        }
+
+        const parentRevForEvent = i > 0 ? record.revisions.find(r => r.revision_id === rev.parent_revision_id) : undefined;
+        const parentGapForEvent = parentRevForEvent ? parentRevForEvent.gaps.find(pg => pg.id === ev.gap_transition!.gap_id) : undefined;
+        const actualPrev = parentGapForEvent ? parentGapForEvent.status : 'open';
+
+        if (ev.gap_transition.previous_status !== actualPrev) {
+          errors.push(`Revision ${rev.revision_id} Event ${ev.id} gap_transition previous_status ${ev.gap_transition.previous_status} mismatches parent gap status ${actualPrev}`);
+        }
+
+        if (ev.gap_transition.previous_status === ev.gap_transition.resulting_status) {
+           errors.push(`Revision ${rev.revision_id} Event ${ev.id} gap_transition statuses are identical`);
+        }
+
+        if (actualPrev === (gInRev?.status || 'open')) {
+           errors.push(`Revision ${rev.revision_id} Event ${ev.id} describes a gap transition but no actual status change occurred`);
+        }
+
         for (const sid of ev.gap_transition.source_ids) {
           if (!availableUxx.has(sid as StatementId) && !availableExx.has(sid as EvidenceId)) {
             errors.push(`Revision ${rev.revision_id} Event ${ev.id} gap_transition source_id ${sid} not available in inputs`);
@@ -276,24 +301,20 @@ export function validateCanonicalRecord(record: CanonicalCaseRecord): string[] {
 
       let statusChanged = false;
       const parentRev = i > 0 ? record.revisions.find(r => r.revision_id === rev.parent_revision_id) : undefined;
-      if (parentRev) {
-        const parentGap = parentRev.gaps.find(pg => pg.id === g.id);
-        if (parentGap && parentGap.status !== g.status) {
-          statusChanged = true;
-        } else if (!parentGap && g.status !== 'open') {
-          statusChanged = true;
-        }
-      } else if (g.status !== 'open') {
+      const parentGap = parentRev ? parentRev.gaps.find(pg => pg.id === g.id) : undefined;
+      const previousStatus = parentGap ? parentGap.status : 'open';
+
+      if (g.status !== previousStatus) {
         statusChanged = true;
       }
 
       if (statusChanged) {
-        if (g.status !== 'open' && g.status_revision_id !== rev.revision_id) {
+        if (g.status_revision_id !== rev.revision_id) {
           errors.push(`Revision ${rev.revision_id} Gap ${g.id} changed status to ${g.status} but status_revision_id ${g.status_revision_id} does not match current revision`);
         }
-        
-        const previousStatus = parentRev ? (parentRev.gaps.find(pg => pg.id === g.id)?.status || 'open') : 'open';
-        
+        if (!g.status_reason) errors.push(`Revision ${rev.revision_id} Gap ${g.id} changed status but lacks status_reason`);
+        if (!g.status_source_ids || g.status_source_ids.length === 0) errors.push(`Revision ${rev.revision_id} Gap ${g.id} changed status but lacks status_source_ids`);
+
         const hasMatchingEvent = rev.events.some(ev => 
           ev.gap_transition && 
           ev.gap_transition.gap_id === g.id &&
@@ -305,8 +326,11 @@ export function validateCanonicalRecord(record: CanonicalCaseRecord): string[] {
           errors.push(`Revision ${rev.revision_id} Gap ${g.id} changed status but lacks a corresponding structured transition event`);
         }
 
-        const delta = rev.delta.changes.find(d => d.entity_type === 'gap' && d.entity_id === g.id);
-        if (delta) {
+        const deltas = rev.delta.changes.filter(d => d.entity_type === 'gap' && d.entity_id === g.id);
+        if (deltas.length !== 1) {
+          errors.push(`Revision ${rev.revision_id} Gap ${g.id} changed status but has ${deltas.length} matching deltas`);
+        } else {
+          const delta = deltas[0];
           if (delta.operation === 'added') {
             errors.push(`Revision ${rev.revision_id} Gap ${g.id} changed status but delta operation is 'added'`);
           } else if (g.status === 'resolved' && delta.operation !== 'resolved') {
@@ -316,35 +340,48 @@ export function validateCanonicalRecord(record: CanonicalCaseRecord): string[] {
           } else if (g.status !== 'resolved' && g.status !== 'open' && delta.operation !== 'updated') {
             errors.push(`Revision ${rev.revision_id} Gap ${g.id} changed status to ${g.status} but delta operation is ${delta.operation}`);
           }
+
+          if (g.status_source_ids) {
+            const gapSources = new Set(g.status_source_ids);
+            const deltaSources = new Set(delta.source_ids);
+            const event = rev.events.find(ev => ev.gap_transition?.gap_id === g.id);
+            const eventSources = new Set(event?.gap_transition?.source_ids || []);
+
+            const setsMatch = (a: Set<string>, b: Set<string>) => a.size === b.size && [...a].every(v => b.has(v));
+            if (!setsMatch(gapSources, deltaSources) || !setsMatch(gapSources, eventSources)) {
+               errors.push(`Revision ${rev.revision_id} Gap ${g.id} transition sources mismatch between gap, event, and delta`);
+            }
+          }
         }
       }
 
-      if (g.status !== 'open') {
-        if (!g.status_reason) errors.push(`Revision ${rev.revision_id} Gap ${g.id} is not open but lacks status_reason`);
-        if (!g.status_revision_id) errors.push(`Revision ${rev.revision_id} Gap ${g.id} is not open but lacks status_revision_id`);
-        if (!g.status_source_ids || g.status_source_ids.length === 0) errors.push(`Revision ${rev.revision_id} Gap ${g.id} is not open but lacks status_source_ids`);
-        
-        if (g.status_revision_id) {
-           const trIndex = revisionOrder.get(g.status_revision_id);
-           if (trIndex === undefined) {
-             errors.push(`Revision ${rev.revision_id} Gap ${g.id} status_revision_id ${g.status_revision_id} not found`);
-           } else if (trIndex > i) {
-             errors.push(`Revision ${rev.revision_id} Gap ${g.id} status_revision_id ${g.status_revision_id} is in the future`);
-           }
-           
-           if (trIndex !== undefined && trIndex <= i) {
-              const trRev = record.revisions[trIndex];
-              const trUxx = new Set(trRev.input_statement_ids);
-              const trExx = new Set(trRev.input_evidence_ids);
-              if (g.status_source_ids) {
-                 for (const sid of g.status_source_ids) {
-                   if (!trUxx.has(sid as StatementId) && !trExx.has(sid as EvidenceId)) {
-                      errors.push(`Revision ${rev.revision_id} Gap ${g.id} status_source_id ${sid} not available in transition revision ${trRev.revision_id}`);
-                   }
+      if (g.status_revision_id) {
+         if (!g.status_reason) errors.push(`Revision ${rev.revision_id} Gap ${g.id} has status_revision_id but lacks status_reason`);
+         if (!g.status_source_ids || g.status_source_ids.length === 0) errors.push(`Revision ${rev.revision_id} Gap ${g.id} has status_revision_id but lacks status_source_ids`);
+
+         const trIndex = revisionOrder.get(g.status_revision_id);
+         if (trIndex === undefined) {
+           errors.push(`Revision ${rev.revision_id} Gap ${g.id} status_revision_id ${g.status_revision_id} not found`);
+         } else if (trIndex > i) {
+           errors.push(`Revision ${rev.revision_id} Gap ${g.id} status_revision_id ${g.status_revision_id} is in the future`);
+         }
+         
+         if (trIndex !== undefined && trIndex <= i) {
+            const trRev = record.revisions[trIndex];
+            const trUxx = new Set(trRev.input_statement_ids);
+            const trExx = new Set(trRev.input_evidence_ids);
+            if (g.status_source_ids) {
+               for (const sid of g.status_source_ids) {
+                 if (!trUxx.has(sid as StatementId) && !trExx.has(sid as EvidenceId)) {
+                    errors.push(`Revision ${rev.revision_id} Gap ${g.id} status_source_id ${sid} not available in transition revision ${trRev.revision_id}`);
                  }
-              }
-           }
-        }
+               }
+            }
+         }
+      } else {
+         if (g.status !== 'open' || (parentGap && parentGap.status !== 'open')) {
+            errors.push(`Revision ${rev.revision_id} Gap ${g.id} lacks transition metadata but is not an initially open gap`);
+         }
       }
     }
 
@@ -363,18 +400,18 @@ export function validateCanonicalRecord(record: CanonicalCaseRecord): string[] {
           }
        }
        
-       const validateDeltaId = (type: string, id: string) => {
-         if (type === 'event' && !rev.events.some(e => e.id === id)) return false;
-         if (type === 'claim' && !revCxxIds.has(id)) return false;
-         if (type === 'gap' && !revGxxIds.has(id)) return false;
-         if (type === 'action' && !rev.actions.some(a => a.id === id)) return false;
-         if (type === 'statement' && !availableUxx.has(id as StatementId)) return false;
-         if (type === 'evidence' && !availableExx.has(id as EvidenceId)) return false;
-         if (type === 'relationship' && !record.relationships.some(r => r.id === id)) return false;
+       const validateDeltaId = (d: typeof rev.delta.changes[0]) => {
+         if (d.entity_type === 'event' && !rev.events.some(e => e.id === d.entity_id)) return false;
+         if (d.entity_type === 'claim' && !revCxxIds.has(d.entity_id)) return false;
+         if (d.entity_type === 'gap' && !revGxxIds.has(d.entity_id)) return false;
+         if (d.entity_type === 'action' && !rev.actions.some(a => a.id === d.entity_id)) return false;
+         if (d.entity_type === 'statement' && !availableUxx.has(d.entity_id)) return false;
+         if (d.entity_type === 'evidence' && !availableExx.has(d.entity_id)) return false;
+         if (d.entity_type === 'relationship' && !record.relationships.some(r => r.id === d.entity_id)) return false;
          return true;
        };
 
-       if (!validateDeltaId(delta.entity_type, delta.entity_id)) {
+       if (!validateDeltaId(delta)) {
          errors.push(`Revision ${rev.revision_id} Delta refers to non-existent ${delta.entity_type} ${delta.entity_id}`);
        }
     }

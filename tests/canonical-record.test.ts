@@ -13,7 +13,9 @@ import {
   EventId,
   GapId,
   RevisionId,
-  StatementId
+  StatementId,
+  RevisionDeltaEntry,
+  RelationshipId
 } from '../src/canonical/index';
 
 const createValidBaseline = (): CanonicalCaseRecord => ({
@@ -130,15 +132,17 @@ describe('Canonical Record Invariants', () => {
 
   it('schema accepts only the five canonical assessment values', () => {
     const record = createValidBaseline();
-    record.revisions[0].claims[0].assessment = "Established in record" ;
-    const result = CanonicalCaseRecordSchema.safeParse(record);
+    const badRecord = JSON.parse(JSON.stringify(record));
+    badRecord.revisions[0].claims[0].assessment = "Established in record";
+    const result = CanonicalCaseRecordSchema.safeParse(badRecord);
     expect(result.success).toBe(false);
   });
 
   it('schema accepts only the five canonical Gap statuses', () => {
     const record = createValidBaseline();
-    record.revisions[0].gaps[0].status = "abandoned" ;
-    const result = CanonicalCaseRecordSchema.safeParse(record);
+    const badRecord = JSON.parse(JSON.stringify(record));
+    badRecord.revisions[0].gaps[0].status = "abandoned";
+    const result = CanonicalCaseRecordSchema.safeParse(badRecord);
     expect(result.success).toBe(false);
   });
 
@@ -332,13 +336,14 @@ describe('Canonical Record Invariants', () => {
     expect(errors).toContain("Relationship REL12 corrects_statement target U01 is not earlier than source U02");
 
     // Exx -> Uxx correction (schema rejection)
-    const badRel1 = { id: "REL13", source_id: "E01", target_id: "U01", relationship_type: "corrects_statement", reason: "reason", created_in_revision_id: "R01" };
-    record.relationships = [badRel1 ];
-    let schemaRes = CanonicalCaseRecordSchema.safeParse(record);
+    const badRel1: unknown = { id: "REL13", source_id: "E01", target_id: "U01", relationship_type: "corrects_statement", reason: "reason", created_in_revision_id: "R01" };
+    const badRecord1 = JSON.parse(JSON.stringify(record));
+    badRecord1.relationships = [badRel1];
+    let schemaRes = CanonicalCaseRecordSchema.safeParse(badRecord1);
     expect(schemaRes.success).toBe(false);
     
     // self-correction
-    record.relationships = [{ id: "REL14", source_id: "U01", target_id: "U01", relationship_type: "corrects_statement", reason: "reason", created_in_revision_id: "R01" }];
+    record.relationships = [{ id: "REL14" as RelationshipId, source_id: "U01" as StatementId, target_id: "U01" as StatementId, relationship_type: "corrects_statement", reason: "reason", created_in_revision_id: "R01" as RevisionId }];
     schemaRes = CanonicalCaseRecordSchema.safeParse(record);
     expect(schemaRes.success).toBe(true); // schema passes
     errors = validateCanonicalRecord(record);
@@ -373,20 +378,6 @@ describe('Canonical Record Invariants', () => {
   it('gap structured transition events and deltas are strictly enforced', () => {
     const record = createValidBaseline();
     
-    // 1. missing transition event
-    const rMissingEv: CaseRevision = { 
-      ...record.revisions[0], 
-      revision_id: "R02", 
-      parent_revision_id: "R01", 
-      gaps: [{ ...record.revisions[0].gaps[0], status: "resolved", status_revision_id: "R02", status_reason: "reason", status_source_ids: ["U01"] }],
-      delta: { changes: [{ entity_type: "gap", entity_id: "G01", operation: "resolved", reason: "res", source_ids: ["U01"] }] }
-    };
-    record.revisions.push(rMissingEv);
-    let errors = validateCanonicalRecord(record);
-    expect(errors).toContain("Revision R02 Gap G01 changed status but lacks a corresponding structured transition event");
-    
-    record.revisions.pop();
-
     // The valid transition event template
     const validTransitionEvent = { 
       id: "EV2" as EventId, 
@@ -405,83 +396,42 @@ describe('Canonical Record Invariants', () => {
       }
     };
 
-    // 2. wrong gap reference in event
-    const rWrongGap: CaseRevision = { 
-      ...rMissingEv, 
-      events: [...record.revisions[0].events, { ...validTransitionEvent, gap_transition: { ...validTransitionEvent.gap_transition, gap_id: "G99" as GapId } }] 
-    };
-    record.revisions.push(rWrongGap);
-    errors = validateCanonicalRecord(record);
-    expect(errors).toContain("Revision R02 Gap G01 changed status but lacks a corresponding structured transition event");
-    expect(errors).toContain("Revision R02 Event EV2 gap_transition gap_id G99 not in revision gaps");
-    
-    record.revisions.pop();
-
-    // 3. wrong revision reference in event
-    const rWrongRev: CaseRevision = { 
-      ...rMissingEv, 
-      events: [...record.revisions[0].events, { ...validTransitionEvent, gap_transition: { ...validTransitionEvent.gap_transition, transition_revision_id: "R99" as RevisionId } }] 
-    };
-    record.revisions.push(rWrongRev);
-    errors = validateCanonicalRecord(record);
-    expect(errors).toContain("Revision R02 Gap G01 changed status but lacks a corresponding structured transition event");
-    
-    record.revisions.pop();
-
-    // 4. wrong previous or resulting status in event
-    const rWrongStatus: CaseRevision = { 
-      ...rMissingEv, 
-      events: [...record.revisions[0].events, { ...validTransitionEvent, gap_transition: { ...validTransitionEvent.gap_transition, resulting_status: "superseded" as CanonicalGapStatus } }] 
-    };
-    record.revisions.push(rWrongStatus);
-    errors = validateCanonicalRecord(record);
-    expect(errors).toContain("Revision R02 Gap G01 changed status but lacks a corresponding structured transition event");
-
-    record.revisions.pop();
-
-    // 5. wrong status_revision_id on the gap
-    const rWrongGapRev: CaseRevision = { 
-      ...rMissingEv, 
-      gaps: [{ ...record.revisions[0].gaps[0], status: "resolved", status_revision_id: "R99", status_reason: "reason", status_source_ids: ["U01"] }],
-      events: [...record.revisions[0].events, validTransitionEvent] 
-    };
-    record.revisions.push(rWrongGapRev);
-    errors = validateCanonicalRecord(record);
-    expect(errors).toContain("Revision R02 Gap G01 changed status to resolved but status_revision_id R99 does not match current revision");
-    expect(errors).toContain("Revision R02 Gap G01 status_revision_id R99 not found");
-
-    record.revisions.pop();
-
-    // 6. stale added delta
-    const rStaleDelta: CaseRevision = { 
-      ...rMissingEv, 
-      delta: { changes: [{ entity_type: "gap", entity_id: "G01", operation: "added", reason: "res", source_ids: ["U01"] }] },
-      events: [...record.revisions[0].events, validTransitionEvent] 
-    };
-    record.revisions.push(rStaleDelta);
-    errors = validateCanonicalRecord(record);
-    expect(errors).toContain("Revision R02 Gap G01 changed status but delta operation is 'added'");
-
-    record.revisions.pop();
-
-    // 7. valid resolve test
     const rValidResolve: CaseRevision = { 
-      ...rMissingEv, 
+      ...record.revisions[0], 
+      revision_id: "R02", 
+      parent_revision_id: "R01", 
+      gaps: [{ ...record.revisions[0].gaps[0], status: "resolved", status_revision_id: "R02", status_reason: "reason", status_source_ids: ["U01"] }],
+      delta: { changes: [{ entity_type: "gap", entity_id: "G01", operation: "resolved", reason: "res", source_ids: ["U01"] }] },
       events: [...record.revisions[0].events, validTransitionEvent] 
     };
-    record.revisions.push(rValidResolve);
-    errors = validateCanonicalRecord(record);
-    expect(errors).toHaveLength(0);
 
-    // 8. valid reopen test
+    const runTest = (rev: CaseRevision) => {
+      const rec = { ...record, revisions: [...record.revisions, rev] };
+      return validateCanonicalRecord(rec);
+    };
+
+    // 1. missing gap delta
+    let errors = runTest({ ...rValidResolve, delta: { changes: [] } });
+    expect(errors).toContain("Revision R02 Gap G01 changed status but has 0 matching deltas");
+
+    // 2. duplicate matching gap deltas
+    errors = runTest({ ...rValidResolve, delta: { changes: [rValidResolve.delta.changes[0], rValidResolve.delta.changes[0]] } });
+    expect(errors).toContain("Revision R02 Gap G01 changed status but has 2 matching deltas");
+
+    // 3. mismatched event/gap/delta sources
+    const badGaps = [{ ...rValidResolve.gaps[0], status_source_ids: ["U02"] }];
+    errors = runTest({ ...rValidResolve, gaps: badGaps as typeof rValidResolve.gaps });
+    expect(errors).toContain("Revision R02 Gap G01 transition sources mismatch between gap, event, and delta");
+
+    // 4. reopen without the reopening status_revision_id
     const rValidReopen: CaseRevision = {
       ...rValidResolve,
       revision_id: "R03",
       parent_revision_id: "R02",
-      gaps: [{ ...rValidResolve.gaps[0], status: "open", status_revision_id: undefined, status_reason: undefined, status_source_ids: undefined }],
+      gaps: [{ ...rValidResolve.gaps[0], status: "open", status_revision_id: "R03", status_reason: "reason", status_source_ids: ["U01"] }],
       delta: { changes: [{ entity_type: "gap", entity_id: "G01", operation: "reopened", reason: "res", source_ids: ["U01"] }] },
       events: [
-         ...rValidResolve.events,
+         
          {
            ...validTransitionEvent,
            id: "EV3" as EventId,
@@ -495,33 +445,53 @@ describe('Canonical Record Invariants', () => {
          }
       ]
     };
-    record.revisions.push(rValidReopen);
-    errors = validateCanonicalRecord(record);
-    console.log("REOPEN ERRORS:", errors);
-    expect(errors).toHaveLength(0);
-    
-    // 9. reopening with previous resolution revision fails
-    record.revisions.pop();
-    const rReopenWrongRev: CaseRevision = {
-       ...rValidReopen,
-       events: [
-         ...rValidResolve.events,
-         {
-           ...validTransitionEvent,
-           id: "EV3" as EventId,
-           gap_transition: {
-             gap_id: "G01" as GapId,
-             previous_status: "resolved" as CanonicalGapStatus,
-             resulting_status: "open" as CanonicalGapStatus,
-             transition_revision_id: "R02" as RevisionId, // wrong revision for reopen
-             source_ids: ["U01" as StatementId]
-           }
-         }
-       ]
+    const runReopenTest = (rev: CaseRevision) => {
+      const rec = { ...record, revisions: [...record.revisions, rValidResolve, rev] };
+      return validateCanonicalRecord(rec);
     };
-    record.revisions.push(rReopenWrongRev);
-    errors = validateCanonicalRecord(record);
-    expect(errors).toContain("Revision R03 Gap G01 changed status but lacks a corresponding structured transition event");
+    expect(runReopenTest(rValidReopen)).toHaveLength(0);
+
+    errors = runReopenTest({ ...rValidReopen, gaps: [{ ...rValidReopen.gaps[0], status_revision_id: undefined }] });
+    expect(errors).toContain("Revision R03 Gap G01 changed status to open but status_revision_id undefined does not match current revision");
+
+    // 5. reopen without reason or sources
+    errors = runReopenTest({ ...rValidReopen, gaps: [{ ...rValidReopen.gaps[0], status_reason: undefined }] });
+    expect(errors).toContain("Revision R03 Gap G01 changed status but lacks status_reason");
+
+    // 6. transition event with nonexistent/wrong revision
+    errors = runTest({ ...rValidResolve, events: [...record.revisions[0].events, { ...validTransitionEvent, gap_transition: { ...validTransitionEvent.gap_transition, transition_revision_id: "R99" as RevisionId } }] });
+    expect(errors).toContain("Revision R02 Event EV2 gap_transition transition_revision_id R99 does not match containing revision");
+
+    // 7. transition event where no status changed
+    const rNoChange: CaseRevision = {
+      ...rValidResolve,
+      gaps: [{ ...record.revisions[0].gaps[0], status: "open" }],
+      delta: { changes: [] },
+      events: [...record.revisions[0].events, { ...validTransitionEvent, gap_transition: { ...validTransitionEvent.gap_transition, previous_status: "open", resulting_status: "open" } }]
+    };
+    errors = runTest(rNoChange);
+    expect(errors).toContain("Revision R02 Event EV2 gap_transition statuses are identical");
+
+    // 8. wrong previous status
+    const evBadPrev: unknown = { ...validTransitionEvent, gap_transition: { ...validTransitionEvent.gap_transition, previous_status: "superseded" } };
+    errors = runTest({ ...rValidResolve, events: [...record.revisions[0].events, evBadPrev as typeof validTransitionEvent] });
+    expect(errors).toContain("Revision R02 Event EV2 gap_transition previous_status superseded mismatches parent gap status open");
+
+    // 9. wrong resulting status
+    const evBadResult: unknown = { ...validTransitionEvent, gap_transition: { ...validTransitionEvent.gap_transition, resulting_status: "superseded" } };
+    errors = runTest({ ...rValidResolve, events: [...record.revisions[0].events, evBadResult as typeof validTransitionEvent] });
+    expect(errors).toContain("Revision R02 Event EV2 gap_transition resulting_status superseded mismatches gap current status");
+
+    // 10. stale or wrong delta operation
+    errors = runTest({ ...rValidResolve, delta: { changes: [{ entity_type: "gap", entity_id: "G01", operation: "added", reason: "res", source_ids: ["U01"] }] } });
+    expect(errors).toContain("Revision R02 Gap G01 changed status but delta operation is 'added'");
+    
+    // 11. missing transition event
+    errors = runTest({ ...rValidResolve, events: [...record.revisions[0].events] });
+    expect(errors).toContain("Revision R02 Gap G01 changed status but lacks a corresponding structured transition event");
+    
+    // valid resolve passes
+    expect(runTest(rValidResolve)).toHaveLength(0);
   });
 
   it('projector uses the requested/current revision, excludes future state, rejects missing revisions, does not mutate input and returns deeply frozen data', () => {
@@ -585,6 +555,8 @@ describe('Canonical Record Invariants', () => {
     // @ts-expect-error - Gap delta requires GapId, not EventId
     const _invalidDeltaCompileTime2: RevisionDeltaEntry = { entity_type: "gap", entity_id: "EV1", operation: "added", reason: "reason", source_ids: [] };
     
+    const validDeltaCompileTime: RevisionDeltaEntry = { entity_type: "event", entity_id: "EV1", operation: "added", reason: "reason", source_ids: [] };
+
     const validDelta = {
       entity_type: "event",
       entity_id: "EV1",
