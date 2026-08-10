@@ -1,0 +1,1930 @@
+{
+  "test_case_id": "case-test-quickbite",
+  "test_case_title": "QuickBite Calibration Test",
+  "turns": [
+    {
+      "turn": 1,
+      "input_match": "My QuickBite order arrived damaged.",
+      "output": {
+        "segmented_intake": {
+          "narrative_statement": {
+            "id": "U01",
+            "text": "My QuickBite order arrived damaged."
+          },
+          "pasted_evidences": []
+        },
+        "evidence_inspection": [],
+        "events": [
+          {
+            "id": "EV01",
+            "actor": "QuickBite",
+            "action": "Delivered order",
+            "target": "Customer",
+            "effect": "Order items arrived in damaged condition upon delivery",
+            "time": "Unknown",
+            "user_statement_ids": [
+              "U01"
+            ],
+            "evidence_ids": [],
+            "assessment": "Reported",
+            "is_user_reported_only": true
+          }
+        ],
+        "claims": [
+          {
+            "id": "C01",
+            "text": "QuickBite order items arrived damaged upon delivery",
+            "actor": "QuickBite / Courier",
+            "action": "Delivered damaged item",
+            "target": "Customer order",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U01"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Asserted by customer in statement U01. No documentary receipt or photo evidence provided in record yet.",
+            "scope": "QuickBite delivery condition",
+            "limits": [
+              "User statement assertion only",
+              "Unverified by vendor receipt or physical damage photograph"
+            ],
+            "causal_relationship": "unresolved"
+          }
+        ],
+        "gaps": [
+          {
+            "id": "G01",
+            "what_is_unknown": "Physical item condition at delivery and order itemization",
+            "why_it_matters": "Necessary to verify damaged items and validate refund or replacement eligibility",
+            "what_evidence_could_resolve_it": "Order receipt or invoice and clear photographic evidence of damaged order",
+            "where_how_to_obtain": "Customer upload of digital receipt and photographs of damaged delivery items",
+            "what_not_to_over_collect": "Do not request sensitive bank card numbers or full payment account statements",
+            "target_claim_ids": [
+              "C01"
+            ]
+          }
+        ],
+        "actions": [
+          {
+            "id": "A01",
+            "title": "Provide order receipt and photograph of damaged items",
+            "description": "Attach the purchase receipt and clear photos showing damaged order items to substantiate claim.",
+            "target_gap_id": "G01",
+            "priority": "high"
+          }
+        ],
+        "summary": {
+          "status_summary": "Order damage asserted in initial user intake statement U01. Case record contains 1 unverified user claim and no uploaded evidence artifacts.",
+          "key_resolutions": [
+            "Customer intake initiated (U01)"
+          ],
+          "active_risks": [
+            "Claim C01 relies solely on unverified user narrative"
+          ],
+          "next_step_priorities": [
+            "Obtain receipt and physical damage photo"
+          ]
+        },
+        "epistemic_warning": "Case record based entirely on user narrative assertion U01. No documentary or photographic evidence attached."
+      }
+    },
+    {
+      "turn": 2,
+      "input_match": "I have the receipt and a photo, but I haven't uploaded them yet.",
+      "output": {
+        "segmented_intake": {
+          "narrative_statement": {
+            "id": "U02",
+            "text": "I have the receipt and a photo, but I haven't uploaded them yet."
+          },
+          "pasted_evidences": []
+        },
+        "evidence_inspection": [],
+        "events": [
+          {
+            "id": "EV01",
+            "actor": "QuickBite",
+            "action": "Delivered order",
+            "target": "Customer",
+            "effect": "Order items arrived in damaged condition upon delivery",
+            "time": "Unknown",
+            "user_statement_ids": [
+              "U01"
+            ],
+            "evidence_ids": [],
+            "assessment": "Reported",
+            "is_user_reported_only": true
+          }
+        ],
+        "claims": [
+          {
+            "id": "C01",
+            "text": "QuickBite order items arrived damaged upon delivery",
+            "actor": "QuickBite / Courier",
+            "action": "Delivered damaged item",
+            "target": "Customer order",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U01"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Asserted by customer in statement U01. Mentioned artifacts in U02 are held by customer but pending upload.",
+            "scope": "QuickBite delivery condition",
+            "limits": [
+              "User statement assertion only",
+              "Unverified by vendor receipt or physical damage photograph"
+            ],
+            "causal_relationship": "unresolved"
+          },
+          {
+            "id": "C02",
+            "text": "Customer possesses receipt and damage photo for QuickBite order",
+            "actor": "Customer",
+            "action": "Holds documentary artifacts",
+            "target": "Receipt and photograph",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U02"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Asserted by customer in statement U02. Artifacts are held by customer but pending upload to case record.",
+            "scope": "Artifact possession",
+            "limits": [
+              "User statement assertion only",
+              "Artifact files not yet received in case inventory"
+            ],
+            "causal_relationship": "unresolved"
+          }
+        ],
+        "gaps": [
+          {
+            "id": "G01",
+            "what_is_unknown": "Vendor receipt details and photographic verification of item damage",
+            "why_it_matters": "Customer holds relevant artifacts but has not uploaded them to validate claims C01 and C02",
+            "what_evidence_could_resolve_it": "Direct file attachment of receipt and damage photos in chat intake",
+            "where_how_to_obtain": "Customer upload using chat attachment feature",
+            "what_not_to_over_collect": "Do not request unrelated personal or financial records",
+            "target_claim_ids": [
+              "C01",
+              "C02"
+            ]
+          }
+        ],
+        "actions": [
+          {
+            "id": "A01",
+            "title": "Upload mentioned receipt and damage photo",
+            "description": "Attach the receipt image and damage photo to the case intake using file upload.",
+            "target_gap_id": "G01",
+            "priority": "high"
+          }
+        ],
+        "summary": {
+          "status_summary": "Customer states they possess receipt and photo evidence (U02), but artifacts have not been uploaded. Gap G01 remains open.",
+          "key_resolutions": [
+            "Customer confirmed possession of receipt and photo (U02)"
+          ],
+          "active_risks": [
+            "Artifacts not yet uploaded to case inventory"
+          ],
+          "next_step_priorities": [
+            "Receive uploaded receipt and photo files"
+          ]
+        },
+        "epistemic_warning": "Possession of artifacts stated in U02, but no files have been uploaded to case inventory yet."
+      }
+    },
+    {
+      "turn": 3,
+      "input_match": "Actually, forget the photo. The restaurant already refunded me.",
+      "output": {
+        "segmented_intake": {
+          "narrative_statement": {
+            "id": "U03",
+            "text": "Actually, forget the photo. The restaurant already refunded me."
+          },
+          "pasted_evidences": []
+        },
+        "evidence_inspection": [],
+        "events": [
+          {
+            "id": "EV01",
+            "actor": "QuickBite",
+            "action": "Delivered order",
+            "target": "Customer",
+            "effect": "Order items arrived in damaged condition upon delivery",
+            "time": "Unknown",
+            "user_statement_ids": [
+              "U01"
+            ],
+            "evidence_ids": [],
+            "assessment": "Reported",
+            "is_user_reported_only": true
+          },
+          {
+            "id": "EV02",
+            "actor": "Restaurant",
+            "action": "Issued refund",
+            "target": "Customer",
+            "effect": "Customer claims restaurant already processed a refund",
+            "time": "Unknown",
+            "user_statement_ids": [
+              "U03"
+            ],
+            "evidence_ids": [],
+            "assessment": "Reported",
+            "is_user_reported_only": true
+          }
+        ],
+        "claims": [
+          {
+            "id": "C01",
+            "text": "QuickBite order items arrived damaged upon delivery",
+            "actor": "QuickBite / Courier",
+            "action": "Delivered damaged item",
+            "target": "Customer order",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U01"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Asserted by customer in statement U01.",
+            "scope": "QuickBite delivery condition",
+            "limits": [
+              "User statement assertion only"
+            ],
+            "causal_relationship": "unresolved"
+          },
+          {
+            "id": "C02",
+            "text": "Customer possesses receipt and damage photo for QuickBite order",
+            "actor": "Customer",
+            "action": "Holds documentary artifacts",
+            "target": "Receipt and photograph",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U02",
+              "U03"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Photo requirement retracted by user in U03; receipt still relevant if refund amount is disputed.",
+            "scope": "Artifact possession",
+            "limits": [
+              "User statement assertion only",
+              "Photo requirement retracted by user"
+            ],
+            "causal_relationship": "unresolved"
+          },
+          {
+            "id": "C03",
+            "text": "Restaurant already refunded customer for the damaged order",
+            "actor": "Restaurant",
+            "action": "Issued refund",
+            "target": "Customer",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U03"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Asserted by customer in statement U03. Unverified by bank transaction record or restaurant receipt.",
+            "scope": "Refund settlement",
+            "limits": [
+              "User statement assertion only",
+              "Unverified by bank statement or refund confirmation document"
+            ],
+            "causal_relationship": "unresolved"
+          }
+        ],
+        "gaps": [
+          {
+            "id": "G02",
+            "what_is_unknown": "Confirmation and exact amount of restaurant refund",
+            "why_it_matters": "Validates whether dispute is settled or if financial discrepancy remains",
+            "what_evidence_could_resolve_it": "Bank statement or refund confirmation notice",
+            "where_how_to_obtain": "Customer upload of bank transaction screenshot or refund receipt",
+            "what_not_to_over_collect": "Do not request full bank account numbers",
+            "target_claim_ids": [
+              "C03"
+            ]
+          }
+        ],
+        "actions": [
+          {
+            "id": "A02",
+            "title": "Provide bank statement or refund receipt",
+            "description": "Attach bank record showing restaurant refund transaction.",
+            "target_gap_id": "G02",
+            "priority": "medium"
+          }
+        ],
+        "summary": {
+          "status_summary": "Customer retracted photo requirement and reported a restaurant refund in U03. Refund claim C03 is unverified.",
+          "key_resolutions": [
+            "Customer stated restaurant refunded order (U03)"
+          ],
+          "active_risks": [
+            "Refund C03 lacks bank transaction proof"
+          ],
+          "next_step_priorities": [
+            "Verify bank transaction record"
+          ]
+        },
+        "epistemic_warning": "Restaurant refund claimed in U03 is unverified by bank records."
+      }
+    },
+    {
+      "turn": 4,
+      "input_match": "Correction: I checked my bank app. The money I saw was a temporary credit from my card issuer, not a refund from the restaurant.",
+      "output": {
+        "segmented_intake": {
+          "narrative_statement": {
+            "id": "U04",
+            "text": "Correction: I checked my bank app. The money I saw was a temporary credit from my card issuer, not a refund from the restaurant."
+          },
+          "pasted_evidences": []
+        },
+        "evidence_inspection": [],
+        "events": [
+          {
+            "id": "EV01",
+            "actor": "QuickBite",
+            "action": "Delivered order",
+            "target": "Customer",
+            "effect": "Order items arrived in damaged condition upon delivery",
+            "time": "Unknown",
+            "user_statement_ids": [
+              "U01"
+            ],
+            "evidence_ids": [],
+            "assessment": "Reported",
+            "is_user_reported_only": true
+          },
+          {
+            "id": "EV02",
+            "actor": "Restaurant",
+            "action": "Issued refund",
+            "target": "Customer",
+            "effect": "Customer previously claimed restaurant refund (later corrected in U04)",
+            "time": "Unknown",
+            "user_statement_ids": [
+              "U03"
+            ],
+            "evidence_ids": [],
+            "assessment": "Reported",
+            "is_user_reported_only": true
+          },
+          {
+            "id": "EV03",
+            "actor": "Card Issuer",
+            "action": "Issued temporary credit",
+            "target": "Customer account",
+            "effect": "Card issuer provided a temporary credit, clarified by customer as distinct from restaurant refund",
+            "time": "Unknown",
+            "user_statement_ids": [
+              "U04"
+            ],
+            "evidence_ids": [],
+            "assessment": "Reported",
+            "is_user_reported_only": true
+          }
+        ],
+        "claims": [
+          {
+            "id": "C01",
+            "text": "QuickBite order items arrived damaged upon delivery",
+            "actor": "QuickBite / Courier",
+            "action": "Delivered damaged item",
+            "target": "Customer order",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U01"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Asserted by customer in statement U01.",
+            "scope": "QuickBite delivery condition",
+            "limits": [
+              "User statement assertion only"
+            ],
+            "causal_relationship": "unresolved"
+          },
+          {
+            "id": "C02",
+            "text": "Customer possesses receipt and damage photo for QuickBite order",
+            "actor": "Customer",
+            "action": "Holds documentary artifacts",
+            "target": "Receipt and photograph",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U02",
+              "U03"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Photo requirement retracted in U03; receipt pending upload.",
+            "scope": "Artifact possession",
+            "limits": [
+              "User statement assertion only"
+            ],
+            "causal_relationship": "unresolved"
+          },
+          {
+            "id": "C03",
+            "text": "Restaurant already refunded customer for the damaged order",
+            "actor": "Restaurant",
+            "action": "Issued refund",
+            "target": "Customer",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U03",
+              "U04"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Explicitly corrected by customer in U04. Customer clarified that funds received were a temporary credit from card issuer, not a restaurant refund.",
+            "scope": "Refund settlement",
+            "limits": [
+              "Corrected in U04 by user"
+            ],
+            "causal_relationship": "not_supported"
+          },
+          {
+            "id": "C04",
+            "text": "Funds received were a temporary credit from card issuer, not a restaurant refund",
+            "actor": "Card Issuer",
+            "action": "Issued temporary credit",
+            "target": "Customer account",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U04"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Asserted by customer in statement U04 as correction to C03. Pending bank record verification.",
+            "scope": "Temporary card credit",
+            "limits": [
+              "User statement assertion only",
+              "Unverified by bank transaction record"
+            ],
+            "causal_relationship": "unresolved"
+          }
+        ],
+        "gaps": [
+          {
+            "id": "G02",
+            "what_is_unknown": "Bank transaction record confirming credit source and nature",
+            "why_it_matters": "Distinguishes provisional card credit from final vendor refund to avoid claim duplication",
+            "what_evidence_could_resolve_it": "Bank statement or card issuer transaction record",
+            "where_how_to_obtain": "Customer upload of bank statement screenshot",
+            "what_not_to_over_collect": "Do not request full account numbers",
+            "target_claim_ids": [
+              "C03",
+              "C04"
+            ]
+          }
+        ],
+        "actions": [
+          {
+            "id": "A02",
+            "title": "Provide bank transaction record",
+            "description": "Attach bank screenshot showing the temporary credit transaction from card issuer.",
+            "target_gap_id": "G02",
+            "priority": "high"
+          }
+        ],
+        "summary": {
+          "status_summary": "Customer corrected claim C03 in statement U04: credit is a temporary adjustment from card issuer (C04), not a vendor refund.",
+          "key_resolutions": [
+            "Customer clarified funds are temporary credit from card issuer (U04)"
+          ],
+          "active_risks": [
+            "Card credit C04 is provisional and unverified"
+          ],
+          "next_step_priorities": [
+            "Obtain bank record showing card issuer credit label"
+          ]
+        },
+        "epistemic_warning": "Previous restaurant refund claim C03 corrected by user in U04 to temporary card issuer credit C04."
+      }
+    },
+    {
+      "turn": 5,
+      "input_match": "QuickBite support told me in chat, \"the restaurant processed your refund yesterday,\" but I haven't provided that chat here.",
+      "output": {
+        "segmented_intake": {
+          "narrative_statement": {
+            "id": "U05",
+            "text": "QuickBite support told me in chat, \"the restaurant processed your refund yesterday,\" but I haven't provided that chat here."
+          },
+          "pasted_evidences": []
+        },
+        "evidence_inspection": [],
+        "events": [
+          {
+            "id": "EV01",
+            "actor": "QuickBite",
+            "action": "Delivered order",
+            "target": "Customer",
+            "effect": "Order items arrived in damaged condition upon delivery",
+            "time": "Unknown",
+            "user_statement_ids": [
+              "U01"
+            ],
+            "evidence_ids": [],
+            "assessment": "Reported",
+            "is_user_reported_only": true
+          },
+          {
+            "id": "EV02",
+            "actor": "Restaurant",
+            "action": "Issued refund",
+            "target": "Customer",
+            "effect": "Customer previously claimed restaurant refund (later corrected in U04)",
+            "time": "Unknown",
+            "user_statement_ids": [
+              "U03"
+            ],
+            "evidence_ids": [],
+            "assessment": "Reported",
+            "is_user_reported_only": true
+          },
+          {
+            "id": "EV03",
+            "actor": "Card Issuer",
+            "action": "Issued temporary credit",
+            "target": "Customer account",
+            "effect": "Card issuer provided a temporary credit, clarified by customer as distinct from restaurant refund",
+            "time": "Unknown",
+            "user_statement_ids": [
+              "U04"
+            ],
+            "evidence_ids": [],
+            "assessment": "Reported",
+            "is_user_reported_only": true
+          }
+        ],
+        "claims": [
+          {
+            "id": "C01",
+            "text": "QuickBite order items arrived damaged upon delivery",
+            "actor": "QuickBite / Courier",
+            "action": "Delivered damaged item",
+            "target": "Customer order",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U01"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Asserted by customer in statement U01.",
+            "scope": "QuickBite delivery condition",
+            "limits": [
+              "User statement assertion only"
+            ],
+            "causal_relationship": "unresolved"
+          },
+          {
+            "id": "C02",
+            "text": "Customer possesses receipt and damage photo for QuickBite order",
+            "actor": "Customer",
+            "action": "Holds documentary artifacts",
+            "target": "Receipt and photograph",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U02",
+              "U03"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Photo requirement retracted in U03; receipt pending upload.",
+            "scope": "Artifact possession",
+            "limits": [
+              "User statement assertion only"
+            ],
+            "causal_relationship": "unresolved"
+          },
+          {
+            "id": "C03",
+            "text": "Restaurant already refunded customer for the damaged order",
+            "actor": "Restaurant",
+            "action": "Issued refund",
+            "target": "Customer",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U03",
+              "U04"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Corrected in U04. In U05, customer asserts support chat states refund processed yesterday, but chat transcript is unprovided.",
+            "scope": "Refund settlement",
+            "limits": [
+              "Corrected in U04",
+              "Support chat transcript unprovided"
+            ],
+            "causal_relationship": "not_supported"
+          },
+          {
+            "id": "C04",
+            "text": "Funds received were a temporary credit from card issuer, not a restaurant refund",
+            "actor": "Card Issuer",
+            "action": "Issued temporary credit",
+            "target": "Customer account",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U04"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Asserted in U04.",
+            "scope": "Temporary card credit",
+            "limits": [
+              "User statement assertion only"
+            ],
+            "causal_relationship": "unresolved"
+          },
+          {
+            "id": "C05",
+            "text": "QuickBite support stated that restaurant processed refund yesterday",
+            "actor": "QuickBite Support",
+            "action": "Stated refund processing in chat",
+            "target": "Customer",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U05"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Asserted by customer in U05 citing unprovided QuickBite chat transcript. Unverified by documentary evidence in record.",
+            "scope": "Support chat statement",
+            "limits": [
+              "User statement assertion only",
+              "Support chat transcript not provided in case inventory"
+            ],
+            "causal_relationship": "unresolved"
+          }
+        ],
+        "gaps": [
+          {
+            "id": "G03",
+            "what_is_unknown": "QuickBite support chat transcript content and authenticity",
+            "why_it_matters": "Customer claims support confirmed refund, but chat transcript is unprovided",
+            "what_evidence_could_resolve_it": "Screenshot or exported transcript of QuickBite support chat",
+            "where_how_to_obtain": "Customer upload of support chat screenshot",
+            "what_not_to_over_collect": "Do not request unrelated chat histories",
+            "target_claim_ids": [
+              "C05"
+            ]
+          }
+        ],
+        "actions": [
+          {
+            "id": "A03",
+            "title": "Upload QuickBite support chat transcript",
+            "description": "Attach screenshot or export of the support chat transcript.",
+            "target_gap_id": "G03",
+            "priority": "medium"
+          }
+        ],
+        "summary": {
+          "status_summary": "Customer reported support chat statement in U05. Chat transcript is unprovided. Gap G03 opened.",
+          "key_resolutions": [
+            "Support chat statement reported (U05)"
+          ],
+          "active_risks": [
+            "Support chat transcript unprovided in case inventory"
+          ],
+          "next_step_priorities": [
+            "Obtain support chat transcript"
+          ]
+        },
+        "epistemic_warning": "Support chat quote reported in U05 is an unprovided document claim."
+      }
+    },
+    {
+      "turn": 6,
+      "input_match": "My original payment was 420,000 VND. The temporary credit is only 300,000 VND.",
+      "output": {
+        "segmented_intake": {
+          "narrative_statement": {
+            "id": "U06",
+            "text": "My original payment was 420,000 VND. The temporary credit is only 300,000 VND."
+          },
+          "pasted_evidences": []
+        },
+        "evidence_inspection": [],
+        "events": [
+          {
+            "id": "EV01",
+            "actor": "QuickBite",
+            "action": "Delivered order",
+            "target": "Customer",
+            "effect": "Order items arrived in damaged condition upon delivery",
+            "time": "Unknown",
+            "user_statement_ids": [
+              "U01"
+            ],
+            "evidence_ids": [],
+            "assessment": "Reported",
+            "is_user_reported_only": true
+          },
+          {
+            "id": "EV02",
+            "actor": "Restaurant",
+            "action": "Issued refund",
+            "target": "Customer",
+            "effect": "Customer previously claimed restaurant refund (later corrected in U04)",
+            "time": "Unknown",
+            "user_statement_ids": [
+              "U03"
+            ],
+            "evidence_ids": [],
+            "assessment": "Reported",
+            "is_user_reported_only": true
+          },
+          {
+            "id": "EV03",
+            "actor": "Card Issuer",
+            "action": "Issued temporary credit",
+            "target": "Customer account",
+            "effect": "Card issuer provided a temporary credit, clarified by customer as distinct from restaurant refund",
+            "time": "Unknown",
+            "user_statement_ids": [
+              "U04"
+            ],
+            "evidence_ids": [],
+            "assessment": "Reported",
+            "is_user_reported_only": true
+          },
+          {
+            "id": "EV04",
+            "actor": "Customer",
+            "action": "Paid order total",
+            "target": "QuickBite",
+            "effect": "Customer reported original order payment of 420,000 VND and temporary credit of 300,000 VND",
+            "time": "Unknown",
+            "user_statement_ids": [
+              "U06"
+            ],
+            "evidence_ids": [],
+            "assessment": "Reported",
+            "is_user_reported_only": true
+          }
+        ],
+        "claims": [
+          {
+            "id": "C01",
+            "text": "QuickBite order items arrived damaged upon delivery",
+            "actor": "QuickBite / Courier",
+            "action": "Delivered damaged item",
+            "target": "Customer order",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U01"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Asserted by customer in statement U01.",
+            "scope": "QuickBite delivery condition",
+            "limits": [
+              "User statement assertion only"
+            ],
+            "causal_relationship": "unresolved"
+          },
+          {
+            "id": "C04",
+            "text": "Funds received were a temporary credit from card issuer, not a restaurant refund",
+            "actor": "Card Issuer",
+            "action": "Issued temporary credit",
+            "target": "Customer account",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U04"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Asserted in U04.",
+            "scope": "Temporary card credit",
+            "limits": [
+              "User statement assertion only"
+            ],
+            "causal_relationship": "unresolved"
+          },
+          {
+            "id": "C05",
+            "text": "QuickBite support stated that restaurant processed refund yesterday",
+            "actor": "QuickBite Support",
+            "action": "Stated refund processing in chat",
+            "target": "Customer",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U05"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Asserted in U05.",
+            "scope": "Support chat statement",
+            "limits": [
+              "User statement assertion only"
+            ],
+            "causal_relationship": "unresolved"
+          },
+          {
+            "id": "C06",
+            "text": "Original order payment total was 420,000 VND",
+            "actor": "Customer",
+            "action": "Paid amount",
+            "target": "QuickBite",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U06"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Asserted by customer in U06. Pending order receipt verification.",
+            "scope": "Order total amount",
+            "limits": [
+              "User statement assertion only"
+            ],
+            "causal_relationship": "unresolved"
+          },
+          {
+            "id": "C07",
+            "text": "Temporary credit amount from card issuer was 300,000 VND",
+            "actor": "Card Issuer",
+            "action": "Credited amount",
+            "target": "Customer account",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U06"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Asserted by customer in U06. Indicates 120,000 VND gap compared to reported order total.",
+            "scope": "Temporary credit amount",
+            "limits": [
+              "User statement assertion only"
+            ],
+            "causal_relationship": "unresolved"
+          }
+        ],
+        "gaps": [
+          {
+            "id": "G01",
+            "what_is_unknown": "Vendor receipt details confirming order payment total",
+            "why_it_matters": "Necessary to establish exact order cost (C06) and evaluate 120,000 VND gap relative to credit (C07)",
+            "what_evidence_could_resolve_it": "Order receipt or invoice file upload",
+            "where_how_to_obtain": "Customer upload of digital receipt",
+            "what_not_to_over_collect": "Do not request unrelated bank account details",
+            "target_claim_ids": [
+              "C01",
+              "C06"
+            ]
+          },
+          {
+            "id": "G02",
+            "what_is_unknown": "Bank transaction record confirming credit amount of 300,000 VND",
+            "why_it_matters": "Validates card issuer provisional adjustment amount against claimed order total",
+            "what_evidence_could_resolve_it": "Bank statement screenshot showing 300,000 VND transaction",
+            "where_how_to_obtain": "Customer upload of bank transaction screenshot",
+            "what_not_to_over_collect": "Do not request full account numbers",
+            "target_claim_ids": [
+              "C04",
+              "C07"
+            ]
+          }
+        ],
+        "actions": [
+          {
+            "id": "A01",
+            "title": "Upload order receipt",
+            "description": "Attach the purchase receipt to verify the 420,000 VND order payment total.",
+            "target_gap_id": "G01",
+            "priority": "high"
+          },
+          {
+            "id": "A02",
+            "title": "Provide bank transaction record for 300,000 VND credit",
+            "description": "Attach bank screenshot showing the 300,000 VND temporary credit.",
+            "target_gap_id": "G02",
+            "priority": "high"
+          }
+        ],
+        "summary": {
+          "status_summary": "Customer stated 420,000 VND order payment and 300,000 VND temporary credit in U06, highlighting a 120,000 VND variance.",
+          "key_resolutions": [
+            "Amounts asserted: 420,000 VND order total, 300,000 VND credit (U06)"
+          ],
+          "active_risks": [
+            "120,000 VND discrepancy unverified by receipt or bank records"
+          ],
+          "next_step_priorities": [
+            "Obtain receipt and bank statement"
+          ]
+        },
+        "epistemic_warning": "Payment amounts 420,000 VND (C06) and 300,000 VND (C07) are user assertions pending receipt/bank evidence."
+      }
+    },
+    {
+      "turn": 7,
+      "input_match": "I checked again. I was wrong about the order total. The receipt says 390,000 VND, not 420,000 VND.",
+      "output": {
+        "segmented_intake": {
+          "narrative_statement": {
+            "id": "U07",
+            "text": "I checked again. I was wrong about the order total. The receipt says 390,000 VND, not 420,000 VND."
+          },
+          "pasted_evidences": []
+        },
+        "evidence_inspection": [],
+        "events": [
+          {
+            "id": "EV01",
+            "actor": "QuickBite",
+            "action": "Delivered order",
+            "target": "Customer",
+            "effect": "Order items arrived in damaged condition upon delivery",
+            "time": "Unknown",
+            "user_statement_ids": [
+              "U01"
+            ],
+            "evidence_ids": [],
+            "assessment": "Reported",
+            "is_user_reported_only": true
+          },
+          {
+            "id": "EV02",
+            "actor": "Restaurant",
+            "action": "Issued refund",
+            "target": "Customer",
+            "effect": "Customer previously claimed restaurant refund (later corrected in U04)",
+            "time": "Unknown",
+            "user_statement_ids": [
+              "U03"
+            ],
+            "evidence_ids": [],
+            "assessment": "Reported",
+            "is_user_reported_only": true
+          },
+          {
+            "id": "EV03",
+            "actor": "Card Issuer",
+            "action": "Issued temporary credit",
+            "target": "Customer account",
+            "effect": "Card issuer provided a temporary credit, clarified by customer as distinct from restaurant refund",
+            "time": "Unknown",
+            "user_statement_ids": [
+              "U04"
+            ],
+            "evidence_ids": [],
+            "assessment": "Reported",
+            "is_user_reported_only": true
+          },
+          {
+            "id": "EV04",
+            "actor": "Customer",
+            "action": "Paid order total",
+            "target": "QuickBite",
+            "effect": "Customer reported order payment total (corrected in U07 to 390,000 VND)",
+            "time": "Unknown",
+            "user_statement_ids": [
+              "U06",
+              "U07"
+            ],
+            "evidence_ids": [],
+            "assessment": "Reported",
+            "is_user_reported_only": true
+          }
+        ],
+        "claims": [
+          {
+            "id": "C01",
+            "text": "QuickBite order items arrived damaged upon delivery",
+            "actor": "QuickBite / Courier",
+            "action": "Delivered damaged item",
+            "target": "Customer order",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U01"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Asserted by customer in statement U01.",
+            "scope": "QuickBite delivery condition",
+            "limits": [
+              "User statement assertion only"
+            ],
+            "causal_relationship": "unresolved"
+          },
+          {
+            "id": "C04",
+            "text": "Funds received were a temporary credit from card issuer, not a restaurant refund",
+            "actor": "Card Issuer",
+            "action": "Issued temporary credit",
+            "target": "Customer account",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U04"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Asserted in U04.",
+            "scope": "Temporary card credit",
+            "limits": [
+              "User statement assertion only"
+            ],
+            "causal_relationship": "unresolved"
+          },
+          {
+            "id": "C05",
+            "text": "QuickBite support stated that restaurant processed refund yesterday",
+            "actor": "QuickBite Support",
+            "action": "Stated refund processing in chat",
+            "target": "Customer",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U05"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Asserted in U05.",
+            "scope": "Support chat statement",
+            "limits": [
+              "User statement assertion only"
+            ],
+            "causal_relationship": "unresolved"
+          },
+          {
+            "id": "C06",
+            "text": "Original order payment total was 420,000 VND",
+            "actor": "Customer",
+            "action": "Paid amount",
+            "target": "QuickBite",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U06",
+              "U07"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Superseded and corrected by customer in U07. Customer clarified the receipt actually states 390,000 VND.",
+            "scope": "Order total amount",
+            "limits": [
+              "Corrected by user in U07"
+            ],
+            "causal_relationship": "not_supported"
+          },
+          {
+            "id": "C07",
+            "text": "Temporary credit amount from card issuer was 300,000 VND",
+            "actor": "Card Issuer",
+            "action": "Credited amount",
+            "target": "Customer account",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U06"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Asserted in U06.",
+            "scope": "Temporary credit amount",
+            "limits": [
+              "User statement assertion only"
+            ],
+            "causal_relationship": "unresolved"
+          },
+          {
+            "id": "C08",
+            "text": "Original order payment total on receipt is 390,000 VND",
+            "actor": "Customer / QuickBite",
+            "action": "Paid order total",
+            "target": "QuickBite",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U07"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Asserted by customer in U07 as correction to C06. Unverified until receipt artifact is supplied.",
+            "scope": "Order total amount",
+            "limits": [
+              "User statement assertion only",
+              "Receipt not yet attached"
+            ],
+            "causal_relationship": "unresolved"
+          }
+        ],
+        "gaps": [
+          {
+            "id": "G01",
+            "what_is_unknown": "Vendor receipt artifact verifying 390,000 VND total",
+            "why_it_matters": "Customer corrected order total to 390,000 VND (C08), but actual receipt file/text artifact is unprovided",
+            "what_evidence_could_resolve_it": "Receipt file upload or text scan",
+            "where_how_to_obtain": "Customer upload using chat attachment",
+            "what_not_to_over_collect": "Do not request unrelated bank account details",
+            "target_claim_ids": [
+              "C01",
+              "C08"
+            ]
+          }
+        ],
+        "actions": [
+          {
+            "id": "A01",
+            "title": "Upload receipt showing 390,000 VND total",
+            "description": "Attach receipt artifact to verify corrected order total of 390,000 VND.",
+            "target_gap_id": "G01",
+            "priority": "high"
+          }
+        ],
+        "summary": {
+          "status_summary": "Customer corrected order total in U07 from 420,000 VND (C06) to 390,000 VND (C08). Receipt artifact is pending upload.",
+          "key_resolutions": [
+            "Order total corrected to 390,000 VND (U07)"
+          ],
+          "active_risks": [
+            "Receipt artifact C08 not yet uploaded"
+          ],
+          "next_step_priorities": [
+            "Upload receipt file"
+          ]
+        },
+        "epistemic_warning": "Previous 420,000 VND claim C06 corrected in U07 to 390,000 VND claim C08."
+      }
+    },
+    {
+      "turn": 8,
+      "input_match": "I'm now providing the receipt. It shows a total payment of 390,000 VND.",
+      "output": {
+        "segmented_intake": {
+          "narrative_statement": {
+            "id": "U08",
+            "text": "I'm now providing the receipt. It shows a total payment of 390,000 VND."
+          },
+          "pasted_evidences": []
+        },
+        "evidence_inspection": [],
+        "events": [
+          {
+            "id": "EV01",
+            "actor": "QuickBite",
+            "action": "Delivered order",
+            "target": "Customer",
+            "effect": "Order items arrived in damaged condition upon delivery",
+            "time": "Unknown",
+            "user_statement_ids": [
+              "U01"
+            ],
+            "evidence_ids": [],
+            "assessment": "Reported",
+            "is_user_reported_only": true
+          },
+          {
+            "id": "EV02",
+            "actor": "Restaurant",
+            "action": "Issued refund",
+            "target": "Customer",
+            "effect": "Customer previously claimed restaurant refund (later corrected in U04)",
+            "time": "Unknown",
+            "user_statement_ids": [
+              "U03"
+            ],
+            "evidence_ids": [],
+            "assessment": "Reported",
+            "is_user_reported_only": true
+          },
+          {
+            "id": "EV03",
+            "actor": "Card Issuer",
+            "action": "Issued temporary credit",
+            "target": "Customer account",
+            "effect": "Card issuer provided a temporary credit, clarified by customer as distinct from restaurant refund",
+            "time": "Unknown",
+            "user_statement_ids": [
+              "U04"
+            ],
+            "evidence_ids": [],
+            "assessment": "Reported",
+            "is_user_reported_only": true
+          },
+          {
+            "id": "EV04",
+            "actor": "Customer",
+            "action": "Paid order total",
+            "target": "QuickBite",
+            "effect": "Customer reported order payment total of 390,000 VND",
+            "time": "Unknown",
+            "user_statement_ids": [
+              "U06",
+              "U07",
+              "U08"
+            ],
+            "evidence_ids": [],
+            "assessment": "Reported",
+            "is_user_reported_only": true
+          }
+        ],
+        "claims": [
+          {
+            "id": "C01",
+            "text": "QuickBite order items arrived damaged upon delivery",
+            "actor": "QuickBite / Courier",
+            "action": "Delivered damaged item",
+            "target": "Customer order",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U01"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Asserted by customer in statement U01.",
+            "scope": "QuickBite delivery condition",
+            "limits": [
+              "User statement assertion only"
+            ],
+            "causal_relationship": "unresolved"
+          },
+          {
+            "id": "C04",
+            "text": "Funds received were a temporary credit from card issuer, not a restaurant refund",
+            "actor": "Card Issuer",
+            "action": "Issued temporary credit",
+            "target": "Customer account",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U04"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Asserted in U04.",
+            "scope": "Temporary card credit",
+            "limits": [
+              "User statement assertion only"
+            ],
+            "causal_relationship": "unresolved"
+          },
+          {
+            "id": "C05",
+            "text": "QuickBite support stated that restaurant processed refund yesterday",
+            "actor": "QuickBite Support",
+            "action": "Stated refund processing in chat",
+            "target": "Customer",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U05"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Asserted in U05.",
+            "scope": "Support chat statement",
+            "limits": [
+              "User statement assertion only"
+            ],
+            "causal_relationship": "unresolved"
+          },
+          {
+            "id": "C07",
+            "text": "Temporary credit amount from card issuer was 300,000 VND",
+            "actor": "Card Issuer",
+            "action": "Credited amount",
+            "target": "Customer action",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U06"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Asserted in U06.",
+            "scope": "Temporary credit amount",
+            "limits": [
+              "User statement assertion only"
+            ],
+            "causal_relationship": "unresolved"
+          },
+          {
+            "id": "C08",
+            "text": "Original order payment total on receipt is 390,000 VND",
+            "actor": "Customer / QuickBite",
+            "action": "Paid order total",
+            "target": "QuickBite",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U07",
+              "U08"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Re-asserted by customer in U08. Text description provided in chat, but physical/file receipt artifact has not been attached via file upload mechanism.",
+            "scope": "Order total amount",
+            "limits": [
+              "User statement assertion only",
+              "No file attachment or pasted document parsed"
+            ],
+            "causal_relationship": "unresolved"
+          }
+        ],
+        "gaps": [
+          {
+            "id": "G01",
+            "what_is_unknown": "File artifact or pasted text of receipt",
+            "why_it_matters": "Customer describes receipt in text, but actual artifact has not been uploaded to convert claim to established record",
+            "what_evidence_could_resolve_it": "Receipt file attachment or pasted document text",
+            "where_how_to_obtain": "Customer upload using file attachment feature",
+            "what_not_to_over_collect": "Do not request unrelated personal records",
+            "target_claim_ids": [
+              "C01",
+              "C08"
+            ]
+          }
+        ],
+        "actions": [
+          {
+            "id": "A01",
+            "title": "Upload receipt file or paste full receipt text",
+            "description": "Attach the receipt image/PDF file or paste document text into intake.",
+            "target_gap_id": "G01",
+            "priority": "high"
+          }
+        ],
+        "summary": {
+          "status_summary": "Customer described receipt in statement U08. Actual file or pasted document remains unattached in case inventory.",
+          "key_resolutions": [
+            "Customer described receipt details in chat (U08)"
+          ],
+          "active_risks": [
+            "Documentary file artifact still missing from case inventory"
+          ],
+          "next_step_priorities": [
+            "Attach receipt file artifact"
+          ]
+        },
+        "epistemic_warning": "Statement U08 describes receipt in text, but no file or pasted document artifact has been added to case inventory."
+      }
+    },
+    {
+      "turn": 9,
+      "input_match": "The bank transaction record shows a 300,000 VND temporary credit and labels it \"provisional adjustment\".",
+      "output": {
+        "segmented_intake": {
+          "narrative_statement": {
+            "id": "U09",
+            "text": "The bank transaction record shows a 300,000 VND temporary credit and labels it \"provisional adjustment\"."
+          },
+          "pasted_evidences": []
+        },
+        "evidence_inspection": [],
+        "events": [
+          {
+            "id": "EV01",
+            "actor": "QuickBite",
+            "action": "Delivered order",
+            "target": "Customer",
+            "effect": "Order items arrived in damaged condition upon delivery",
+            "time": "Unknown",
+            "user_statement_ids": [
+              "U01"
+            ],
+            "evidence_ids": [],
+            "assessment": "Reported",
+            "is_user_reported_only": true
+          },
+          {
+            "id": "EV02",
+            "actor": "Restaurant",
+            "action": "Issued refund",
+            "target": "Customer",
+            "effect": "Customer previously claimed restaurant refund (later corrected in U04)",
+            "time": "Unknown",
+            "user_statement_ids": [
+              "U03"
+            ],
+            "evidence_ids": [],
+            "assessment": "Reported",
+            "is_user_reported_only": true
+          },
+          {
+            "id": "EV03",
+            "actor": "Card Issuer",
+            "action": "Issued temporary credit",
+            "target": "Customer account",
+            "effect": "Card issuer provided a temporary credit, clarified by customer as distinct from restaurant refund",
+            "time": "Unknown",
+            "user_statement_ids": [
+              "U04"
+            ],
+            "evidence_ids": [],
+            "assessment": "Reported",
+            "is_user_reported_only": true
+          },
+          {
+            "id": "EV04",
+            "actor": "Customer",
+            "action": "Paid order total",
+            "target": "QuickBite",
+            "effect": "Customer reported order payment total of 390,000 VND",
+            "time": "Unknown",
+            "user_statement_ids": [
+              "U06",
+              "U07",
+              "U08"
+            ],
+            "evidence_ids": [],
+            "assessment": "Reported",
+            "is_user_reported_only": true
+          }
+        ],
+        "claims": [
+          {
+            "id": "C01",
+            "text": "QuickBite order items arrived damaged upon delivery",
+            "actor": "QuickBite / Courier",
+            "action": "Delivered damaged item",
+            "target": "Customer order",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U01"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Asserted by customer in statement U01.",
+            "scope": "QuickBite delivery condition",
+            "limits": [
+              "User statement assertion only"
+            ],
+            "causal_relationship": "unresolved"
+          },
+          {
+            "id": "C04",
+            "text": "Funds received were a temporary credit from card issuer, not a restaurant refund",
+            "actor": "Card Issuer",
+            "action": "Issued temporary credit",
+            "target": "Customer account",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U04"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Asserted in U04.",
+            "scope": "Temporary card credit",
+            "limits": [
+              "User statement assertion only"
+            ],
+            "causal_relationship": "unresolved"
+          },
+          {
+            "id": "C05",
+            "text": "QuickBite support stated that restaurant processed refund yesterday",
+            "actor": "QuickBite Support",
+            "action": "Stated refund processing in chat",
+            "target": "Customer",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U05"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Asserted in U05.",
+            "scope": "Support chat statement",
+            "limits": [
+              "User statement assertion only"
+            ],
+            "causal_relationship": "unresolved"
+          },
+          {
+            "id": "C07",
+            "text": "Temporary credit amount from card issuer was 300,000 VND",
+            "actor": "Card Issuer",
+            "action": "Credited amount",
+            "target": "Customer account",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U06",
+              "U09"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Customer stated in U09 that bank record labels it 'provisional adjustment'. Unverified until bank document artifact is attached.",
+            "scope": "Temporary credit amount",
+            "limits": [
+              "User statement assertion only"
+            ],
+            "causal_relationship": "unresolved"
+          },
+          {
+            "id": "C08",
+            "text": "Original order payment total on receipt is 390,000 VND",
+            "actor": "Customer / QuickBite",
+            "action": "Paid order total",
+            "target": "QuickBite",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U07",
+              "U08"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Asserted in U07 and U08.",
+            "scope": "Order total amount",
+            "limits": [
+              "User statement assertion only"
+            ],
+            "causal_relationship": "unresolved"
+          },
+          {
+            "id": "C09",
+            "text": "Bank transaction record labels 300,000 VND credit as 'provisional adjustment'",
+            "actor": "Card Issuer / Bank",
+            "action": "Labeled credit transaction",
+            "target": "Customer account",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U09"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Asserted by customer in U09. Indicates temporary nature of credit, unverified by file upload.",
+            "scope": "Bank transaction label",
+            "limits": [
+              "User statement assertion only"
+            ],
+            "causal_relationship": "unresolved"
+          }
+        ],
+        "gaps": [
+          {
+            "id": "G02",
+            "what_is_unknown": "Bank statement file or screenshot verifying 'provisional adjustment' credit",
+            "why_it_matters": "Customer describes bank transaction label in U09, but artifact is unprovided",
+            "what_evidence_could_resolve_it": "Bank statement screenshot or file upload",
+            "where_how_to_obtain": "Customer upload using chat attachment",
+            "what_not_to_over_collect": "Do not request full account numbers",
+            "target_claim_ids": [
+              "C04",
+              "C07",
+              "C09"
+            ]
+          }
+        ],
+        "actions": [
+          {
+            "id": "A02",
+            "title": "Upload bank statement screenshot",
+            "description": "Attach bank screenshot showing the 300,000 VND provisional adjustment.",
+            "target_gap_id": "G02",
+            "priority": "high"
+          }
+        ],
+        "summary": {
+          "status_summary": "Customer stated bank record label 'provisional adjustment' in U09. Bank screenshot artifact remains unattached.",
+          "key_resolutions": [
+            "Provisional adjustment label reported in chat (U09)"
+          ],
+          "active_risks": [
+            "Bank transaction document missing from case inventory"
+          ],
+          "next_step_priorities": [
+            "Attach bank screenshot artifact"
+          ]
+        },
+        "epistemic_warning": "Bank transaction label reported in U09 is unverified by attached file artifacts."
+      }
+    },
+    {
+      "turn": 10,
+      "input_match": "QuickBite has now sent a separate 390,000 VND refund. My bank still shows the 300,000 VND provisional adjustment as pending.",
+      "output": {
+        "segmented_intake": {
+          "narrative_statement": {
+            "id": "U10",
+            "text": "QuickBite has now sent a separate 390,000 VND refund. My bank still shows the 300,000 VND provisional adjustment as pending."
+          },
+          "pasted_evidences": []
+        },
+        "evidence_inspection": [],
+        "events": [
+          {
+            "id": "EV01",
+            "actor": "QuickBite",
+            "action": "Delivered order",
+            "target": "Customer",
+            "effect": "Order items arrived in damaged condition upon delivery",
+            "time": "Unknown",
+            "user_statement_ids": [
+              "U01"
+            ],
+            "evidence_ids": [],
+            "assessment": "Reported",
+            "is_user_reported_only": true
+          },
+          {
+            "id": "EV02",
+            "actor": "Restaurant",
+            "action": "Issued refund",
+            "target": "Customer",
+            "effect": "Customer previously claimed restaurant refund (later corrected in U04)",
+            "time": "Unknown",
+            "user_statement_ids": [
+              "U03"
+            ],
+            "evidence_ids": [],
+            "assessment": "Reported",
+            "is_user_reported_only": true
+          },
+          {
+            "id": "EV03",
+            "actor": "Card Issuer",
+            "action": "Issued temporary credit",
+            "target": "Customer account",
+            "effect": "Card issuer provided a temporary credit, clarified by customer as distinct from restaurant refund",
+            "time": "Unknown",
+            "user_statement_ids": [
+              "U04"
+            ],
+            "evidence_ids": [],
+            "assessment": "Reported",
+            "is_user_reported_only": true
+          },
+          {
+            "id": "EV04",
+            "actor": "Customer",
+            "action": "Paid order total",
+            "target": "QuickBite",
+            "effect": "Customer reported order payment total of 390,000 VND",
+            "time": "Unknown",
+            "user_statement_ids": [
+              "U06",
+              "U07",
+              "U08"
+            ],
+            "evidence_ids": [],
+            "assessment": "Reported",
+            "is_user_reported_only": true
+          },
+          {
+            "id": "EV05",
+            "actor": "QuickBite",
+            "action": "Issued separate refund of 390,000 VND",
+            "target": "Customer account",
+            "effect": "QuickBite processed 390,000 VND refund while 300,000 VND provisional adjustment remains pending on bank account",
+            "time": "Unknown",
+            "user_statement_ids": [
+              "U10"
+            ],
+            "evidence_ids": [],
+            "assessment": "Reported",
+            "is_user_reported_only": true
+          }
+        ],
+        "claims": [
+          {
+            "id": "C01",
+            "text": "QuickBite order items arrived damaged upon delivery",
+            "actor": "QuickBite / Courier",
+            "action": "Delivered damaged item",
+            "target": "Customer order",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U01"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Asserted by customer in statement U01.",
+            "scope": "QuickBite delivery condition",
+            "limits": [
+              "User statement assertion only"
+            ],
+            "causal_relationship": "unresolved"
+          },
+          {
+            "id": "C04",
+            "text": "Funds received were a temporary credit from card issuer, not a restaurant refund",
+            "actor": "Card Issuer",
+            "action": "Issued temporary credit",
+            "target": "Customer account",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U04"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Asserted in U04.",
+            "scope": "Temporary card credit",
+            "limits": [
+              "User statement assertion only"
+            ],
+            "causal_relationship": "unresolved"
+          },
+          {
+            "id": "C07",
+            "text": "Temporary credit amount from card issuer was 300,000 VND",
+            "actor": "Card Issuer",
+            "action": "Credited amount",
+            "target": "Customer account",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U06",
+              "U09"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Asserted in U06 and U09.",
+            "scope": "Temporary credit amount",
+            "limits": [
+              "User statement assertion only"
+            ],
+            "causal_relationship": "unresolved"
+          },
+          {
+            "id": "C08",
+            "text": "Original order payment total on receipt is 390,000 VND",
+            "actor": "Customer / QuickBite",
+            "action": "Paid order total",
+            "target": "QuickBite",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U07",
+              "U08"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Asserted in U07 and U08.",
+            "scope": "Order total amount",
+            "limits": [
+              "User statement assertion only"
+            ],
+            "causal_relationship": "unresolved"
+          },
+          {
+            "id": "C10",
+            "text": "QuickBite issued a full 390,000 VND refund",
+            "actor": "QuickBite",
+            "action": "Issued refund",
+            "target": "Customer",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U10"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Asserted by customer in U10. Covers the 390,000 VND order total.",
+            "scope": "QuickBite refund",
+            "limits": [
+              "User statement assertion only"
+            ],
+            "causal_relationship": "unresolved"
+          },
+          {
+            "id": "C11",
+            "text": "300,000 VND card issuer provisional adjustment remains pending",
+            "actor": "Card Issuer / Bank",
+            "action": "Holds pending credit",
+            "target": "Customer account",
+            "time": "Unknown",
+            "supporting_evidence": [],
+            "qualifying_evidence": [],
+            "conflicting_evidence": [],
+            "user_statement_ids": [
+              "U10"
+            ],
+            "assessment": "Reported",
+            "reasoning": "Asserted by customer in U10. Unresolved potential double-crediting or chargeback reversal pending card issuer settlement.",
+            "scope": "Provisional adjustment status",
+            "limits": [
+              "Pending card issuer settlement",
+              "Unverified by bank statement"
+            ],
+            "causal_relationship": "unresolved"
+          }
+        ],
+        "gaps": [
+          {
+            "id": "G04",
+            "what_is_unknown": "Settlement status of 300,000 VND provisional adjustment and refund confirmation",
+            "why_it_matters": "Ensures provisional credit is properly reversed or settled to avoid double-crediting or balance dispute",
+            "what_evidence_could_resolve_it": "Updated bank account statement showing finalized transactions",
+            "where_how_to_obtain": "Customer upload of bank statement after settlement",
+            "what_not_to_over_collect": "Do not request full account numbers",
+            "target_claim_ids": [
+              "C10",
+              "C11"
+            ]
+          }
+        ],
+        "actions": [
+          {
+            "id": "A04",
+            "title": "Monitor bank statement for provisional adjustment resolution",
+            "description": "Verify if card issuer reverses 300,000 VND provisional adjustment once 390,000 VND refund posts.",
+            "target_gap_id": "G04",
+            "priority": "medium"
+          }
+        ],
+        "summary": {
+          "status_summary": "In U10, customer reports QuickBite issued 390,000 VND refund, while 300,000 VND provisional credit remains pending on bank account. Case remains open pending bank settlement.",
+          "key_resolutions": [
+            "Vendor 390,000 VND refund reported (U10)",
+            "300,000 VND provisional credit still pending (U10)"
+          ],
+          "active_risks": [
+            "Provisional credit pending bank resolution; risk of double-crediting if not settled"
+          ],
+          "next_step_priorities": [
+            "Monitor bank account statement for card issuer adjustment settlement"
+          ]
+        },
+        "epistemic_warning": "Case pending bank settlement: 390,000 VND refund reported issued by vendor, but 300,000 VND provisional adjustment remains pending on bank account."
+      }
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Explainable Trust",
+  "description": "Traceable evidence-grounded case analysis and reconstruction with epistemic limits",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
