@@ -20,7 +20,7 @@ const createValidBaseline = (): CanonicalCaseRecord => ({
   current_revision_id: "R01",
   intake_ledger: [
     { 
-      id: "INTAKE-01", 
+      id: "IN01", 
       received_at: "2023-01-01T00:00:00Z", 
       resulting_revision_id: "R01",
       parts: [
@@ -31,11 +31,11 @@ const createValidBaseline = (): CanonicalCaseRecord => ({
     }
   ],
   statements: [
-    { id: "U01", text: "Statement 1", submitted_at: "2023-01-01T00:00:00Z", source_intake_id: "INTAKE-01" },
-    { id: "U02", text: "Statement 2", submitted_at: "2023-01-01T00:00:00Z", source_intake_id: "INTAKE-01" }
+    { id: "U01", text: "Statement 1", submitted_at: "2023-01-01T00:00:00Z", source_intake_id: "IN01" },
+    { id: "U02", text: "Statement 2", submitted_at: "2023-01-01T00:00:00Z", source_intake_id: "IN01" }
   ],
   evidence: [
-    { id: "E01", label: "Ev 1", origin_type: "user", input_form: "file", submitted_at: "2023-01-01T00:00:00Z", source_intake_id: "INTAKE-01" }
+    { id: "E01", label: "Ev 1", origin_type: "user", input_form: "file", submitted_at: "2023-01-01T00:00:00Z", source_intake_id: "IN01" }
   ],
   relationships: [
     { id: "REL01", source_id: "U01", target_id: "C01", relationship_type: "supports_claim", reason: "Direct", created_in_revision_id: "R01" },
@@ -48,7 +48,7 @@ const createValidBaseline = (): CanonicalCaseRecord => ({
       created_at: "2023-01-01T00:00:00Z",
       title: "Initial",
       objective: "Objective",
-      triggering_intake_id: "INTAKE-01",
+      triggering_intake_id: "IN01",
       input_statement_ids: ["U01", "U02"],
       input_evidence_ids: ["E01"],
       events: [
@@ -139,7 +139,7 @@ describe('Canonical Record Invariants', () => {
 
   it('Uxx and Exx remain separate; text describing an unsupplied artifact creates no Exx requirement', () => {
     const record = createValidBaseline();
-    record.statements.push({ id: "U03", text: "I have a receipt", submitted_at: "2023-01-01T00:00:00Z", source_intake_id: "INTAKE-01" });
+    record.statements.push({ id: "U03", text: "I have a receipt", submitted_at: "2023-01-01T00:00:00Z", source_intake_id: "IN01" });
     record.intake_ledger[0].parts.push({ kind: "statement", statement_id: "U03", raw_text: "I have a receipt" });
     record.relationships.push({ id: "REL04", source_id: "U03", target_id: "C01", relationship_type: "supports_claim", reason: "Direct", created_in_revision_id: "R01" });
     record.revisions[0].input_statement_ids.push("U03");
@@ -199,7 +199,7 @@ describe('Canonical Record Invariants', () => {
 
   it('processed substantive sources require a disposition or explicit not_yet_classified', () => {
     const record = createValidBaseline();
-    record.statements.push({ id: "U03", text: "Orphan", submitted_at: "2023-01-01T00:00:00Z", source_intake_id: "INTAKE-01" });
+    record.statements.push({ id: "U03", text: "Orphan", submitted_at: "2023-01-01T00:00:00Z", source_intake_id: "IN01" });
     record.intake_ledger[0].parts.push({ kind: "statement", statement_id: "U03", raw_text: "Orphan" });
     record.revisions[0].input_statement_ids.push("U03");
     
@@ -230,7 +230,7 @@ describe('Canonical Record Invariants', () => {
 
   it('duplicate semantic IDs are rejected', () => {
     const record = createValidBaseline();
-    record.statements.push({ id: "U01", text: "Duplicate", submitted_at: "2023-01-01T00:00:00Z", source_intake_id: "INTAKE-01" });
+    record.statements.push({ id: "U01", text: "Duplicate", submitted_at: "2023-01-01T00:00:00Z", source_intake_id: "IN01" });
     const errors = validateCanonicalRecord(record);
     expect(errors).toContain("Duplicate ID U01 in statements");
   });
@@ -242,7 +242,7 @@ describe('Canonical Record Invariants', () => {
     expect(errors).toContain("current_revision_id R99 not found in revisions");
     
     record.current_revision_id = "R01";
-    const r2 = { ...record.revisions[0], revision_id: "R02", parent_revision_id: "R99" };
+    const r2: CaseRevision = { ...record.revisions[0], revision_id: "R02" as any, parent_revision_id: "R99" as any };
     record.revisions.push(r2);
     errors = validateCanonicalRecord(record);
     expect(errors).toContain("Revision R02 parent R99 not found");
@@ -258,7 +258,7 @@ describe('Canonical Record Invariants', () => {
        input_evidence_ids: [...record.revisions[0].input_evidence_ids]
     };
     
-    record.evidence.push({ id: "E02", label: "Future Ev", origin_type: "user", input_form: "file", submitted_at: "2023-01-01T00:00:00Z", source_intake_id: "INTAKE-01" });
+    record.evidence.push({ id: "E02", label: "Future Ev", origin_type: "user", input_form: "file", submitted_at: "2023-01-01T00:00:00Z", source_intake_id: "IN01" });
     record.intake_ledger[0].parts.push({ kind: "evidence", evidence_id: "E02", submitted_name: "ev2" });
     r2.input_evidence_ids.push("E02");
     record.revisions.push(r2);
@@ -294,7 +294,7 @@ describe('Canonical Record Invariants', () => {
     const record = createValidBaseline();
     
     // Create future U03 in R02
-    record.statements.push({ id: "U03", text: "Future", submitted_at: "2023-01-01T00:00:00Z", source_intake_id: "INTAKE-01" });
+    record.statements.push({ id: "U03", text: "Future", submitted_at: "2023-01-01T00:00:00Z", source_intake_id: "IN01" });
     record.intake_ledger[0].parts.push({ kind: "statement", statement_id: "U03", raw_text: "Future" });
     
     const r2: CaseRevision = {
@@ -316,32 +316,32 @@ describe('Canonical Record Invariants', () => {
     const record = createValidBaseline();
     
     // U01 corrects U02 (but U01 is earlier than U02 in terms of availability)
-    record.relationships.push({ id: "REL_CORR1", source_id: "U01", target_id: "U02", relationship_type: "corrects_statement", reason: "reason", created_in_revision_id: "R01" });
+    record.relationships.push({ id: "REL11", source_id: "U01", target_id: "U02", relationship_type: "corrects_statement", reason: "reason", created_in_revision_id: "R01" });
     let errors = validateCanonicalRecord(record);
-    expect(errors).toContain("Relationship REL_CORR1 corrects_statement target U02 is not earlier than source U01");
+    expect(errors).toContain("Relationship REL11 corrects_statement target U02 is not earlier than source U01");
     
     // Same-revision statements where no earlier entry into the record is established
-    record.relationships = record.relationships.filter(r => r.id !== "REL_CORR1");
-    record.relationships.push({ id: "REL_CORR2", source_id: "U02", target_id: "U01", relationship_type: "corrects_statement", reason: "reason", created_in_revision_id: "R01" });
+    record.relationships = record.relationships.filter(r => r.id !== "REL11");
+    record.relationships.push({ id: "REL12", source_id: "U02", target_id: "U01", relationship_type: "corrects_statement", reason: "reason", created_in_revision_id: "R01" });
     errors = validateCanonicalRecord(record);
-    expect(errors).toContain("Relationship REL_CORR2 corrects_statement target U01 is not earlier than source U02");
+    expect(errors).toContain("Relationship REL12 corrects_statement target U01 is not earlier than source U02");
 
     // Exx -> Uxx correction (schema rejection)
-    const badRel1 = { id: "REL_CORR3", source_id: "E01", target_id: "U01", relationship_type: "corrects_statement", reason: "reason", created_in_revision_id: "R01" };
+    const badRel1 = { id: "REL13", source_id: "E01", target_id: "U01", relationship_type: "corrects_statement", reason: "reason", created_in_revision_id: "R01" };
     record.relationships = [badRel1 as any];
     let schemaRes = CanonicalCaseRecordSchema.safeParse(record);
     expect(schemaRes.success).toBe(false);
     
     // self-correction
-    record.relationships = [{ id: "REL_CORR4", source_id: "U01", target_id: "U01", relationship_type: "corrects_statement", reason: "reason", created_in_revision_id: "R01" }];
+    record.relationships = [{ id: "REL14", source_id: "U01", target_id: "U01", relationship_type: "corrects_statement", reason: "reason", created_in_revision_id: "R01" }];
     schemaRes = CanonicalCaseRecordSchema.safeParse(record);
     expect(schemaRes.success).toBe(true); // schema passes
     errors = validateCanonicalRecord(record);
-    expect(errors).toContain("Relationship REL_CORR4 source corrects itself");
+    expect(errors).toContain("Relationship REL14 source corrects itself");
     
     // valid later-Uxx -> earlier-Uxx correction
     const recordValid = createValidBaseline();
-    recordValid.statements.push({ id: "U03", text: "Fix", submitted_at: "2023-01-01T00:00:00Z", source_intake_id: "INTAKE-01" });
+    recordValid.statements.push({ id: "U03", text: "Fix", submitted_at: "2023-01-01T00:00:00Z", source_intake_id: "IN01" });
     recordValid.intake_ledger[0].parts.push({ kind: "statement", statement_id: "U03", raw_text: "Fix" });
     const r2: CaseRevision = {
        ...recordValid.revisions[0],
@@ -352,7 +352,7 @@ describe('Canonical Record Invariants', () => {
     r2.input_statement_ids.push("U03");
     recordValid.revisions.push(r2);
     
-    recordValid.relationships.push({ id: "REL_CORR5", source_id: "U03", target_id: "U01", relationship_type: "corrects_statement", reason: "reason", created_in_revision_id: "R02" });
+    recordValid.relationships.push({ id: "REL15", source_id: "U03", target_id: "U01", relationship_type: "corrects_statement", reason: "reason", created_in_revision_id: "R02" });
     errors = validateCanonicalRecord(recordValid);
     expect(errors).toHaveLength(0);
   });
@@ -406,7 +406,7 @@ describe('Canonical Record Invariants', () => {
     const record = createValidBaseline();
     const r2: CaseRevision = { ...record.revisions[0], revision_id: "R02", parent_revision_id: "R01", title: "Future", input_statement_ids: [...record.revisions[0].input_statement_ids] };
     record.revisions.push(r2);
-    record.statements.push({ id: "U03", text: "Future", submitted_at: "2023-01-01T00:00:00Z", source_intake_id: "INTAKE-01" });
+    record.statements.push({ id: "U03", text: "Future", submitted_at: "2023-01-01T00:00:00Z", source_intake_id: "IN01" });
     record.intake_ledger[0].parts.push({ kind: "statement", statement_id: "U03", raw_text: "Future" });
     r2.input_statement_ids.push("U03");
     

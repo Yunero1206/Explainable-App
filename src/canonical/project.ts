@@ -3,7 +3,9 @@ import {
   CaseRevision,
   CanonicalStatement,
   CanonicalEvidence,
-  DispositionRelationship
+  DispositionRelationship,
+  StatementId,
+  EvidenceId
 } from './types.js';
 
 export interface ProjectedState {
@@ -63,7 +65,7 @@ export function projectCurrentRecord(
 
   const projectedRelationships = record.relationships
     .filter(r => validAncestorRevisions.has(r.created_in_revision_id))
-    .filter(r => availableUxxIds.has(r.source_id) || availableExxIds.has(r.source_id))
+    .filter(r => availableUxxIds.has(r.source_id as StatementId) || availableExxIds.has(r.source_id as EvidenceId))
     .map(deepClone);
 
   const projected: ProjectedState = {

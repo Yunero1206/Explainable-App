@@ -11,6 +11,8 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { TestModeBanner, InferenceMode } from './components/TestModeBanner';
 import { CaseData, ChatMessage, AttachmentFile, EvidenceItem } from './types';
 import { SAMPLE_CASES } from './data/sampleCases';
+
+const HYDRATED_SAMPLE_CASES = SAMPLE_CASES.map(hydrateCurrentProjection);
 import { PanelLeft, PanelRight, ShieldCheck } from 'lucide-react';
 import { useLanguage } from './contexts/LanguageContext';
 
@@ -20,7 +22,7 @@ export default function App() {
   const [insertedInputText, setInsertedInputText] = useState<string>('');
 
   // All active cases list
-  const [cases, _setCases] = useState<CaseData[]>(SAMPLE_CASES);
+  const [cases, _setCases] = useState<CaseData[]>(HYDRATED_SAMPLE_CASES);
   const [casesLoaded, setCasesLoaded] = useState(false);
 
   React.useEffect(() => {
@@ -33,7 +35,7 @@ export default function App() {
             setCurrentCaseId(stored[0].id);
           }
         } else {
-          for (const c of SAMPLE_CASES) {
+          for (const c of HYDRATED_SAMPLE_CASES) {
             await saveCase(c);
           }
         }
@@ -69,7 +71,7 @@ export default function App() {
   // Per-case chat messages map
   const [chatMessagesMap, setChatMessagesMap] = useState<Record<string, ChatMessage[]>>(() => {
     const initialMap: Record<string, ChatMessage[]> = {};
-    SAMPLE_CASES.forEach((c) => {
+    HYDRATED_SAMPLE_CASES.forEach((c) => {
       initialMap[c.id] = [
         {
           id: `msg-sample-user-${c.id}`,
@@ -165,7 +167,7 @@ export default function App() {
 
   // Load or switch to sample
   const handleLoadSample = (sampleId: string) => {
-    const sample = SAMPLE_CASES.find((s) => s.id === sampleId);
+    const sample = HYDRATED_SAMPLE_CASES.find((s) => s.id === sampleId);
     if (!sample) return;
 
     // Check if case already exists in state

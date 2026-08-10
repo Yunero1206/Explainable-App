@@ -26,14 +26,17 @@ export type DeltaEntityType = typeof DELTA_ENTITY_TYPES[number];
 export const DELTA_OPERATIONS = ['added', 'updated', 'resolved', 'reopened'] as const;
 export type DeltaOperation = typeof DELTA_OPERATIONS[number];
 
-export type StatementId = string;
-export type EvidenceId = string;
-export type ClaimId = string;
-export type GapId = string;
-export type ActionId = string;
-export type RevisionId = string;
-export type RelationshipId = string;
-export type IntakeId = string;
+// Template literal types for ID families
+export type StatementId = `U${number}`;
+export type EvidenceId = `E${number}`;
+export type ClaimId = `C${number}`;
+export type GapId = `G${number}`;
+export type ActionId = `A${number}`;
+export type RevisionId = `R${number}`;
+export type RelationshipId = `REL${number}`;
+export type IntakeId = `IN${number}`;
+export type EventId = `EV${number}`;
+export type InspectionId = `EI${number}`;
 
 export interface CanonicalStatement {
   id: StatementId;
@@ -112,7 +115,7 @@ export interface IntakeRecord {
 }
 
 export interface CaseEvent {
-  id: string;
+  id: EventId;
   time: string;
   actor: string;
   action: string;
@@ -149,7 +152,7 @@ export interface CanonicalAction {
 }
 
 export interface CanonicalEvidenceInspection {
-  id: string;
+  id: InspectionId;
   evidence_id: EvidenceId;
   limitations: string[];
 }

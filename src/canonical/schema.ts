@@ -7,8 +7,10 @@ const ClaimIdSchema = z.string().regex(/^C\d+$/);
 const GapIdSchema = z.string().regex(/^G\d+$/);
 const ActionIdSchema = z.string().regex(/^A\d+$/);
 const RevisionIdSchema = z.string().regex(/^R\d+$/);
-const RelationshipIdSchema = z.string().min(1);
-const IntakeIdSchema = z.string().min(1);
+const RelationshipIdSchema = z.string().regex(/^REL\d+$/);
+const IntakeIdSchema = z.string().regex(/^IN\d+$/);
+const EventIdSchema = z.string().regex(/^EV\d+$/);
+const InspectionIdSchema = z.string().regex(/^EI\d+$/);
 const IsoDateSchema = z.string().datetime();
 
 const StorageKeySchema = z.string().refine(val => {
@@ -94,7 +96,7 @@ export const IntakeRecordSchema = z.object({
 }).strict();
 
 export const CaseEventSchema = z.object({
-  id: z.string(),
+  id: EventIdSchema,
   time: z.string(),
   actor: z.string(),
   action: z.string(),
@@ -131,7 +133,7 @@ export const CanonicalActionSchema = z.object({
 }).strict();
 
 export const CanonicalEvidenceInspectionSchema = z.object({
-  id: z.string(),
+  id: InspectionIdSchema,
   evidence_id: EvidenceIdSchema,
   limitations: z.array(z.string())
 }).strict();

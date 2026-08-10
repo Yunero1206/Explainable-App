@@ -1,4 +1,4 @@
-import { CanonicalCaseRecord, CaseRevision, DispositionRelationship, IntakePart, IntakeRecord, CanonicalStatement, CanonicalEvidence } from './types.js';
+import { CanonicalCaseRecord, CaseRevision, DispositionRelationship, IntakePart, IntakeRecord, CanonicalStatement, CanonicalEvidence, StatementId, EvidenceId } from './types.js';
 
 export function validateCanonicalRecord(record: CanonicalCaseRecord): string[] {
   const errors: string[] = [];
@@ -158,7 +158,7 @@ export function validateCanonicalRecord(record: CanonicalCaseRecord): string[] {
 
   const getSourceFirstRevIndex = (sourceId: string): number => {
     for (let i = 0; i < record.revisions.length; i++) {
-      if (record.revisions[i].input_statement_ids.includes(sourceId) || record.revisions[i].input_evidence_ids.includes(sourceId)) {
+      if (record.revisions[i].input_statement_ids.includes(sourceId as StatementId) || record.revisions[i].input_evidence_ids.includes(sourceId as EvidenceId)) {
         return i;
       }
     }
@@ -175,15 +175,15 @@ export function validateCanonicalRecord(record: CanonicalCaseRecord): string[] {
       errors.push(`Relationship ${rel.id} created_in_revision_id ${rel.created_in_revision_id} not found`);
     } else {
       const rev = record.revisions[relRevIndex];
-      if (!rev.input_statement_ids.includes(rel.source_id) && !rev.input_evidence_ids.includes(rel.source_id)) {
+      if (!rev.input_statement_ids.includes(rel.source_id as StatementId) && !rev.input_evidence_ids.includes(rel.source_id as EvidenceId)) {
         errors.push(`Relationship ${rel.id} source_id ${rel.source_id} not available in revision ${rev.revision_id}`);
       }
 
       if (rel.relationship_type === 'corrects_statement') {
-        if (!uxxMap.has(rel.target_id as string)) {
+        if (!uxxMap.has(rel.target_id as StatementId)) {
           errors.push(`Relationship ${rel.id} corrects_statement target ${rel.target_id} is not Uxx`);
         }
-        if (!rev.input_statement_ids.includes(rel.target_id as string)) {
+        if (!rev.input_statement_ids.includes(rel.target_id as StatementId)) {
           errors.push(`Relationship ${rel.id} corrects_statement target ${rel.target_id} not available in revision ${rev.revision_id}`);
         }
         if (rel.source_id === rel.target_id) {
@@ -218,7 +218,7 @@ export function validateCanonicalRecord(record: CanonicalCaseRecord): string[] {
 
     for (const ev of rev.events) {
       for (const eid of ev.evidence_ids) {
-        if (!availableUxx.has(eid) && !availableExx.has(eid)) {
+        if (!availableUxx.has(eid as StatementId) && !availableExx.has(eid as EvidenceId)) {
           errors.push(`Revision ${rev.revision_id} Event ${ev.id} evidence_id ${eid} not available in inputs`);
         }
       }
@@ -227,7 +227,7 @@ export function validateCanonicalRecord(record: CanonicalCaseRecord): string[] {
     for (const c of rev.claims) {
       const allEv = [...c.supporting_evidence, ...c.qualifying_evidence, ...c.conflicting_evidence];
       for (const eid of allEv) {
-        if (!availableUxx.has(eid) && !availableExx.has(eid)) {
+        if (!availableUxx.has(eid as StatementId) && !availableExx.has(eid as EvidenceId)) {
           errors.push(`Revision ${rev.revision_id} Claim ${c.id} evidence ${eid} not available in inputs`);
         }
       }
@@ -276,7 +276,7 @@ export function validateCanonicalRecord(record: CanonicalCaseRecord): string[] {
               const trExx = new Set(trRev.input_evidence_ids);
               if (g.status_source_ids) {
                  for (const sid of g.status_source_ids) {
-                   if (!trUxx.has(sid) && !trExx.has(sid)) {
+                   if (!trUxx.has(sid as StatementId) && !trExx.has(sid as EvidenceId)) {
                       errors.push(`Revision ${rev.revision_id} Gap ${g.id} status_source_id ${sid} not available in transition revision ${trRev.revision_id}`);
                    }
                  }
@@ -296,7 +296,7 @@ export function validateCanonicalRecord(record: CanonicalCaseRecord): string[] {
     
     for (const delta of rev.delta.changes) {
        for (const sid of delta.source_ids) {
-          if (!availableUxx.has(sid) && !availableExx.has(sid)) {
+          if (!availableUxx.has(sid as StatementId) && !availableExx.has(sid as EvidenceId)) {
             errors.push(`Revision ${rev.revision_id} Delta ${delta.entity_type} ${delta.entity_id} source_id ${sid} not available in inputs`);
           }
        }
