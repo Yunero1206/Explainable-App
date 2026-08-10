@@ -103,7 +103,14 @@ export const CaseEventSchema = z.object({
   target: z.string(),
   effect: z.string().optional(),
   evidence_ids: z.array(z.union([StatementIdSchema, EvidenceIdSchema])),
-  assessment: z.enum(CANONICAL_ASSESSMENT_VALUES)
+  assessment: z.enum(CANONICAL_ASSESSMENT_VALUES),
+  gap_transition: z.object({
+    gap_id: GapIdSchema,
+    previous_status: z.enum(CANONICAL_GAP_STATUSES),
+    resulting_status: z.enum(CANONICAL_GAP_STATUSES),
+    transition_revision_id: RevisionIdSchema,
+    source_ids: z.array(z.union([StatementIdSchema, EvidenceIdSchema]))
+  }).strict().optional()
 }).strict();
 
 export const CanonicalClaimSchema = z.object({
@@ -138,13 +145,15 @@ export const CanonicalEvidenceInspectionSchema = z.object({
   limitations: z.array(z.string())
 }).strict();
 
-export const RevisionDeltaEntrySchema = z.object({
-  entity_type: z.enum(DELTA_ENTITY_TYPES),
-  entity_id: z.string(),
-  operation: z.enum(DELTA_OPERATIONS),
-  reason: z.string().min(1).trim(),
-  source_ids: z.array(z.union([StatementIdSchema, EvidenceIdSchema]))
-}).strict();
+export const RevisionDeltaEntrySchema = z.discriminatedUnion('entity_type', [
+  z.object({ entity_type: z.literal('event'), entity_id: EventIdSchema, operation: z.enum(DELTA_OPERATIONS), reason: z.string().min(1).trim(), source_ids: z.array(z.union([StatementIdSchema, EvidenceIdSchema])) }).strict(),
+  z.object({ entity_type: z.literal('claim'), entity_id: ClaimIdSchema, operation: z.enum(DELTA_OPERATIONS), reason: z.string().min(1).trim(), source_ids: z.array(z.union([StatementIdSchema, EvidenceIdSchema])) }).strict(),
+  z.object({ entity_type: z.literal('gap'), entity_id: GapIdSchema, operation: z.enum(DELTA_OPERATIONS), reason: z.string().min(1).trim(), source_ids: z.array(z.union([StatementIdSchema, EvidenceIdSchema])) }).strict(),
+  z.object({ entity_type: z.literal('action'), entity_id: ActionIdSchema, operation: z.enum(DELTA_OPERATIONS), reason: z.string().min(1).trim(), source_ids: z.array(z.union([StatementIdSchema, EvidenceIdSchema])) }).strict(),
+  z.object({ entity_type: z.literal('statement'), entity_id: StatementIdSchema, operation: z.enum(DELTA_OPERATIONS), reason: z.string().min(1).trim(), source_ids: z.array(z.union([StatementIdSchema, EvidenceIdSchema])) }).strict(),
+  z.object({ entity_type: z.literal('evidence'), entity_id: EvidenceIdSchema, operation: z.enum(DELTA_OPERATIONS), reason: z.string().min(1).trim(), source_ids: z.array(z.union([StatementIdSchema, EvidenceIdSchema])) }).strict(),
+  z.object({ entity_type: z.literal('relationship'), entity_id: RelationshipIdSchema, operation: z.enum(DELTA_OPERATIONS), reason: z.string().min(1).trim(), source_ids: z.array(z.union([StatementIdSchema, EvidenceIdSchema])) }).strict(),
+]);
 
 export const RevisionDeltaSchema = z.object({
   changes: z.array(RevisionDeltaEntrySchema)

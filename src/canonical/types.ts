@@ -123,6 +123,13 @@ export interface CaseEvent {
   effect?: string;
   evidence_ids: (StatementId | EvidenceId)[];
   assessment: CanonicalAssessment;
+  gap_transition?: {
+    gap_id: GapId;
+    previous_status: CanonicalGapStatus;
+    resulting_status: CanonicalGapStatus;
+    transition_revision_id: RevisionId;
+    source_ids: (StatementId | EvidenceId)[];
+  };
 }
 
 export interface CanonicalClaim {
@@ -157,13 +164,14 @@ export interface CanonicalEvidenceInspection {
   limitations: string[];
 }
 
-export interface RevisionDeltaEntry {
-  entity_type: DeltaEntityType;
-  entity_id: string;
-  operation: DeltaOperation;
-  reason: string;
-  source_ids: Array<StatementId | EvidenceId>;
-}
+export type RevisionDeltaEntry =
+  | { entity_type: 'event'; entity_id: EventId; operation: DeltaOperation; reason: string; source_ids: Array<StatementId | EvidenceId>; }
+  | { entity_type: 'claim'; entity_id: ClaimId; operation: DeltaOperation; reason: string; source_ids: Array<StatementId | EvidenceId>; }
+  | { entity_type: 'gap'; entity_id: GapId; operation: DeltaOperation; reason: string; source_ids: Array<StatementId | EvidenceId>; }
+  | { entity_type: 'action'; entity_id: ActionId; operation: DeltaOperation; reason: string; source_ids: Array<StatementId | EvidenceId>; }
+  | { entity_type: 'statement'; entity_id: StatementId; operation: DeltaOperation; reason: string; source_ids: Array<StatementId | EvidenceId>; }
+  | { entity_type: 'evidence'; entity_id: EvidenceId; operation: DeltaOperation; reason: string; source_ids: Array<StatementId | EvidenceId>; }
+  | { entity_type: 'relationship'; entity_id: RelationshipId; operation: DeltaOperation; reason: string; source_ids: Array<StatementId | EvidenceId>; };
 
 export interface RevisionDelta {
   changes: RevisionDeltaEntry[];
