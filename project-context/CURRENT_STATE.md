@@ -1,6 +1,6 @@
 # Current State
 
-Last confirmed baseline: `fe22f8800cb2801f671c5150465e566aa3cac3cd`
+Last confirmed baseline: `86372a99fbc66a94cac5dc53e1b4617a3da0350f`
 
 Current branch/upstream intent: local working branch pushed to `origin/main`.
 
@@ -30,10 +30,10 @@ Gates chạy thành công:
 ## Phase 1A-R (Runtime Integration)
 
 ### Phase 1A-R: Corrective Runtime Stabilization
-**Status:** Completed and Accepted
+**Status:** Active — unaccepted
 **Slice:** Core Canonical Runtime (`src/canonical/`, `src/domain/`, `tests/canonicalRuntime.test.ts`, `tests/cleanup.test.ts`, etc.)
-**Baseline Commit:** `5a60d7a486e901a3fe8bbd42649d57046752284a` 
-**Completed Commit:** `1693210` (includes fix-forward corrective edits).
+**Baseline Commit:** `86372a99fbc66a94cac5dc53e1b4617a3da0350f`
+**Candidate Implementation Commit:** `612bbd0cb0b4aa2cd99af592b53011808161a74d` (pending review)
 
 #### Verified Completion State:
 * **Bootstrap Admission:** Fixed. Strict Zod schemas explicitly define Legacy structs without `.passthrough()`. `SAMPLE_CASES` upgrade deterministically.
