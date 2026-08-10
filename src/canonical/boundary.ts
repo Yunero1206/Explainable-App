@@ -7,6 +7,11 @@ import { z } from 'zod';
 // LegacyCaseDataSchema describes the complete known legacy shape.
 // No z.any() collections or .passthrough(). Partial legacy-looking objects
 // that lack required fields will be rejected rather than upgraded.
+
+const LegacyDateSchema = z.string().refine(val => {
+  return /^\d{4}-\d{2}-\d{2}$/.test(val) || !isNaN(Date.parse(val));
+}, { message: 'Must be YYYY-MM-DD or valid ISO datetime' });
+
 export const LegacyCaseDataSchema = z.object({
   id: z.string(),
   case_number: z.string(),
@@ -16,7 +21,7 @@ export const LegacyCaseDataSchema = z.object({
   statements: z.array(z.object({
     id: z.string(),
     text: z.string(),
-    submitted_at: z.string(), // Required for canonical upgrade without fallback
+    submitted_at: z.string().datetime(), // Strict ISO for structural timestamp
     attachment_ids: z.array(z.string()).optional(),
     disposition: z.enum(['supports_finding', 'challenges_finding', 'corrects_statement', 'supports_gap', 'irrelevant', 'not_yet_classified']).optional(),
     corrects_statement_ids: z.array(z.string()).optional(),
@@ -28,12 +33,12 @@ export const LegacyCaseDataSchema = z.object({
     claimed_source: z.string(),
     acquisition_method: z.string(),
     input_form: z.string(),
-    evidence_time: z.string().nullable().optional(),
-    received_at: z.string(), // Required for canonical upgrade without fallback
+    evidence_time: z.string().nullable().optional(), // Semantic time
+    received_at: LegacyDateSchema, // Constrained date
     subject_object_ids: z.array(z.string()),
     content: z.string(),
     content_summary: z.string().optional(),
-    raw_submission: z.any().optional(),
+    raw_submission: z.unknown().optional(), // Intentionally opaque
     disposition: z.enum(['supports_finding', 'challenges_finding', 'corrects_statement', 'supports_gap', 'irrelevant', 'not_yet_classified']).optional(),
     disposition_reason: z.string().optional(),
     source_attribution: z.string(),
@@ -112,7 +117,6 @@ export const LegacyCaseDataSchema = z.object({
   is_archived: z.boolean().optional(),
   locale: z.string().optional(),
   current_revision_id: z.string().optional(),
-  revisions: z.array(z.any()).optional(),
 }).strict();
 
 export type LegacyCaseDataShape = z.infer<typeof LegacyCaseDataSchema>;

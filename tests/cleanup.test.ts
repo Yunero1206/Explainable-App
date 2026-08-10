@@ -19,16 +19,20 @@ describe('cleanupCaseState', () => {
     const initialState: AppState = {
       canonicalCases: [case01, case02],
       caseUiMetadataById: {
-        [caseId]: { displayTitle: 'Case 01' },
-        [otherCaseId]: { displayTitle: 'Case 02' }
+        [caseId]: { displayTitle: 'Case 01', displayCaseNumber: 'C-01', isArchived: false },
+        [otherCaseId]: { displayTitle: 'Case 02', displayCaseNumber: 'C-02', isArchived: false }
       },
       chatMessagesMap: {
         [caseId]: [{ text: 'msg1' }],
         [otherCaseId]: [{ text: 'msg2' }]
       },
-      translationOverlays: {
-        [`${caseId}::R01::vi`]: { title: 'Trans1' } as TranslationOverlay,
-        [`${otherCaseId}::R01::vi`]: { title: 'Trans2' } as TranslationOverlay,
+      translationOverlaysByCaseId: {
+        [caseId]: { 'R01': { 'vi': { title: 'Trans1' } as TranslationOverlay } },
+        [otherCaseId]: { 'R01': { 'vi': { title: 'Trans2' } as TranslationOverlay } },
+      },
+      attachmentPayloadsByCaseId: {
+        [caseId]: { 'EV1': 'blob1' },
+        [otherCaseId]: { 'EV2': 'blob2' },
       }
     };
 
@@ -44,13 +48,15 @@ describe('cleanupCaseState', () => {
     expect(nextState.canonicalCases.find(c => c.id === caseId)).toBeUndefined();
     expect(nextState.caseUiMetadataById[caseId]).toBeUndefined();
     expect(nextState.chatMessagesMap[caseId]).toBeUndefined();
-    expect(nextState.translationOverlays[`${caseId}::R01::vi`]).toBeUndefined();
+    expect(nextState.translationOverlaysByCaseId[caseId]).toBeUndefined();
+    expect(nextState.attachmentPayloadsByCaseId[caseId]).toBeUndefined();
 
     // Case 02 is preserved exactly as it was
     expect(nextState.canonicalCases.find(c => c.id === otherCaseId)).toBeDefined();
     expect(nextState.caseUiMetadataById[otherCaseId]).toBeDefined();
     expect(nextState.chatMessagesMap[otherCaseId]).toBeDefined();
-    expect(nextState.translationOverlays[`${otherCaseId}::R01::vi`]).toBeDefined();
+    expect(nextState.translationOverlaysByCaseId[otherCaseId]?.['R01']?.['vi']).toBeDefined();
+    expect(nextState.attachmentPayloadsByCaseId[otherCaseId]?.['EV2']).toBeDefined();
   });
   it('does not delete data for cases that share a string prefix (no prefix collision)', () => {
     const caseId = 'case-a';
@@ -65,17 +71,18 @@ describe('cleanupCaseState', () => {
     const initialState: AppState = {
       canonicalCases: [case01, case02],
       caseUiMetadataById: {
-        [caseId]: { displayTitle: 'Parent' },
-        [childCaseId]: { displayTitle: 'Child' }
+        [caseId]: { displayTitle: 'Parent', displayCaseNumber: 'C-01', isArchived: false },
+        [childCaseId]: { displayTitle: 'Child', displayCaseNumber: 'C-02', isArchived: false }
       },
       chatMessagesMap: {
         [caseId]: [{ text: 'msg1' }],
         [childCaseId]: [{ text: 'msg2' }]
       },
-      translationOverlays: {
-        [`${caseId}::R01::vi`]: { title: 'Trans1' } as TranslationOverlay,
-        [`${childCaseId}::R01::vi`]: { title: 'Trans2' } as TranslationOverlay,
-      }
+      translationOverlaysByCaseId: {
+        [caseId]: { 'R01': { 'vi': { title: 'Trans1' } as TranslationOverlay } },
+        [childCaseId]: { 'R01': { 'vi': { title: 'Trans2' } as TranslationOverlay } },
+      },
+      attachmentPayloadsByCaseId: {}
     };
 
     const nextState = cleanupCaseState(caseId, initialState);
@@ -84,13 +91,13 @@ describe('cleanupCaseState', () => {
     expect(nextState.canonicalCases.find(c => c.id === childCaseId)).toBeDefined();
     expect(nextState.caseUiMetadataById[childCaseId]).toBeDefined();
     expect(nextState.chatMessagesMap[childCaseId]).toBeDefined();
-    expect(nextState.translationOverlays[`${childCaseId}::R01::vi`]).toBeDefined();
+    expect(nextState.translationOverlaysByCaseId[childCaseId]?.['R01']?.['vi']).toBeDefined();
     
     // case-a is removed
     expect(nextState.canonicalCases.find(c => c.id === caseId)).toBeUndefined();
     expect(nextState.caseUiMetadataById[caseId]).toBeUndefined();
     expect(nextState.chatMessagesMap[caseId]).toBeUndefined();
-    expect(nextState.translationOverlays[`${caseId}::R01::vi`]).toBeUndefined();
+    expect(nextState.translationOverlaysByCaseId[caseId]).toBeUndefined();
   });
 });
 

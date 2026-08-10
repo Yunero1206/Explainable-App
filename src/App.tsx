@@ -30,11 +30,11 @@ export default function App() {
   // 2. UI Metadata State
   const [caseUiMetadataById, setCaseUiMetadataById] = useState<Record<string, { displayTitle: string, displayCaseNumber: string, isArchived: boolean }>>({});
   // 3. Translation Overlays State
-  const [translationOverlays, setTranslationOverlays] = useState<Record<string, TranslationOverlay>>({});
+  const [translationOverlaysByCaseId, setTranslationOverlaysByCaseId] = useState<Record<string, Record<string, Record<string, TranslationOverlay>>>>({});
   // 4. Chat Messages Map
   const [chatMessagesMap, setChatMessagesMap] = useState<Record<string, ChatMessage[]>>({});
   // 5. Ephemeral Blob Store
-  const [attachmentPayloadMap, setAttachmentPayloadMap] = useState<Record<string, string>>({});
+  const [attachmentPayloadsByCaseId, setAttachmentPayloadsByCaseId] = useState<Record<string, Record<string, string>>>({});
 
   const [casesLoaded, setCasesLoaded] = useState(false);
   const [currentCaseId, setCurrentCaseId] = useState<string | null>(null);
@@ -107,8 +107,7 @@ export default function App() {
   const presentationCases: PresentationCaseData[] = canonicalCases.map(c => {
     const baseProj = projectCurrentRecord(c);
     const meta = caseUiMetadataById[c.id];
-    const transKey = `${c.id}::${c.current_revision_id}::${locale}`;
-    const overlay = translationOverlays[transKey];
+    const overlay = translationOverlaysByCaseId[c.id]?.[c.current_revision_id]?.[locale];
     
     // Apply UI metadata
     baseProj.title = meta?.displayTitle || baseProj.title;
@@ -119,7 +118,7 @@ export default function App() {
     // Rehydrate Blobs
     baseProj.evidence = baseProj.evidence.map(e => ({
       ...e,
-      file_data_url: attachmentPayloadMap[`${c.id}::${e.id}`]
+      file_data_url: attachmentPayloadsByCaseId[c.id]?.[e.id]
     }));
 
     return applyTranslation(baseProj, overlay);
@@ -156,22 +155,15 @@ export default function App() {
       canonicalCases,
       caseUiMetadataById,
       chatMessagesMap,
-      translationOverlays
+      translationOverlaysByCaseId,
+      attachmentPayloadsByCaseId
     });
     
     setCanonicalCases(nextState.canonicalCases);
     setCaseUiMetadataById(nextState.caseUiMetadataById);
     setChatMessagesMap(nextState.chatMessagesMap);
-    setTranslationOverlays(nextState.translationOverlays);
-
-    // 3. Remove all attachment payloads whose composite key belongs to this case
-    setAttachmentPayloadMap(prev => {
-      const upd = { ...prev };
-      for (const key of Object.keys(upd)) {
-        if (key.startsWith(`${caseId}::`)) delete upd[key];
-      }
-      return upd;
-    });
+    setTranslationOverlaysByCaseId(nextState.translationOverlaysByCaseId);
+    setAttachmentPayloadsByCaseId(nextState.attachmentPayloadsByCaseId);
     
     if (currentCaseId === caseId) {
       const remaining = presentationCases.filter(c => c.id !== caseId && !c.is_archived);
@@ -241,8 +233,7 @@ export default function App() {
     if (!currentCanonicalCase) return;
     if (currentCanonicalCase.revisions[0].events.length === 0 && currentCanonicalCase.revisions[0].claims.length === 0) return;
     
-    const transKey = `${currentCanonicalCase.id}::${currentCanonicalCase.current_revision_id}::${locale}`;
-    if (translationOverlays[transKey] || locale === 'en') return; // 'en' is base
+    if (translationOverlaysByCaseId[currentCanonicalCase.id]?.[currentCanonicalCase.current_revision_id]?.[locale] || locale === 'en') return; // 'en' is base
 
     const translateCase = async () => {
       try {
@@ -282,9 +273,15 @@ export default function App() {
           if (latestContextRef.current) {
             try {
               const overlay = acceptTranslationResponse(rawData, originalContext, latestContextRef.current);
-              setTranslationOverlays(prev => ({
+              setTranslationOverlaysByCaseId(prev => ({
                 ...prev,
-                [transKey]: overlay
+                [currentCanonicalCase.id]: {
+                  ...(prev[currentCanonicalCase.id] || {}),
+                  [currentCanonicalCase.current_revision_id]: {
+                    ...(prev[currentCanonicalCase.id]?.[currentCanonicalCase.current_revision_id] || {}),
+                    [locale]: overlay
+                  }
+                }
               }));
             } catch (err) {
               console.warn('Translation overlay rejected:', err);
@@ -344,15 +341,13 @@ export default function App() {
 
       // Save attachments to Blob store
       if (attachments.length > 0) {
-        setAttachmentPayloadMap(prev => {
-          const upd = { ...prev };
-          // Find mapping from returned canonical evidence
-          // Match by some criteria or let the UI re-read attachments. In this simplified version, we just store what we have.
+        setAttachmentPayloadsByCaseId(prev => {
+          const caseAttachments = { ...(prev[currentCaseId] || {}) };
           replacedRecord.evidence.forEach(e => {
             const att = attachments.find(a => a.name === e.label || a.id === e.storage_key);
-            if (att && att.dataUrl) upd[`${currentCaseId}::${e.id}`] = att.dataUrl;
+            if (att && att.dataUrl) caseAttachments[e.id] = att.dataUrl;
           });
-          return upd;
+          return { ...prev, [currentCaseId]: caseAttachments };
         });
       }
 
