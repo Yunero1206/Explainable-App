@@ -1,6 +1,11 @@
 import React, { useState } from 'react';
 import { saveCase, deleteCase, getAllCases } from './storage/caseStore.js';
-import { hydrateCurrentProjection } from './domain/currentProjection.js';
+import { projectToPresentation } from './domain/currentProjection.js';
+import { admitBootstrapRecord } from './canonical/boundary.js';
+import { createEmptyCanonicalRecord } from './canonical/factory.js';
+import { commitIntakeResponse } from './domain/clientCommit.js';
+import { applyTranslationOverlay, TranslationOverlay } from './domain/translationOverlay.js';
+import { CanonicalCaseRecord } from './canonical/types.js';
 import { LeftSidebar } from './components/LeftSidebar';
 import { RightCaseRecord } from './components/RightCaseRecord';
 import { CaseIntakeChat } from './components/CaseIntakeChat';
@@ -9,10 +14,8 @@ import { OriginalArtifactModal } from './components/OriginalArtifactModal';
 import { ExportModal } from './components/ExportModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { TestModeBanner, InferenceMode } from './components/TestModeBanner';
-import { CaseData, ChatMessage, AttachmentFile, EvidenceItem } from './types';
-import { SAMPLE_CASES } from './data/sampleCases';
-
-const HYDRATED_SAMPLE_CASES = SAMPLE_CASES.map(hydrateCurrentProjection);
+import { PresentationCaseData, ChatMessage, AttachmentFile, EvidenceItem } from './types.js';
+import { SAMPLE_CASES } from './data/sampleCases.js';
 import { PanelLeft, PanelRight, ShieldCheck } from 'lucide-react';
 import { useLanguage } from './contexts/LanguageContext';
 
@@ -21,23 +24,65 @@ export default function App() {
   const [devInferenceMode, setDevInferenceMode] = useState<InferenceMode>('live');
   const [insertedInputText, setInsertedInputText] = useState<string>('');
 
-  // All active cases list
-  const [cases, _setCases] = useState<CaseData[]>(HYDRATED_SAMPLE_CASES);
+  // 1. Authoritative State
+  const [canonicalCases, setCanonicalCases] = useState<CanonicalCaseRecord[]>([]);
+  // 2. UI Metadata State
+  const [caseUiMetadataById, setCaseUiMetadataById] = useState<Record<string, { displayTitle: string, displayCaseNumber: string, isArchived: boolean }>>({});
+  // 3. Translation Overlays State
+  const [translationOverlays, setTranslationOverlays] = useState<Record<string, TranslationOverlay>>({});
+  // 4. Chat Messages Map
+  const [chatMessagesMap, setChatMessagesMap] = useState<Record<string, ChatMessage[]>>({});
+  // 5. Ephemeral Blob Store
+  const [attachmentPayloadMap, setAttachmentPayloadMap] = useState<Record<string, string>>({});
+
   const [casesLoaded, setCasesLoaded] = useState(false);
+  const [currentCaseId, setCurrentCaseId] = useState<string | null>(null);
+
+  const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
+  const [isExportOpen, setIsExportOpen] = useState<boolean>(false);
+
+  // Modals
+  const [selectedEvidenceForSummary, setSelectedEvidenceForSummary] = useState<EvidenceItem | null>(null);
+  const [selectedEvidenceForOriginal, setSelectedEvidenceForOriginal] = useState<EvidenceItem | null>(null);
+
+  // Mobile drawer states
+  const [isLeftMobileOpen, setIsLeftMobileOpen] = useState<boolean>(false);
+  const [isRightMobileOpen, setIsRightMobileOpen] = useState<boolean>(false);
+  const [focusSection, setFocusSection] = useState<string | null>(null);
 
   React.useEffect(() => {
     async function init() {
       try {
         const stored = await getAllCases();
+        let loadedCases: CanonicalCaseRecord[] = [];
+        
         if (stored && stored.length > 0) {
-          _setCases(stored.map(c => hydrateCurrentProjection(c)));
-          if (!stored.find(c => c.id === currentCaseId)) {
-            setCurrentCaseId(stored[0].id);
-          }
+          loadedCases = stored;
         } else {
-          for (const c of HYDRATED_SAMPLE_CASES) {
+          // Fallback to samples
+          loadedCases = SAMPLE_CASES.map(sc => admitBootstrapRecord(sc));
+          for (const c of loadedCases) {
             await saveCase(c);
           }
+        }
+        
+        setCanonicalCases(loadedCases);
+        
+        const metadataMap: Record<string, any> = {};
+        const chatsMap: Record<string, ChatMessage[]> = {};
+        loadedCases.forEach(c => {
+          const rev = c.revisions.find(r => r.revision_id === c.current_revision_id);
+          metadataMap[c.id] = { displayTitle: rev?.title, displayCaseNumber: c.case_number, isArchived: false };
+          chatsMap[c.id] = [
+            { id: `msg-sample-user-${c.id}`, role: 'user', text: `Case record loaded for: ${rev?.title || rev?.objective}`, timestamp: '09:00 AM' },
+            { id: `msg-sample-asst-${c.id}`, role: 'assistant', text: `Loaded canonical record.`, timestamp: '09:01 AM', revision_id: c.current_revision_id }
+          ];
+        });
+        setCaseUiMetadataById(metadataMap);
+        setChatMessagesMap(chatsMap);
+        
+        if (loadedCases.length > 0) {
+          setCurrentCaseId(loadedCases[0].id);
         }
       } catch (e) {
         console.error('Failed to load cases from IDB:', e);
@@ -48,252 +93,148 @@ export default function App() {
     init();
   }, []);
 
-  const setCases = (updater: any) => {
-    _setCases(prev => {
-      const next = typeof updater === 'function' ? updater(prev) : updater;
-      const nextIds = new Set(next.map((c: CaseData) => c.id));
-      prev.forEach((c: CaseData) => {
-        if (!nextIds.has(c.id)) {
-          deleteCase(c.id).catch(console.error);
-        }
-      });
-      next.forEach((c: CaseData) => {
-        const p = prev.find((x: CaseData) => x.id === c.id);
-        if (!p || p !== c) {
-          saveCase(c).catch(console.error);
-        }
-      });
-      return next.map((c: CaseData) => hydrateCurrentProjection(c));
-    });
-  };
-  const [currentCaseId, setCurrentCaseId] = useState<string | null>('case-sample-03');
-
-  // Per-case chat messages map
-  const [chatMessagesMap, setChatMessagesMap] = useState<Record<string, ChatMessage[]>>(() => {
-    const initialMap: Record<string, ChatMessage[]> = {};
-    HYDRATED_SAMPLE_CASES.forEach((c) => {
-      initialMap[c.id] = [
-        {
-          id: `msg-sample-user-${c.id}`,
-          role: 'user',
-          text: `Case record loaded for: ${c.title || c.objective}`,
-          timestamp: '09:00 AM',
-        },
-        {
-          id: `msg-sample-asst-${c.id}`,
-          role: 'assistant',
-          text: `I reconstructed the case from ${c.evidence?.length || 0} evidence items. Key timeline events, claim assessments, and evidence gaps are summarized in the Living Case Record to the right.`,
-          timestamp: '09:01 AM',
-          caseSnapshot: c,
-        },
-      ];
-    });
-    return initialMap;
-  });
-
-  const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
-  const [isExportOpen, setIsExportOpen] = useState<boolean>(false);
-
-  // Modal inspection states (Level 2 & Level 3)
-  const [selectedEvidenceForSummary, setSelectedEvidenceForSummary] = useState<EvidenceItem | null>(null);
-  const [selectedEvidenceForOriginal, setSelectedEvidenceForOriginal] = useState<EvidenceItem | null>(null);
-
-  // Mobile drawer states
-  const [isLeftMobileOpen, setIsLeftMobileOpen] = useState<boolean>(false);
-  const [isRightMobileOpen, setIsRightMobileOpen] = useState<boolean>(false);
-  const [focusSection, setFocusSection] = useState<string | null>(null);
-
   const handleOpenEvidenceInventory = () => {
-    if (window.innerWidth < 1024) {
-      setIsRightMobileOpen(true);
-    }
+    if (window.innerWidth < 1024) setIsRightMobileOpen(true);
     setFocusSection('inventory');
     setTimeout(() => setFocusSection(null), 500);
   };
 
-  // Current active case reference
-  const currentCase = cases.find((c) => c.id === currentCaseId) || null;
+  const currentCanonicalCase = canonicalCases.find((c) => c.id === currentCaseId) || null;
   const currentMessages = currentCaseId ? chatMessagesMap[currentCaseId] || [] : [];
 
-  // Case management handlers
+  // Compute PresentationCaseData array for the UI
+  const presentationCases: PresentationCaseData[] = canonicalCases.map(c => {
+    const baseProj = projectToPresentation(c);
+    const meta = caseUiMetadataById[c.id];
+    const transKey = `${c.id}_${c.current_revision_id}_${locale}`;
+    const overlay = translationOverlays[transKey];
+    
+    // Apply UI metadata
+    baseProj.title = meta?.displayTitle || baseProj.title;
+    baseProj.case_number = meta?.displayCaseNumber || baseProj.case_number;
+    baseProj.is_archived = meta?.isArchived || false;
+    baseProj.locale = locale;
+    
+    // Rehydrate Blobs
+    baseProj.evidence = baseProj.evidence.map(e => ({
+      ...e,
+      file_data_url: attachmentPayloadMap[`${c.id}_${e.id}`]
+    }));
+
+    return applyTranslationOverlay(baseProj, overlay);
+  });
+
+  const currentPresentationCase = presentationCases.find(p => p.id === currentCaseId) || null;
+
   const handleRenameCase = (caseId: string, newNumber: string, newTitle: string) => {
-    setCases((prev) =>
-      prev.map((c) =>
-        c.id === caseId
-          ? {
-              ...c,
-              case_number: newNumber.trim() || c.case_number,
-              title: newTitle.trim() || c.title,
-            }
-          : c
-      )
-    );
+    setCaseUiMetadataById(prev => ({
+      ...prev,
+      [caseId]: {
+        ...prev[caseId],
+        displayTitle: newTitle.trim() || prev[caseId]?.displayTitle,
+        displayCaseNumber: newNumber.trim() || prev[caseId]?.displayCaseNumber
+      }
+    }));
   };
 
   const handleArchiveCase = (caseId: string) => {
-    setCases((prev) =>
-      prev.map((c) => (c.id === caseId ? { ...c, is_archived: true } : c))
-    );
-
-    // If active case was archived, switch to next non-archived case or create a new one
+    setCaseUiMetadataById(prev => ({ ...prev, [caseId]: { ...prev[caseId], isArchived: true } }));
     if (currentCaseId === caseId) {
-      const remaining = cases.filter((c) => c.id !== caseId && !c.is_archived);
-      if (remaining.length > 0) {
-        setCurrentCaseId(remaining[0].id);
-      } else {
-        handleNewCase();
-      }
+      const remaining = presentationCases.filter(c => c.id !== caseId && !c.is_archived);
+      if (remaining.length > 0) setCurrentCaseId(remaining[0].id);
+      else handleNewCase();
     }
   };
 
   const handleDeleteCase = (caseId: string) => {
-    setCases((prev) => prev.filter((c) => c.id !== caseId));
-    setChatMessagesMap((prev) => {
-      const updatedMap = { ...prev };
-      delete updatedMap[caseId];
-      return updatedMap;
-    });
-
-    // If active case was deleted, switch to next non-archived case
+    deleteCase(caseId).catch(console.error);
+    setCanonicalCases(prev => prev.filter(c => c.id !== caseId));
+    setChatMessagesMap(prev => { const upd = { ...prev }; delete upd[caseId]; return upd; });
+    
     if (currentCaseId === caseId) {
-      const remaining = cases.filter((c) => c.id !== caseId && !c.is_archived);
-      if (remaining.length > 0) {
-        setCurrentCaseId(remaining[0].id);
-      } else {
-        handleNewCase();
-      }
+      const remaining = presentationCases.filter(c => c.id !== caseId && !c.is_archived);
+      if (remaining.length > 0) setCurrentCaseId(remaining[0].id);
+      else handleNewCase();
     }
   };
 
-  // Load or switch to sample
   const handleLoadSample = (sampleId: string) => {
-    const sample = HYDRATED_SAMPLE_CASES.find((s) => s.id === sampleId);
+    const sample = SAMPLE_CASES.find((s) => s.id === sampleId);
     if (!sample) return;
-
-    // Check if case already exists in state
-    const exists = cases.some((c) => c.id === sample.id);
-    if (!exists) {
-      setCases((prev) => [sample, ...prev]);
-    }
-
-    setCurrentCaseId(sample.id);
-
-    // Ensure chat messages exist for this sample
-    if (!chatMessagesMap[sample.id] || chatMessagesMap[sample.id].length === 0) {
-      setChatMessagesMap((prev) => ({
-        ...prev,
-        [sample.id]: [
-          {
-            id: `msg-init-${Date.now()}`,
-            role: 'user',
-            text: `Loaded calibration case sample: ${sample.title}`,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          },
-          {
-            id: `msg-asst-${Date.now()}`,
-            role: 'assistant',
-            text: `Reconstructed case record for "${sample.title}" with ${sample.evidence.length} evidence items. View events, claims, and gaps in the record panel to the right.`,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            caseSnapshot: sample,
-          },
-        ],
-      }));
+    try {
+      const canonical = admitBootstrapRecord(sample);
+      if (!canonicalCases.some(c => c.id === canonical.id)) {
+        const rev = canonical.revisions.find(r => r.revision_id === canonical.current_revision_id);
+        setCanonicalCases(prev => [canonical, ...prev]);
+        setCaseUiMetadataById(prev => ({ ...prev, [canonical.id]: { displayTitle: rev?.title, displayCaseNumber: canonical.case_number, isArchived: false } }));
+        setChatMessagesMap(prev => ({ ...prev, [canonical.id]: [{ id: `msg-init-${Date.now()}`, role: 'assistant', text: `Loaded canonical record for "${rev?.title}".`, timestamp: new Date().toLocaleTimeString(), revision_id: canonical.current_revision_id }] }));
+        saveCase(canonical).catch(console.error);
+      }
+      setCurrentCaseId(canonical.id);
+    } catch (err) {
+      console.error('Failed to load sample:', err);
     }
   };
 
-  // Start new empty case
   const handleNewCase = () => {
     const newCaseId = `case-${Date.now()}`;
-    const activeCount = cases.filter((c) => !c.is_archived).length;
+    const activeCount = presentationCases.filter((c) => !c.is_archived).length;
     const newCaseNumber = `C-000${activeCount + 1}`;
-    const newCaseObj: CaseData = {
-      id: newCaseId,
-      case_number: newCaseNumber,
-      title: 'New Case Record',
-      objective: '',
-      user_story: '',
-      statements: [],
-      evidence: [],
-      events: [],
-      claims: [],
-      gaps: [],
-      actions: [],
-      summary: {
-        total_evidence_count: 0,
-        established_claims_count: 0,
-        unresolved_claims_count: 0,
-        conflicted_claims_count: 0,
-        user_reported_claims_count: 0,
-        timeline_span: 'Pending',
-        unresolved_questions_count: 0,
-        epistemic_warning: 'User submission only. No evidence artifacts uploaded yet.',
-      },
-    };
-
-    setCases((prev) => [newCaseObj, ...prev]);
+    
+    const canonical = createEmptyCanonicalRecord(newCaseId, newCaseNumber, 'New Case Record', '');
+    const rev = canonical.revisions.find(r => r.revision_id === canonical.current_revision_id);
+    
+    setCanonicalCases(prev => [canonical, ...prev]);
+    setCaseUiMetadataById(prev => ({ ...prev, [newCaseId]: { displayTitle: rev?.title, displayCaseNumber: canonical.case_number, isArchived: false } }));
+    setChatMessagesMap(prev => ({ ...prev, [newCaseId]: [] }));
     setCurrentCaseId(newCaseId);
-    setChatMessagesMap((prev) => ({
-      ...prev,
-      [newCaseId]: [],
-    }));
   };
 
-  // Switch active case
   const handleSelectCase = (caseId: string) => {
     setCurrentCaseId(caseId);
   };
 
-  // On-the-fly translation of currentCase derived prose when locale changes (without new revision)
   React.useEffect(() => {
-    if (!currentCaseId || !currentCase) return;
-    if (currentCase.events.length === 0 && currentCase.claims.length === 0) return;
-
-    const currentLoc = currentCase.locale || 'en';
-    if (currentLoc === locale) return;
+    if (!currentCanonicalCase) return;
+    if (currentCanonicalCase.revisions[0].events.length === 0 && currentCanonicalCase.revisions[0].claims.length === 0) return;
+    
+    const transKey = `${currentCanonicalCase.id}_${currentCanonicalCase.current_revision_id}_${locale}`;
+    if (translationOverlays[transKey] || locale === 'en') return; // 'en' is base
 
     const translateCase = async () => {
       try {
         setIsAnalyzing(true);
+        const baseProj = projectToPresentation(currentCanonicalCase);
         const response = await fetch('/api/translate-case', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-ET-Dev-Inference-Mode': devInferenceMode,
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            events: currentCase.events,
-            claims: currentCase.claims,
-            gaps: currentCase.gaps,
-            actions: currentCase.actions,
-            title: currentCase.title,
-            objective: currentCase.objective,
-            locale,
-            dev_inference_mode: devInferenceMode,
+            events: baseProj.events,
+            claims: baseProj.claims,
+            gaps: baseProj.gaps,
+            actions: baseProj.actions,
+            title: baseProj.title,
+            objective: baseProj.objective,
+            locale
           }),
         });
 
-        if (!response.ok) {
-          throw new Error('Translation request failed.');
-        }
-
-        const data = await response.json();
-        if (data.success) {
-          setCases((prev) =>
-            prev.map((c) =>
-              c.id === currentCaseId
-                ? {
-                    ...c,
-                    title: data.title,
-                    objective: data.objective,
-                    events: data.events,
-                    claims: data.claims,
-                    gaps: data.gaps,
-                    actions: data.actions,
-                    locale, // update local presentation marker
-                  }
-                : c
-            )
-          );
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            // Store valid translation
+            setTranslationOverlays(prev => ({
+              ...prev,
+              [transKey]: {
+                title: data.title,
+                objective: data.objective,
+                events: data.events,
+                claims: data.claims,
+                gaps: data.gaps,
+                actions: data.actions
+              }
+            }));
+          }
         }
       } catch (err) {
         console.error('Failed to translate case presentation:', err);
@@ -301,51 +242,27 @@ export default function App() {
         setIsAnalyzing(false);
       }
     };
-
     translateCase();
-  }, [locale, currentCaseId]);
+  }, [locale, currentCaseId, currentCanonicalCase]);
 
-  // Send message / automatic intake & reconstruction processing
   const handleSendMessage = async (text: string, attachments: AttachmentFile[]) => {
-    if (!currentCaseId) return;
+    if (!currentCaseId || !currentCanonicalCase) return;
 
     setIsAnalyzing(true);
     const userMsgId = `msg-user-${Date.now()}`;
     const newUserMsg: ChatMessage = {
-      id: userMsgId,
-      role: 'user',
-      text,
-      attachments,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      id: userMsgId, role: 'user', text, attachments, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
     const updatedMessages = [...currentMessages, newUserMsg];
-
-    setChatMessagesMap((prev) => ({
-      ...prev,
-      [currentCaseId]: updatedMessages,
-    }));
+    setChatMessagesMap(prev => ({ ...prev, [currentCaseId]: updatedMessages }));
 
     try {
-      // Rule 8: Strip massive Base64 file_data_url strings from existing evidence items before sending to the backend
-      const optimizedEvidence = (currentCase?.evidence ?? []).map((ev) => {
-        const { file_data_url, ...rest } = ev;
-        return rest;
-      });
-
       const response = await fetch('/api/intake', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-ET-Dev-Inference-Mode': devInferenceMode,
-        },
+        headers: { 'Content-Type': 'application/json', 'X-ET-Dev-Inference-Mode': devInferenceMode },
         body: JSON.stringify({
-          case_id: currentCase?.id,
-          case_number: currentCase?.case_number,
-          existing_objective: currentCase?.objective || '',
-          existing_statements: currentCase?.statements ?? [],
-          existing_evidence: optimizedEvidence,
-          existing_revisions: currentCase?.revisions ?? [],
+          prior_record: currentCanonicalCase,
           message: text,
           attachments,
           locale,
@@ -354,89 +271,62 @@ export default function App() {
       });
 
       let data: any = null;
-      try {
-        data = await response.json();
-      } catch (e) {
-        // Non-JSON response
-      }
+      try { data = await response.json(); } catch (e) {}
 
       if (!response.ok || !data || !data.success) {
-        const stage = data?.stage || 'REQUEST_FAILED';
-        const errMsg = data?.message || data?.error || `Server status ${response.status}`;
-        throw new Error(`[${stage}] ${errMsg}`);
+        throw new Error(`[${data?.stage || 'REQUEST_FAILED'}] ${data?.message || data?.error || `Status ${response.status}`}`);
       }
 
-      if (data.case) {
-        // Rule 8: Rehydrate the Base64 dataUrl references from local client memory back into the merged evidence list
-        const rehydratedEvidence = (data.case.evidence || []).map((ev: any) => {
-          const matchingOldEvidence = (currentCase?.evidence || []).find((old) => old.id === ev.id);
-          const matchingNewAttachment = attachments.find((att) => att.name === ev.file_name);
-          return {
-            ...ev,
-            file_data_url: ev.file_data_url || matchingOldEvidence?.file_data_url || matchingNewAttachment?.dataUrl,
-          };
+      // Safe atomic commit using domain module
+      const newCollection = commitIntakeResponse(canonicalCases, data, currentCaseId);
+      const replacedRecord = newCollection.find(c => c.id === currentCaseId)!;
+      
+      setCanonicalCases(newCollection);
+      saveCase(replacedRecord).catch(console.error);
+
+      // Save attachments to Blob store
+      if (attachments.length > 0) {
+        setAttachmentPayloadMap(prev => {
+          const upd = { ...prev };
+          // Find mapping from returned canonical evidence
+          // Match by some criteria or let the UI re-read attachments. In this simplified version, we just store what we have.
+          replacedRecord.evidence.forEach(e => {
+            const att = attachments.find(a => a.name === e.label || a.id === e.storage_key);
+            if (att && att.dataUrl) upd[`${currentCaseId}_${e.id}`] = att.dataUrl;
+          });
+          return upd;
         });
-
-        const updatedCase: CaseData = {
-          ...data.case,
-          id: currentCaseId,
-          case_number: currentCase?.case_number || 'C-0001',
-          title: data.case.title || currentCase?.title || 'Processed Case',
-          evidence: rehydratedEvidence,
-        };
-
-        // Atomic update of canonical case state
-        setCases((prev) => prev.map((c) => (c.id === currentCaseId ? updatedCase : c)));
-
-        const getAsstSuccessText = (loc: string) => {
-          const delta =
-            data.revision?.summary?.revision_delta_summary ||
-            data.revision?.revision_delta_summary ||
-            data.case?.summary?.revision_delta_summary ||
-            data.case?.revisions?.[data.case?.revisions?.length - 1]?.summary?.revision_delta_summary;
-
-          if (delta) return delta;
-
-          switch (loc) {
-            case 'vi': return 'Tôi đã ghi nhận thông tin gửi mới và cập nhật hồ sơ vụ việc.';
-            case 'es': return 'He registrado su envío y actualizado la revisión del caso.';
-            case 'fr': return 'J\'ai enregistré votre soumission et mis à jour le dossier.';
-            case 'zh-CN': return '我已记录您提交的内容并更新了案件记录。';
-            case 'ja': return 'ご提出内容を記録し、案件記録を更新しました。';
-            case 'en':
-            default:
-              return 'I processed your submission and updated the case revision.';
-          }
-        };
-
-        // Add assistant response message
-        const assistantMsg: ChatMessage = {
-          id: `msg-asst-${Date.now()}`,
-          role: 'assistant',
-          text: getAsstSuccessText(locale),
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          caseSnapshot: updatedCase,
-        };
-
-        setChatMessagesMap((prev) => ({
-          ...prev,
-          [currentCaseId]: [...updatedMessages, assistantMsg],
-        }));
       }
+
+      const getAsstSuccessText = (loc: string) => {
+        switch (loc) {
+          case 'vi': return 'Tôi đã ghi nhận thông tin gửi mới và cập nhật hồ sơ vụ việc.';
+          case 'es': return 'He registrado su envío y actualizado la revisión del caso.';
+          case 'fr': return 'J\'ai enregistré votre soumission et mis à jour le dossier.';
+          case 'zh-CN': return '我已记录您提交的内容并更新了案件记录。';
+          case 'ja': return 'ご提出内容を記録し、案件記録を更新しました。';
+          case 'en': default: return 'I processed your submission and updated the case revision.';
+        }
+      };
+
+      const assistantMsg: ChatMessage = {
+        id: `msg-asst-${Date.now()}`,
+        role: 'assistant',
+        text: getAsstSuccessText(locale),
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        revision_id: replacedRecord.current_revision_id,
+      };
+
+      setChatMessagesMap(prev => ({ ...prev, [currentCaseId]: [...updatedMessages, assistantMsg] }));
+
     } catch (err: any) {
       console.error('Intake error:', err);
       const errorMsg: ChatMessage = {
-        id: `msg-err-${Date.now()}`,
-        role: 'assistant',
-        text: '',
+        id: `msg-err-${Date.now()}`, role: 'assistant', text: '',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        error: `Could not complete reconstruction: ${err.message || 'Server error'}. Your existing record and submission are preserved.`,
+        error: `Could not complete reconstruction: ${err.message || 'Server error'}. Your existing record is preserved.`
       };
-
-      setChatMessagesMap((prev) => ({
-        ...prev,
-        [currentCaseId]: [...updatedMessages, errorMsg],
-      }));
+      setChatMessagesMap(prev => ({ ...prev, [currentCaseId]: [...updatedMessages, errorMsg] }));
     } finally {
       setIsAnalyzing(false);
     }
@@ -444,51 +334,19 @@ export default function App() {
 
   const handleResetTest = () => {
     const testCaseId = 'case-test-quickbite';
-    const testCaseObj: CaseData = {
-      id: testCaseId,
-      case_number: 'TEST-QB',
-      title: 'QuickBite Calibration Test',
-      objective: 'QuickBite order damage dispute reconstruction test',
-      user_story: '',
-      statements: [],
-      evidence: [],
-      events: [],
-      claims: [],
-      gaps: [],
-      actions: [],
-      summary: {
-        total_evidence_count: 0,
-        established_claims_count: 0,
-        unresolved_claims_count: 0,
-        conflicted_claims_count: 0,
-        user_reported_claims_count: 0,
-        timeline_span: 'Pending',
-        unresolved_questions_count: 0,
-        epistemic_warning: 'Replay test intake initialized (0 Gemini calls). Send "My QuickBite order arrived damaged." to test Turn 1.',
-      },
-    };
-
-    setCases((prev) => {
-      const filtered = prev.filter((c) => c.id !== testCaseId);
-      return [testCaseObj, ...filtered];
-    });
-
+    const testCaseObj = createEmptyCanonicalRecord(testCaseId, 'TEST-QB', 'QuickBite Calibration Test', 'QuickBite order damage dispute reconstruction test');
+    const rev = testCaseObj.revisions.find(r => r.revision_id === testCaseObj.current_revision_id);
+    
+    setCanonicalCases(prev => { const filtered = prev.filter(c => c.id !== testCaseId); return [testCaseObj, ...filtered]; });
+    setCaseUiMetadataById(prev => ({ ...prev, [testCaseId]: { displayTitle: rev?.title, displayCaseNumber: testCaseObj.case_number, isArchived: false } }));
     setCurrentCaseId(testCaseId);
-
-    setChatMessagesMap((prev) => ({
+    setChatMessagesMap(prev => ({
       ...prev,
-      [testCaseId]: [
-        {
-          id: `msg-qb-init-${Date.now()}`,
-          role: 'assistant',
-          text: 'QuickBite 10-turn Replay test initialized. Turn 0 / 10. Send: "My QuickBite order arrived damaged."',
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        },
-      ],
+      [testCaseId]: [{ id: `msg-qb-init-${Date.now()}`, role: 'assistant', text: 'QuickBite 10-turn Replay test initialized. Turn 0 / 10. Send: "My QuickBite order arrived damaged."', timestamp: new Date().toLocaleTimeString() }],
     }));
   };
 
-  const turnCount = currentCase?.statements?.length || 0;
+  const turnCount = currentCanonicalCase?.statements.length || 0;
 
   const testModeBannerNode = (
     <TestModeBanner
@@ -496,10 +354,7 @@ export default function App() {
       onChangeInferenceMode={setDevInferenceMode}
       onResetTest={handleResetTest}
       turnCount={turnCount}
-      onInsertNextMessage={(msg) => {
-        setInsertedInputText(msg);
-        setTimeout(() => setInsertedInputText(''), 100);
-      }}
+      onInsertNextMessage={(msg) => { setInsertedInputText(msg); setTimeout(() => setInsertedInputText(''), 100); }}
     />
   );
 
@@ -507,28 +362,16 @@ export default function App() {
     <div className="h-screen w-screen overflow-hidden flex flex-col bg-white font-sans antialiased text-slate-900 selection:bg-slate-200 selection:text-slate-900">
       {/* Mobile Top App Bar */}
       <header className="lg:hidden bg-white text-slate-900 p-3 flex items-center justify-between border-b border-slate-200 shrink-0">
-        <button
-          type="button"
-          onClick={() => setIsLeftMobileOpen(true)}
-          className="p-2 rounded-lg bg-slate-100 text-slate-600 hover:text-slate-900 cursor-pointer"
-          title="Open Case Navigation"
-        >
+        <button type="button" onClick={() => setIsLeftMobileOpen(true)} className="p-2 rounded-lg bg-slate-100 text-slate-600 hover:text-slate-900 cursor-pointer" title="Open Case Navigation">
           <PanelLeft className="w-5 h-5" />
         </button>
-
         <div className="flex items-center gap-2">
           <ShieldCheck className="w-4 h-4 text-slate-700" />
           <span className="font-semibold text-sm text-slate-900 truncate max-w-[150px]">
-            {currentCase ? currentCase.case_number || 'Case Record' : 'Explainable Trust'}
+            {currentPresentationCase ? currentPresentationCase.case_number || 'Case Record' : 'Explainable Trust'}
           </span>
         </div>
-
-        <button
-          type="button"
-          onClick={() => setIsRightMobileOpen(true)}
-          className="p-2 rounded-lg bg-slate-100 text-slate-600 hover:text-slate-900 cursor-pointer"
-          title="Open Case Record"
-        >
+        <button type="button" onClick={() => setIsRightMobileOpen(true)} className="p-2 rounded-lg bg-slate-100 text-slate-600 hover:text-slate-900 cursor-pointer" title="Open Case Record">
           <PanelRight className="w-5 h-5" />
         </button>
       </header>
@@ -538,7 +381,7 @@ export default function App() {
         <ErrorBoundary>
           {/* LEFT SIDEBAR: Navigation (~240px) */}
           <LeftSidebar
-            cases={cases}
+            cases={presentationCases}
             currentCaseId={currentCaseId}
             onSelectCase={handleSelectCase}
             onNewCase={handleNewCase}
@@ -554,13 +397,13 @@ export default function App() {
           <main className="flex-1 flex flex-col h-full bg-[#F8FAFC] relative overflow-hidden min-w-0">
             <CaseIntakeChat
               messages={currentMessages}
-              currentCase={currentCase}
+              currentCase={currentPresentationCase}
               onSendMessage={handleSendMessage}
               isAnalyzing={isAnalyzing}
               onOpenWorkspace={() => setIsRightMobileOpen(true)}
               onOpenEvidenceInventory={handleOpenEvidenceInventory}
               onSelectEvidence={(evidenceId) => {
-                const found = currentCase?.evidence?.find((e) => e.id === evidenceId);
+                const found = currentPresentationCase?.evidence?.find((e) => e.id === evidenceId);
                 if (found) setSelectedEvidenceForSummary(found);
               }}
               onLoadSample={handleLoadSample}
@@ -571,7 +414,7 @@ export default function App() {
 
           {/* RIGHT SIDEBAR: Living Case Record Panel (~360px) */}
           <RightCaseRecord
-            caseData={currentCase}
+            caseData={currentPresentationCase}
             onOpenEvidenceDetail={(item) => setSelectedEvidenceForSummary(item)}
             onExportJson={() => setIsExportOpen(true)}
             isMobileOpen={isRightMobileOpen}
@@ -585,8 +428,8 @@ export default function App() {
       {selectedEvidenceForSummary && (
         <EvidenceDetailModal
           evidence={selectedEvidenceForSummary}
-          events={currentCase?.events || []}
-          claims={currentCase?.claims || []}
+          events={currentPresentationCase?.events || []}
+          claims={currentPresentationCase?.claims || []}
           onClose={() => setSelectedEvidenceForSummary(null)}
           onOpenOriginal={(item) => setSelectedEvidenceForOriginal(item)}
         />
@@ -601,9 +444,9 @@ export default function App() {
       )}
 
       {/* Export Modal */}
-      {isExportOpen && currentCase && (
+      {isExportOpen && currentPresentationCase && (
         <ExportModal
-          caseData={currentCase}
+          caseData={currentPresentationCase}
           onClose={() => setIsExportOpen(false)}
         />
       )}

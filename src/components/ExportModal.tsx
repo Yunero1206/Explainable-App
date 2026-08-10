@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { X, Download, Copy, Check, Printer, FileCode, FileText } from 'lucide-react';
-import { CaseData } from '../types';
+import { PresentationCaseData } from '../types.js';
 
 interface ExportModalProps {
-  caseData: CaseData;
+  caseData: PresentationCaseData;
   onClose: () => void;
 }
 
@@ -45,7 +45,6 @@ export const ExportModal: React.FC<ExportModalProps> = ({ caseData, onClose }) =
         integrity_signals: e.integrity_signals,
         limitations: e.limitations,
       })),
-      revisions: caseData.revisions || [],
       events: caseData.events || [],
       claims: caseData.claims || [],
       gaps: caseData.gaps || [],

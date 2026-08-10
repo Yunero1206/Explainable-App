@@ -1,52 +1,35 @@
-import { CaseData, UserStatement, EvidenceItem, CaseEvent, Claim, EvidenceGap, NextAction, AnalysisSummary } from '../types.js';
+import { UserStatement, EvidenceItem, CaseEvent, Claim, EvidenceGap, NextAction, PresentationCaseData } from '../types.js';
 import { CanonicalCaseRecord } from '../canonical/types.js';
-import { projectCurrentRecord, ProjectedState } from '../canonical/project.js';
-import { upgradeLegacyCaseToCanonical } from '../canonical/upgrade.js';
+import { projectCurrentRecord } from '../canonical/project.js';
 
 /**
- * Validates whether the given object is a CanonicalCaseRecord.
- * We do a duck-type check here for efficiency, but we can also use Zod.
- */
-function isCanonicalRecord(obj: any): obj is CanonicalCaseRecord {
-  return obj && obj.schema_version === '2.0.0' && Array.isArray(obj.intake_ledger);
-}
-
-/**
- * Projects a CanonicalCaseRecord into the legacy CaseData structure expected by the UI.
+ * Projects a CanonicalCaseRecord into the PresentationCaseData structure expected by the UI.
  * This preserves the UI presentation while enforcing the canonical source of truth.
+ * Does not perform legacy upgrades. Accepts only a validated CanonicalCaseRecord.
  */
-export function hydrateCurrentProjection(caseRecord: CanonicalCaseRecord | CaseData): CaseData {
-  let canonical: CanonicalCaseRecord;
-  
-  if (!isCanonicalRecord(caseRecord)) {
-    // If we loaded a legacy CaseData (e.g. from sample cases or old DB), upgrade it.
-    canonical = upgradeLegacyCaseToCanonical(caseRecord as CaseData);
-  } else {
-    canonical = caseRecord;
-  }
-
+export function projectToPresentation(canonical: CanonicalCaseRecord): PresentationCaseData {
   const proj = projectCurrentRecord(canonical);
 
   const statements: UserStatement[] = proj.statements.map(s => ({
     id: s.id,
     text: s.text,
     submitted_at: s.submitted_at,
-    attachment_ids: [] // We don't track attachment_ids in canonical directly on statement
+    attachment_ids: [] // Presentation only
   }));
 
   const evidence: EvidenceItem[] = proj.evidence.map(e => ({
     id: e.id,
     label: e.label,
-    claimed_source: 'Unspecified Source', // We can enhance CanonicalEvidence to hold this
+    claimed_source: 'Unspecified Source',
     acquisition_method: 'user_upload',
-    input_form: e.input_form as any,
+    input_form: (e.input_form === 'image' || e.input_form === 'pdf' || e.input_form === 'document') ? e.input_form : 'other',
     evidence_time: null,
     received_at: e.submitted_at,
     subject_object_ids: [],
     content: 'Retrieved from canonical record.',
     file_name: e.label,
     file_type: e.mime_type || 'application/octet-stream',
-    file_data_url: undefined, // To be hydrated from blobStore by UI if needed
+    file_data_url: undefined, // Ephemeral data
     source_attribution: '',
     case_object_match: '',
     case_object_match_status: 'not_assessed',
@@ -62,7 +45,7 @@ export function hydrateCurrentProjection(caseRecord: CanonicalCaseRecord | CaseD
     ...ev,
     effect: ev.effect || '',
     evidence_ids: [...ev.evidence_ids],
-    user_statement_ids: [] // Legacy field
+    user_statement_ids: []
   }));
 
   const claims: Claim[] = proj.claims.map(c => ({
@@ -113,7 +96,6 @@ export function hydrateCurrentProjection(caseRecord: CanonicalCaseRecord | CaseD
     claims,
     gaps,
     actions,
-    revisions: [], // The UI doesn't need the full canonical revisions array typically, but we can pass legacy revisions if needed
     current_revision_id: canonical.current_revision_id,
     summary: {
       total_evidence_count: proj.summary.total_evidence_count,

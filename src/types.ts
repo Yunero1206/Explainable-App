@@ -183,12 +183,11 @@ export interface ChatMessage {
     established_count: number;
     gap_count: number;
   };
-  caseSnapshot?: CaseData; // Kept optional for backward compatibility in UI rendering
   isAnalyzing?: boolean;
   error?: string;
 }
 
-export interface CaseData {
+export interface LegacyCaseData {
   id: string;
   case_number: string;
   title: string;
@@ -198,6 +197,24 @@ export interface CaseData {
   evidence: EvidenceItem[];
   current_revision_id?: string;
   revisions?: CaseRevision[];
+  events: CaseEvent[];
+  claims: Claim[];
+  gaps: EvidenceGap[];
+  actions: NextAction[];
+  summary?: AnalysisSummary;
+  is_archived?: boolean;
+  locale?: string;
+}
+
+export interface PresentationCaseData {
+  id: string;
+  case_number: string;
+  title: string;
+  objective: string;
+  user_story?: string;
+  statements: UserStatement[];
+  evidence: EvidenceItem[];
+  current_revision_id?: string;
   events: CaseEvent[];
   claims: Claim[];
   gaps: EvidenceGap[];

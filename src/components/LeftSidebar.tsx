@@ -11,12 +11,12 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
 } from 'lucide-react';
-import { CaseData } from '../types';
+import { PresentationCaseData } from '../types.js';
 import { useLanguage } from '../contexts/LanguageContext';
 import { LOCALES, Locale } from '../lib/translations';
 
 interface LeftSidebarProps {
-  cases: CaseData[];
+  cases: PresentationCaseData[];
   currentCaseId: string | null;
   onSelectCase: (caseId: string) => void;
   onNewCase: () => void;
@@ -44,7 +44,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [openMenuCaseId, setOpenMenuCaseId] = useState<string | null>(null);
   const [editingCase, setEditingCase] = useState<{ id: string; caseNumber: string; title: string } | null>(null);
-  const [deletingCase, setDeletingCase] = useState<CaseData | null>(null);
+  const [deletingCase, setDeletingCase] = useState<PresentationCaseData | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Filter out archived cases for recent list
@@ -65,7 +65,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
     };
   }, [openMenuCaseId]);
 
-  const handleOpenRename = (c: CaseData, e: React.MouseEvent) => {
+  const handleOpenRename = (c: PresentationCaseData, e: React.MouseEvent) => {
     e.stopPropagation();
     setEditingCase({
       id: c.id,
@@ -88,7 +88,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
     setOpenMenuCaseId(null);
   };
 
-  const handleDelete = (c: CaseData, e: React.MouseEvent) => {
+  const handleDelete = (c: PresentationCaseData, e: React.MouseEvent) => {
     e.stopPropagation();
     setOpenMenuCaseId(null);
     setDeletingCase(c);

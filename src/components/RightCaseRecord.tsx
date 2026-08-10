@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { X, Download, ShieldAlert, CheckCircle2, Clock, FileText } from 'lucide-react';
-import { CaseData, EvidenceItem } from '../types';
+import { PresentationCaseData, EvidenceItem } from '../types.js';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface RightCaseRecordProps {
-  caseData: CaseData | null;
+  caseData: PresentationCaseData | null;
   onOpenEvidenceDetail: (evidence: EvidenceItem) => void;
   onExportJson?: () => void;
   isMobileOpen?: boolean;

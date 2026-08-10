@@ -1,6 +1,6 @@
-import { CaseData } from '../types';
+import { LegacyCaseData } from '../types.js';
 
-export const SAMPLE_CASES: CaseData[] = [
+export const SAMPLE_CASES: LegacyCaseData[] = [
   {
     id: 'case-sample-03',
     case_number: 'C-0003',

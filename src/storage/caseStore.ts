@@ -1,4 +1,5 @@
-import { CaseData } from '../types.js';
+import { CanonicalCaseRecord } from '../canonical/types.js';
+import { parseCanonicalRecord, admitBootstrapRecord } from '../canonical/boundary.js';
 
 const DB_NAME = 'ExplainableTrustDB';
 const DB_VERSION = 1;
@@ -21,38 +22,60 @@ function openDB(): Promise<IDBDatabase> {
   });
 }
 
-export async function saveCase(caseData: CaseData): Promise<void> {
+export async function saveCase(caseData: CanonicalCaseRecord): Promise<void> {
+  // Validate before write
+  const parsedRecord = parseCanonicalRecord(caseData);
+  
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(STORE_NAME, 'readwrite');
     const store = transaction.objectStore(STORE_NAME);
-    const request = store.put(caseData);
+    const request = store.put(parsedRecord);
 
     request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error);
   });
 }
 
-export async function getCase(id: string): Promise<CaseData | null> {
+export async function getCase(id: string): Promise<CanonicalCaseRecord | null> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(STORE_NAME, 'readonly');
     const store = transaction.objectStore(STORE_NAME);
     const request = store.get(id);
 
-    request.onsuccess = () => resolve(request.result || null);
+    request.onsuccess = () => {
+      if (request.result) {
+        try {
+          const admitted = admitBootstrapRecord(request.result);
+          resolve(admitted);
+        } catch (err) {
+          reject(err);
+        }
+      } else {
+        resolve(null);
+      }
+    };
     request.onerror = () => reject(request.error);
   });
 }
 
-export async function getAllCases(): Promise<CaseData[]> {
+export async function getAllCases(): Promise<CanonicalCaseRecord[]> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(STORE_NAME, 'readonly');
     const store = transaction.objectStore(STORE_NAME);
     const request = store.getAll();
 
-    request.onsuccess = () => resolve(request.result || []);
+    request.onsuccess = () => {
+      try {
+        const results = request.result || [];
+        const admitted = results.map(r => admitBootstrapRecord(r));
+        resolve(admitted);
+      } catch (err) {
+        reject(err);
+      }
+    };
     request.onerror = () => reject(request.error);
   });
 }

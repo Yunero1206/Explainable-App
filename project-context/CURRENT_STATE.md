@@ -28,11 +28,21 @@ Gates chạy thành công:
   - (Note: the earlier 23-canonical / 24-full counts were incorrect)
 - `cmd.exe /c "npm run build"`: exit 0
 
-## Phase 1A-R Pending Work (Chưa được accept)
+## Phase 1A-R (Runtime Integration) Completion
+
+Slice 1A-R Runtime Integration is passed and conditionally completed.
+(Commit: `adcbd1ff34c340336775affa95255c7bcf96cf96`)
+
+Gates chạy thành công:
+- `cmd.exe /c "npm run lint"`: exit 0 (với 1 warning, 0 error).
+- `cmd.exe /c "npm test -- --run"`: exit 0 (2 files passed, 26 tests passed).
+- `cmd.exe /c "npm run build"`: exit 0.
+- `cmd.exe /c "git diff --check"`: Không có conflict (chỉ có LF -> CRLF warnings).
+- `grep_search`: Không có new `as any` hay `as unknown as` casts.
+- 8 negative proofs and 8 positive proofs từ plan đều pass.
 
 Phần còn lại vẫn chưa được chứng minh:
-- Phase 1A-R remains active.
-- runtime integration, persistence/reload, deterministic demo and V0 gate remain pending.
+- Persistence/reload, deterministic demo and V0 gate remain pending.
 - V0 chưa complete.
 
 ## Đường đi ngắn nhất đến V0
@@ -40,7 +50,7 @@ Phần còn lại vẫn chưa được chứng minh:
 | Slice | Kết quả cần có | Trạng thái |
 |---|---|---|
 | 1. Canonical closure | Đóng 2 counterexample còn lại, toàn bộ gates xanh | Passed |
-| 2. Runtime integration | UI/server/domain dùng canonical record nhất quán | Pending |
+| 2. Runtime integration (1A-R) | UI/server/domain dùng canonical record nhất quán | Passed |
 | 3. Persistence/reload | Save/reload giữ record, sources, revision identity | Pending |
 | 4. Deterministic demo | Một case chạy trọn evidence → revision loop | Pending |
 | 5. V0 gate | Lint/test/build + demo smoke test, không còn blocker | Pending |

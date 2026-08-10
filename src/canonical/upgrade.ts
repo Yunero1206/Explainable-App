@@ -1,7 +1,7 @@
-import { CaseData } from '../types.js';
+import { LegacyCaseData } from '../types.js';
 import { CanonicalCaseRecord, CaseRevision, DispositionRelationship, CanonicalStatement, CanonicalEvidence, IntakeRecord, IntakePart, CanonicalAssessment, CanonicalGapStatus, StatementId, EvidenceId, ClaimId, GapId, ActionId, RevisionId, RelationshipId, IntakeId, EventId } from './types.js';
 
-export function upgradeLegacyCaseToCanonical(legacy: CaseData): CanonicalCaseRecord {
+export function upgradeLegacyCaseToCanonical(legacy: LegacyCaseData): CanonicalCaseRecord {
   const intakeId = 'IN01' as IntakeId;
   const revisionId = 'R01' as RevisionId;
 

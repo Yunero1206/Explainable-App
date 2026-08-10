@@ -13,11 +13,11 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
-import { AttachmentFile, ChatMessage, CaseData } from '../types';
+import { AttachmentFile, ChatMessage, PresentationCaseData } from '../types.js';
 
 interface CaseIntakeChatProps {
   messages: ChatMessage[];
-  currentCase?: CaseData | null;
+  currentCase?: PresentationCaseData | null;
   onSendMessage: (text: string, attachments: AttachmentFile[]) => Promise<void>;
   onOpenWorkspace: () => void;
   onOpenEvidenceInventory?: () => void;
