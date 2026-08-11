@@ -12,6 +12,7 @@ Explainable Trust turns a messy user report and attached files into a traceable 
 - Rejected/provider-error runs preserve the last accepted ledger.
 - Atomic IndexedDB commits for the accepted ledger, model run, and attachment blobs.
 - Synchronized JSON/Print export of the case Timeline and its gap-owned actions.
+- Explicit, privacy-separated Google Search retrieval with first-party/public-authority admission and bounded web `[E]` citations.
 
 ## Run locally
 
@@ -36,5 +37,7 @@ NODE_ENV=production npm start
 ## Data and trust boundary
 
 The authoritative browser database is `ExplainableTrustV3`. The app never deletes or upgrades the former V2 database automatically. UI language changes presentation labels only; accepted source text and IDs are not translated or rewritten.
+
+Web retrieval is opt-in per intake. The raw case is never sent to Google Search: a no-search planning step produces a server-validated public query, and only grounded first-party or public-authority results can become evidence. Reddit, social posts, forums, media, blogs, search snippets, and AI answers are non-admissible. Web citations show an excerpt and copyable URL inside the app without opening or embedding the webpage.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the runtime flow and invariants.

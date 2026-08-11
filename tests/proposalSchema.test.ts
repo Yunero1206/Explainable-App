@@ -10,7 +10,7 @@ describe('Proposal Schema and Model Config', () => {
     it('exports the exact model configuration', () => {
       expect(INFERENCE_MODEL.provider).toBe('google-gemini');
       expect(INFERENCE_MODEL.modelId).toBe('gemini-3.6-flash');
-      expect(INFERENCE_MODEL.promptVersion).toBe('explainable-trust-analysis-v3');
+      expect(INFERENCE_MODEL.promptVersion).toBe('explainable-trust-analysis-v4');
     });
   });
 
@@ -427,6 +427,16 @@ describe('Proposal Schema and Model Config', () => {
       const op = { operation_type: 'inspect_source', evidence_id: 'U01', source_attribution: 's', case_object_match: 'c', match_status: 'matched', completeness_context: 'c', integrity_signals: 'i', limitations: [], reason: 'r' };
       // U01 is a statement id not E01
       expect(() => parseProviderProposal({ explanation: exp, operations: [op] }, ctx)).toThrow();
+    });
+
+    it('rejects a provider-authored inspection for server-admitted web evidence', () => {
+      const webCtx: ProposalValidationContext = {
+        ...ctx,
+        serverOwnedEvidenceIds: new Set<EvidenceId>(['E01' as EvidenceId]),
+      };
+      const op = { operation_type: 'inspect_source', evidence_id: 'E01', source_attribution: 's', case_object_match: 'c', match_status: 'not_assessed', completeness_context: 'c', integrity_signals: 'i', limitations: [], reason: 'r' };
+      expect(() => parseProviderProposal({ explanation: exp, operations: [op] }, webCtx))
+        .toThrow('Authoritative web evidence inspection is server-owned: E01');
     });
 
     it('rejects duplicate claim limits, inspection limitations, gap targets and action targets', () => {

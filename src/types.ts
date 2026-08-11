@@ -1,8 +1,8 @@
 import type { LedgerV3Case, RelationshipType } from './ledger/types.js';
 import type { ModelRunAudit } from './runtime/modelRun.js';
 
-export type AcquisitionMethod = 'user_upload' | 'pasted_text' | 'file_drop' | 'manual_entry';
-export type InputForm = 'screenshot' | 'image' | 'email_text' | 'pdf' | 'receipt' | 'chat_transcript' | 'document' | 'other';
+export type AcquisitionMethod = 'user_upload' | 'pasted_text' | 'file_drop' | 'manual_entry' | 'authoritative_web_retrieval';
+export type InputForm = 'screenshot' | 'image' | 'email_text' | 'pdf' | 'receipt' | 'chat_transcript' | 'document' | 'web_excerpt' | 'other';
 export type AssessmentState = 'Reported' | 'Corroborated' | 'Contested' | 'Established within current record' | 'Mutually acknowledged';
 
 export type CaseReferenceKind = 'statement' | 'evidence' | 'event' | 'finding' | 'gap' | 'action';
@@ -54,6 +54,17 @@ export interface EvidenceItem {
   file_name?: string;
   file_type?: string;
   file_data_url?: string;
+  web_provenance?: {
+    publisher: string;
+    page_title: string;
+    source_url: string;
+    published_or_updated_at: string | null;
+    retrieved_at: string;
+    authority_kind: 'first_party_official' | 'public_authority';
+    authority_entity: string;
+    authority_scope: string;
+    search_query: string;
+  };
 }
 
 export interface CaseEvent {

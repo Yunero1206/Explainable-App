@@ -1,6 +1,7 @@
 import {
   ClaimIdSchema,
   GapIdSchema,
+  SemanticTextSchema,
   parseLedgerV3,
 } from './schema';
 import { createLedgerIdAllocator } from './idAllocator';
@@ -12,8 +13,10 @@ import type {
   Claim,
   DeltaEntry,
   Event,
+  EvidenceId,
   EvidenceInspection,
   Gap,
+  InspectionId,
   IntakeRecord,
   LedgerV3Case,
   ModelRunId,
@@ -116,6 +119,11 @@ function applyValidatedProposal(input: ApplyProposalInput): LedgerV3Case {
   const gaps: Gap[] = structuredClone(previousRevision?.gaps ?? []);
   const actions: Action[] = structuredClone(previousRevision?.actions ?? []);
   let inspections: EvidenceInspection[] = structuredClone(previousRevision?.inspections ?? []);
+  const reservedInspectionIds = new Map<EvidenceId, InspectionId>();
+  for (const item of prepared.evidence) {
+    const existing = inspections.find((inspection) => inspection.evidence_id === item.id);
+    if (existing === undefined) reservedInspectionIds.set(item.id, allocator.nextInspectionId());
+  }
 
   const claimRefs = new Map<string, Claim['id']>();
   const gapRefs = new Map<string, Gap['id']>();
@@ -342,9 +350,15 @@ function applyValidatedProposal(input: ApplyProposalInput): LedgerV3Case {
         break;
       }
       case 'inspect_source': {
+        const evidenceItem = evidence.find((item) => item.id === operation.evidence_id);
+        if (evidenceItem?.acquisition_method === 'authoritative_web_retrieval') {
+          throw new Error('Authoritative web evidence inspection is server-owned: ' + operation.evidence_id);
+        }
         const index = inspections.findIndex((inspection) => inspection.evidence_id === operation.evidence_id);
         const inspection: EvidenceInspection = {
-          id: index < 0 ? allocator.nextInspectionId() : inspections[index].id,
+          id: index < 0
+            ? reservedInspectionIds.get(operation.evidence_id) ?? allocator.nextInspectionId()
+            : inspections[index].id,
           evidence_id: operation.evidence_id,
           source_attribution: operation.source_attribution,
           case_object_match: operation.case_object_match,
@@ -409,6 +423,45 @@ function applyValidatedProposal(input: ApplyProposalInput): LedgerV3Case {
     }
   }
 
+  for (const item of prepared.evidence) {
+    if (item.acquisition_method !== 'authoritative_web_retrieval') continue;
+    if (inspections.some((inspection) => inspection.evidence_id === item.id)) {
+      throw new Error('Authoritative web evidence received a provider-authored inspection: ' + item.id);
+    }
+    const provenance = item.web_provenance;
+    if (provenance === undefined) {
+      throw new Error('Authoritative web evidence is missing server provenance: ' + item.id);
+    }
+    const inspection: EvidenceInspection = {
+      id: reservedInspectionIds.get(item.id) ?? allocator.nextInspectionId(),
+      evidence_id: item.id,
+      source_attribution: SemanticTextSchema.parse(
+        `${provenance.publisher} — ${provenance.page_title} (${provenance.source_url})`
+      ),
+      case_object_match: SemanticTextSchema.parse(
+        `Authority is limited to this public scope: ${provenance.authority_scope}`
+      ),
+      match_status: 'not_assessed',
+      completeness_context: SemanticTextSchema.parse(
+        'The ledger preserves the admitted source excerpt and provenance, not a full webpage snapshot.'
+      ),
+      integrity_signals: SemanticTextSchema.parse(
+        'The source URL was returned by Google Search grounding and passed server-owned HTTPS, domain-authority, and source-class admission.'
+      ),
+      limitations: [
+        SemanticTextSchema.parse('The excerpt supports only its stated authority scope and retrieval time.'),
+        SemanticTextSchema.parse('It does not verify a private account, transaction, identity, eligibility decision, or physical object.'),
+      ],
+    };
+    inspections.push(inspection);
+    recordChange(
+      'inspection',
+      inspection.id,
+      SemanticTextSchema.parse('Recorded a server-admitted authoritative web excerpt.'),
+      [item.id]
+    );
+  }
+
   const uncoveredOpenGaps = gaps.filter((gap) =>
     gap.status === 'open' && !actions.some((action) =>
       action.target_gap_ids.includes(gap.id) &&
@@ -428,6 +481,18 @@ function applyValidatedProposal(input: ApplyProposalInput): LedgerV3Case {
   for (const sourceId of introducedSources) {
     if (!newRelationships.some((relationship) => relationship.source_id === sourceId)) {
       throw new Error('Every introduced source requires an explicit disposition: ' + sourceId);
+    }
+  }
+
+  for (const item of prepared.evidence) {
+    if (item.acquisition_method !== 'authoritative_web_retrieval') continue;
+    const dispositions = newRelationships.filter((relationship) => relationship.source_id === item.id);
+    if (!dispositions.some((relationship) =>
+      relationship.relationship_type === 'supports_claim' ||
+      relationship.relationship_type === 'qualifies_claim' ||
+      relationship.relationship_type === 'conflicts_with_claim'
+    )) {
+      throw new Error('Authoritative web evidence must be admitted against a bounded claim: ' + item.id);
     }
   }
 

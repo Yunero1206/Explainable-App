@@ -4,6 +4,7 @@ import { createLedgerIdAllocator } from '../src/ledger/idAllocator.js';
 import {
   BlobRefSchema,
   ByteSizeSchema,
+  DomainTimeTextSchema,
   EvidenceIdSchema,
   MimeTypeSchema,
   PreservedNonBlankTextSchema,
@@ -28,6 +29,11 @@ import {
   type ProposalProvider,
   type ProviderAttachment,
 } from './proposalProvider.js';
+import {
+  runAuthoritativeRetrieval,
+  type AuthoritativeRetriever,
+} from './authoritativeRetrieval.js';
+import { emptyRetrievalResult } from '../src/retrieval/types.js';
 
 export interface IntakeAttachmentPayload {
   name: string;
@@ -48,6 +54,7 @@ export interface IntakePayload {
 
 export interface IntakeServiceDependencies {
   provider?: ProposalProvider;
+  retriever?: AuthoritativeRetriever;
   now?: () => Date;
 }
 
@@ -121,6 +128,11 @@ function validationContext(parent: LedgerV3Case, prepared: PreparedLedgerIntake)
     existingGapIds: new Set(head?.gaps.map((item) => item.id) ?? []),
     existingEventIds: new Set(head?.events.map((item) => item.id) ?? []),
     existingActionIds: new Set(head?.actions.map((item) => item.id) ?? []),
+    serverOwnedEvidenceIds: new Set(
+      prepared.evidence
+        .filter((item) => item.acquisition_method === 'authoritative_web_retrieval')
+        .map((item) => item.id)
+    ),
   };
 }
 
@@ -141,6 +153,7 @@ function rejectedRun(input: {
 
 export function createIntakeService(dependencies: IntakeServiceDependencies = {}) {
   const provider = dependencies.provider ?? runProposalProvider;
+  const retriever = dependencies.retriever ?? runAuthoritativeRetrieval;
   const now = dependencies.now ?? (() => new Date());
 
   return async function runIntake(payload: IntakePayload): Promise<IntakeResponse> {
@@ -223,6 +236,55 @@ export function createIntakeService(dependencies: IntakeServiceDependencies = {}
     };
 
     const startedAt = StructuralInstantSchema.parse(now().toISOString());
+    let retrieval = emptyRetrievalResult('not_requested');
+    if (mode === 'live') {
+      try {
+        retrieval = await retriever({ ledger: parent, prepared, message });
+      } catch (error: unknown) {
+        retrieval = {
+          ...emptyRetrievalResult('provider_error'),
+          failure_reason: error instanceof Error ? error.message : 'Authoritative retrieval failed.',
+        };
+      }
+    }
+
+    for (const source of retrieval.admitted_sources) {
+      const evidenceId = allocator.nextEvidenceId();
+      const retrievedAt = StructuralInstantSchema.parse(now().toISOString());
+      source.evidence_id = evidenceId;
+      evidence.push({
+        id: evidenceId,
+        source_intake_id: intakeId,
+        label: PreservedNonBlankTextSchema.parse(source.page_title),
+        claimed_source: PreservedNonBlankTextSchema.parse(source.publisher),
+        acquisition_method: 'authoritative_web_retrieval',
+        input_form: 'web_excerpt',
+        original_domain_time: source.published_or_updated_at === null
+          ? null
+          : DomainTimeTextSchema.parse(source.published_or_updated_at),
+        subject_object_ids: [],
+        content: {
+          raw_text: PreservedNonBlankTextSchema.parse(source.source_excerpt),
+          extracted_text: null,
+          blob: null,
+        },
+        web_provenance: {
+          publisher: PreservedNonBlankTextSchema.parse(source.publisher),
+          page_title: PreservedNonBlankTextSchema.parse(source.page_title),
+          source_url: source.source_url,
+          published_or_updated_at: source.published_or_updated_at === null
+            ? null
+            : DomainTimeTextSchema.parse(source.published_or_updated_at),
+          retrieved_at: retrievedAt,
+          authority_kind: source.authority_kind,
+          authority_entity: PreservedNonBlankTextSchema.parse(source.authority_entity),
+          authority_scope: PreservedNonBlankTextSchema.parse(source.authority_scope),
+          search_query: PreservedNonBlankTextSchema.parse(source.search_query),
+        },
+      });
+      parts.push({ kind: 'evidence', evidence_id: evidenceId });
+    }
+
     const runBase: Omit<ModelRunAudit, 'finished_at' | 'status' | 'committed_revision_id' | 'validation_errors'> = {
       id: modelRunId,
       case_id: parent.id,
@@ -234,6 +296,18 @@ export function createIntakeService(dependencies: IntakeServiceDependencies = {}
       prompt_version: INFERENCE_MODEL.promptVersion,
       started_at: startedAt,
       raw_response_text: null,
+      retrieval_trace: {
+        status: retrieval.status,
+        requests: retrieval.requests.map((request) => ({ ...request })),
+        executed_queries: [...retrieval.executed_queries],
+        admitted_evidence_ids: retrieval.admitted_sources.flatMap((source) =>
+          source.evidence_id === undefined ? [] : [source.evidence_id]
+        ),
+        rejected_candidates: retrieval.rejected_candidates.map((candidate) => ({
+          reason_code: candidate.reason_code,
+        })),
+        failure_reason: retrieval.failure_reason,
+      },
     };
 
     let result: Awaited<ReturnType<ProposalProvider>>;
@@ -243,6 +317,7 @@ export function createIntakeService(dependencies: IntakeServiceDependencies = {}
         prepared,
         message,
         attachments: providerAttachments,
+        retrieval,
       });
     } catch (error: unknown) {
       const messageText = error instanceof Error ? error.message : 'Provider call failed.';
@@ -262,8 +337,9 @@ export function createIntakeService(dependencies: IntakeServiceDependencies = {}
         sourceTexts: [
           message,
           ...prepared.evidence.flatMap((item) => [
-            item.content.raw_text ?? '',
-            item.content.extracted_text ?? '',
+            ...(item.acquisition_method === 'authoritative_web_retrieval'
+              ? []
+              : [item.content.raw_text ?? '', item.content.extracted_text ?? '']),
           ]),
         ],
         proposal,

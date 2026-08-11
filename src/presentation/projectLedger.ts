@@ -43,7 +43,10 @@ export function projectLedger(input: {
       id: statement.id,
       text: statement.text,
       submitted_at: receivedAt(ledger, statement.source_intake_id),
-      attachment_ids: intake?.parts.filter((part) => part.kind === 'evidence').map((part) => part.evidence_id) ?? [],
+      attachment_ids: intake?.parts
+        .filter((part) => part.kind === 'evidence')
+        .map((part) => part.evidence_id)
+        .filter((id) => ledger.evidence.find((item) => item.id === id)?.acquisition_method !== 'authoritative_web_retrieval') ?? [],
       disposition: disposition?.relationship_type,
       disposition_reason: disposition?.reason,
     };
@@ -86,6 +89,9 @@ export function projectLedger(input: {
       completeness_context: inspection?.completeness_context ?? '',
       integrity_signals: inspection?.integrity_signals ?? '',
       limitations: inspection === undefined ? [] : [...inspection.limitations],
+      ...(item.web_provenance === undefined ? {} : {
+        web_provenance: { ...item.web_provenance },
+      }),
     };
   });
 
@@ -332,14 +338,27 @@ export function deriveChatMessages(
         }));
       const fileLabels = intake.parts
         .filter((part) => part.kind === 'evidence')
-        .map((part) => evidenceById.get(part.evidence_id)?.label)
+        .map((part) => evidenceById.get(part.evidence_id))
+        .filter((item) => item?.acquisition_method !== 'authoritative_web_retrieval')
+        .map((item) => item?.label)
         .filter((label) => label !== undefined);
+      const userSourceIds: string[] = [];
+      for (const part of intake.parts) {
+        if (part.kind === 'statement') {
+          userSourceIds.push(part.statement_id);
+          continue;
+        }
+        const item = evidenceById.get(part.evidence_id);
+        if (item?.acquisition_method !== 'authoritative_web_retrieval') {
+          userSourceIds.push(part.evidence_id);
+        }
+      }
       messages.push({
         id: `intake-${intake.id}`,
         role: 'user',
         text: statementTexts.length > 0 ? statementTexts.join('\n\n') : `Submitted files: ${fileLabels.join(', ')}`,
         attachments,
-        source_ids: intake.parts.map((part) => part.kind === 'statement' ? part.statement_id : part.evidence_id),
+        source_ids: userSourceIds,
         timestamp: new Date(intake.received_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       });
     }

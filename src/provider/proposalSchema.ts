@@ -242,6 +242,7 @@ export interface ProposalValidationContext {
   existingGapIds: Set<T.GapId>;
   existingEventIds: Set<T.EventId>;
   existingActionIds: Set<T.ActionId>;
+  serverOwnedEvidenceIds?: Set<T.EvidenceId>;
 }
 
 function compactJsonValue(value: unknown): string {
@@ -372,6 +373,9 @@ export function parseProviderProposal(raw: unknown, ctx: ProposalValidationConte
     if (op.operation_type === 'inspect_source') {
       if (!ctx.availableSourceIds.has(op.evidence_id)) {
         throw new Error(`Cannot inspect unavailable source: ${op.evidence_id}`);
+      }
+      if (ctx.serverOwnedEvidenceIds?.has(op.evidence_id)) {
+        throw new Error(`Authoritative web evidence inspection is server-owned: ${op.evidence_id}`);
       }
     }
 

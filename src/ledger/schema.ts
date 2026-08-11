@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type * as T from './types';
+import { isAuthoritativeSourceUrl } from '../retrieval/sourcePolicy';
 
 // ---------------------------------------------------------------------------
 // Branded ID schemas – use .transform() to produce the branded type without
@@ -134,6 +135,7 @@ export const AcquisitionMethodSchema = z.enum([
   'pasted_text',
   'file_drop',
   'manual_entry',
+  'authoritative_web_retrieval',
 ]);
 export const InputFormSchema = z.enum([
   'screenshot',
@@ -143,6 +145,7 @@ export const InputFormSchema = z.enum([
   'receipt',
   'chat_transcript',
   'document',
+  'web_excerpt',
   'other',
 ]);
 export const AssessmentStateSchema = z.enum([
@@ -243,6 +246,28 @@ export const EvidenceContentSchema = z
     }
   });
 
+export const WebEvidenceProvenanceSchema = z.object({
+  publisher: PreservedNonBlankTextSchema,
+  page_title: PreservedNonBlankTextSchema,
+  source_url: z.string().url().max(2048).refine((value) => value.startsWith('https://'), {
+    message: 'Web evidence source_url must use HTTPS',
+  }),
+  published_or_updated_at: DomainTimeTextSchema.nullable(),
+  retrieved_at: StructuralInstantSchema,
+  authority_kind: z.enum(['first_party_official', 'public_authority']),
+  authority_entity: PreservedNonBlankTextSchema,
+  authority_scope: PreservedNonBlankTextSchema,
+  search_query: PreservedNonBlankTextSchema,
+}).strict().superRefine((value, context) => {
+  if (!isAuthoritativeSourceUrl(value.source_url, value.authority_entity, value.authority_kind)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Web evidence URL does not match the declared first-party/public authority',
+      path: ['source_url'],
+    });
+  }
+});
+
 export const CanonicalEvidenceSchema = z
   .object({
     id: EvidenceIdSchema,
@@ -258,6 +283,7 @@ export const CanonicalEvidenceSchema = z
         message: 'Duplicate subject_object_ids',
       }),
     content: EvidenceContentSchema,
+    web_provenance: WebEvidenceProvenanceSchema.optional(),
   })
   .strict()
   .superRefine((val, ctx) => {
@@ -279,6 +305,34 @@ export const CanonicalEvidenceSchema = z
           code: z.ZodIssueCode.custom,
           message: 'blob required for user_upload/file_drop',
         });
+    } else if (m === 'authoritative_web_retrieval') {
+      if (val.input_form !== 'web_excerpt')
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'authoritative_web_retrieval requires web_excerpt input form',
+        });
+      if (val.content.raw_text === null || val.content.extracted_text !== null || val.content.blob !== null)
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'authoritative web evidence must preserve one raw excerpt without extracted text or blob',
+        });
+      if (val.web_provenance === undefined)
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'authoritative web evidence requires web_provenance',
+        });
+    }
+    if (m !== 'authoritative_web_retrieval' && val.web_provenance !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'web_provenance is allowed only for authoritative_web_retrieval',
+      });
+    }
+    if (m !== 'authoritative_web_retrieval' && val.input_form === 'web_excerpt') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'web_excerpt is allowed only for authoritative_web_retrieval',
+      });
     }
   });
 

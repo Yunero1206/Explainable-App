@@ -197,6 +197,113 @@ describe('Ledger V3 intake boundary', () => {
     expect(result.ledger.relationships[0]?.relationship_type).toBe('not_yet_classified');
   });
 
+  it('admits grounded authoritative web retrieval as a bounded server-owned evidence source', async () => {
+    const rawResponse = JSON.stringify({
+      explanation: {
+        text: 'PNJ đã công bố chính sách mua lại chung, nhưng nguồn này không xác nhận điều kiện hay giá trị của chiếc nhẫn cụ thể.',
+        user_goal: 'Xác định thông tin công khai nào hỗ trợ quyết định bán, đổi hoặc giữ chiếc nhẫn.',
+      },
+      operations: [
+        {
+          operation_type: 'add_claim',
+          local_ref: 'new_claim_1',
+          proposition: 'PNJ đã công bố thông tin chung về việc tiếp nhận giao dịch mua lại tại các địa điểm và thời gian được liệt kê.',
+          actor: 'PNJ',
+          action: 'đã công bố',
+          target: 'thông tin tiếp nhận giao dịch mua lại',
+          domain_time: 'Theo trang được truy xuất ngày 11/08/2026',
+          assessment: 'Established within current record',
+          reasoning: 'Trích đoạn đến từ website chính thức của PNJ và chỉ hỗ trợ chính sách công khai.',
+          scope: 'Chính sách công khai được nêu trong trích đoạn, không phải chiếc nhẫn cụ thể.',
+          limits: ['Không xác nhận chiếc nhẫn đủ điều kiện hoặc sẽ được mua với giá nào.'],
+          source_basis_ids: ['E01'],
+          reason: 'Ghi nhận chính sách công khai trong đúng phạm vi nguồn chính thức.',
+        },
+        {
+          operation_type: 'disposition_source',
+          relationship_type: 'supports_claim',
+          source_id: 'E01',
+          target_ref: 'new_claim_1',
+          reason: 'Website chính thức trực tiếp hỗ trợ tuyên bố về chính sách công khai.',
+        },
+        {
+          operation_type: 'disposition_source',
+          relationship_type: 'not_yet_classified',
+          source_id: 'U01',
+          target_ref: null,
+          reason: 'Nội dung người dùng đặt mục tiêu và câu hỏi, không tự xác lập chính sách của PNJ.',
+        },
+      ],
+    });
+    const runIntake = createIntakeService({
+      now: clock(),
+      retriever: async () => ({
+        status: 'completed',
+        requests: [{
+          request_id: 'RQ01',
+          public_question: 'PNJ công bố chính sách mua lại nào?',
+          search_query: 'PNJ chính sách thu đổi mua lại vàng 18K Sa Đéc',
+          authority_entity: 'PNJ',
+          authority_kind: 'first_party_official',
+          case_specific_exclusion: 'Không xác nhận điều kiện hoặc giá của chiếc nhẫn cụ thể.',
+        }],
+        executed_queries: ['PNJ chính sách thu đổi mua lại vàng 18K Sa Đéc'],
+        admitted_sources: [{
+          request_id: 'RQ01',
+          publisher: 'PNJ',
+          page_title: 'Thông tin thu đổi, mua lại',
+          source_url: 'https://www.pnj.com.vn/blog/thong-tin-thu-doi-mua-lai/',
+          source_excerpt: 'PNJ công bố danh sách cửa hàng tiếp nhận giao dịch mua lại cùng thời gian áp dụng.',
+          published_or_updated_at: '22/07/2026',
+          authority_entity: 'PNJ',
+          authority_kind: 'first_party_official',
+          authority_scope: 'Chính sách mua lại, địa điểm và thời gian do PNJ công bố.',
+          search_query: 'PNJ chính sách thu đổi mua lại vàng 18K Sa Đéc',
+        }],
+        rejected_candidates: [],
+        failure_reason: null,
+      }),
+      provider: async (_mode, input) => {
+        expect(input.prepared.evidence[0]?.acquisition_method).toBe('authoritative_web_retrieval');
+        expect(input.retrieval?.status).toBe('completed');
+        return { provider: 'google-gemini', raw_response_text: rawResponse };
+      },
+    });
+
+    const result = await runIntake({
+      prior_ledger: emptyLedger(),
+      client_request_id: 'request-authoritative-web',
+      message: 'Hãy tra cứu Internet từ nguồn chính thức của PNJ để làm rõ chính sách mua lại.',
+      inference_mode: 'live',
+    });
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    const webEvidence = result.ledger.evidence[0];
+    expect(webEvidence).toMatchObject({
+      id: 'E01',
+      acquisition_method: 'authoritative_web_retrieval',
+      input_form: 'web_excerpt',
+      web_provenance: {
+        publisher: 'PNJ',
+        source_url: 'https://www.pnj.com.vn/blog/thong-tin-thu-doi-mua-lai/',
+      },
+    });
+    expect(result.ledger.revisions[0]?.inspections[0]).toMatchObject({
+      evidence_id: 'E01',
+      match_status: 'not_assessed',
+    });
+    expect(result.ledger.relationships.find((relationship) => relationship.source_id === 'E01')).toMatchObject({
+      relationship_type: 'supports_claim',
+      target_id: 'C01',
+    });
+    expect(result.run.retrieval_trace).toMatchObject({
+      status: 'completed',
+      admitted_evidence_ids: ['E01'],
+      executed_queries: ['PNJ chính sách thu đổi mua lại vàng 18K Sa Đéc'],
+    });
+  });
+
   it('maps an invalid request to HTTP 400 and a rejected proposal to HTTP 422', async () => {
     const app = createApp({ runIntake: createIntakeService({ now: clock() }) });
     const invalid = await request(app).post('/api/intake').send({ prior_ledger: emptyLedger() });

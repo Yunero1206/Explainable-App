@@ -130,6 +130,15 @@ export function ExportModal({ caseData, onClose }: { caseData: PresentationCaseD
                     <p className="text-slate-500">{t.completeness}: {evidence.completeness_context}</p>
                     <p className="text-slate-500">{t.integrity}: {evidence.integrity_signals}</p>
                     {evidence.limitations.length > 0 && <p className="text-slate-500">{t.limitations}: {evidence.limitations.join(' · ')}</p>}
+                    {evidence.web_provenance && (
+                      <div className="mt-2 space-y-1 rounded border border-emerald-100 bg-emerald-50/40 p-2 text-slate-600">
+                        <p>{t.sourcePublisher}: {evidence.web_provenance.publisher}</p>
+                        <p>{t.sourcePageTitle}: {evidence.web_provenance.page_title}</p>
+                        <p>{t.sourceUrl}: <span className="break-all">{evidence.web_provenance.source_url}</span></p>
+                        <p>{t.retrievedAt}: {evidence.web_provenance.retrieved_at}</p>
+                        <p>{t.authorityScope}: {evidence.web_provenance.authority_scope}</p>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

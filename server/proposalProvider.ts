@@ -4,6 +4,7 @@ import type { LedgerV3Case, SourceId } from '../src/ledger/types.js';
 import type { PreparedLedgerIntake } from '../src/ledger/applyProposal.js';
 import { ProviderProposalSchema } from '../src/provider/proposalSchema.js';
 import type { ProviderProposal } from '../src/provider/proposalTypes.js';
+import type { AuthoritativeRetrievalResult } from '../src/retrieval/types.js';
 import { INFERENCE_MODEL } from './inference/modelConfig.js';
 
 export type InferenceMode = 'replay' | 'live';
@@ -20,6 +21,7 @@ export interface ProposalProviderInput {
   prepared: PreparedLedgerIntake;
   message: string;
   attachments: ProviderAttachment[];
+  retrieval?: AuthoritativeRetrievalResult;
 }
 
 export interface ProposalProviderResult {
@@ -205,11 +207,17 @@ export function createProposalPrompt(input: ProposalProviderInput): string {
       'Use only supplied canonical source IDs and existing canonical entity IDs.',
       'Declare local refs before referencing them.',
       'Every new source must receive a complete disposition batch with one or more disposition_source operations. The same source may relate to multiple distinct claims or gaps. not_yet_classified must be used alone for that source.',
-      'Every new evidence source must receive exactly one inspect_source operation.',
+      'Every new user-submitted evidence source must receive exactly one inspect_source operation. Authoritative web evidence already has a server-owned inspection; never emit inspect_source for an evidence item whose acquisition_method is authoritative_web_retrieval.',
       'Every new claim must receive at least one claim disposition.',
       'Use operation_type and relationship_type values exactly as declared by the response schema; never invent or paraphrase enum values.',
       'For disposition_source, use supports_claim, qualifies_claim, or conflicts_with_claim only with a non-null claim ID/ref; raises_gap only with a non-null gap ID/ref; corrects_statement only with a non-null statement ID; and not_yet_classified only with target_ref null.',
       'A report establishes what that source reported, not objective truth. Use only the five declared assessment states and never infer fault, causality, future events, missing facts, or certainty beyond the record.',
+      'USER SOURCES COME FIRST. Analyze the user statement and uploaded evidence before authoritative web evidence. Search retrieval is allowed to address only the remaining public information need; it is not permission to research or corroborate the whole case.',
+      'Only evidence items with acquisition_method authoritative_web_retrieval passed the server web-admission boundary. Never create or cite a URL from memory, a user statement, a search snippet, or model knowledge.',
+      'Authority is claim-specific. First-party web evidence may establish only the public policy, published price, public location/hours, or other authority_scope recorded in web_provenance. It cannot establish a private account state, transaction outcome, identity, object authenticity, object weight/value, case eligibility, or future completion.',
+      'Never promote Reddit, personal social posts, forums, media, blogs, aggregators, official social posts, search pages, or AI answers into evidence. If the server admitted no authoritative source for a requested public need, leave that need unresolved instead of answering from memory.',
+      'When authoritative_retrieval.status is blocked, provider_error, or no_authoritative_source, do not create a current-public-fact finding from model knowledge. Preserve the unresolved public need as a user-intent Gap with an Action for direct official confirmation or a user upload.',
+      'When user evidence and authoritative web evidence differ, preserve the conflict and their distinct scopes. Do not overwrite the user report or silently choose one source.',
       'Keep real-world event time separate from intake time. Preserve relative time as supplied; use a bounded unknown description when event time is absent.',
       'USER INTENT GOVERNS GAPS. Infer the concrete decision, outcome, or issue the user is trying to clarify from the current intake and accepted context. Create a gap only when a genuinely missing fact or evidence item blocks that intent. Do not create generic completeness, corroboration, provenance, or verification gaps merely because a finding is reported or single-sourced.',
       'Write gap.question as one concise, self-contained description of what is missing and how that missing point blocks the user goal. It is the product-facing gap description, not a multi-part checklist and not a generic question such as asking for independent verification.',
@@ -234,6 +242,18 @@ export function createProposalPrompt(input: ProposalProviderInput): string {
       record: input.prepared.intake,
       statements: input.prepared.statements,
       evidence: input.prepared.evidence,
+    },
+    authoritative_retrieval: input.retrieval === undefined ? null : {
+      status: input.retrieval.status,
+      requests: input.retrieval.requests.map((request) => ({
+        request_id: request.request_id,
+        public_question: request.public_question,
+        case_specific_exclusion: request.case_specific_exclusion,
+      })),
+      admitted_evidence_ids: input.retrieval.admitted_sources
+        .map((source) => source.evidence_id)
+        .filter((id) => id !== undefined),
+      failure_reason: input.retrieval.failure_reason,
     },
   }, null, 2);
 }

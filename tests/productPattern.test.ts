@@ -228,7 +228,7 @@ describe('restored product analysis pattern', () => {
     expect(exported.gaps_and_actions).toHaveLength(3);
     expect(exported.timeline[4].keys).toMatchObject({ case_number: 'CASE-001', event: 'EV05', findings: ['C05'] });
     expect(exported.gaps_and_actions[0].keys.events).toEqual(['EV05', 'EV06']);
-    expect(exported.export_version).toBe('case-view-2.1.0');
+    expect(exported.export_version).toBe('case-view-2.2.0');
     expect(serialized).not.toContain('resolving_evidence');
     expect(serialized).not.toContain('acquisition_guidance');
     expect(serialized).not.toContain('collection_boundary');

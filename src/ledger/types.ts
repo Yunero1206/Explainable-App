@@ -30,7 +30,8 @@ export type AcquisitionMethod =
   | 'user_upload'
   | 'pasted_text'
   | 'file_drop'
-  | 'manual_entry';
+  | 'manual_entry'
+  | 'authoritative_web_retrieval';
 
 export type InputForm =
   | 'screenshot'
@@ -40,7 +41,10 @@ export type InputForm =
   | 'receipt'
   | 'chat_transcript'
   | 'document'
+  | 'web_excerpt'
   | 'other';
+
+export type WebAuthorityKind = 'first_party_official' | 'public_authority';
 
 export type AssessmentState =
   | 'Reported'
@@ -131,6 +135,18 @@ export interface EvidenceContent {
   blob: BlobMetadata | null;
 }
 
+export interface WebEvidenceProvenance {
+  publisher: PreservedNonBlankText;
+  page_title: PreservedNonBlankText;
+  source_url: string;
+  published_or_updated_at: DomainTimeText | null;
+  retrieved_at: StructuralInstant;
+  authority_kind: WebAuthorityKind;
+  authority_entity: PreservedNonBlankText;
+  authority_scope: PreservedNonBlankText;
+  search_query: PreservedNonBlankText;
+}
+
 export interface CanonicalEvidence {
   id: EvidenceId;
   source_intake_id: IntakeId;
@@ -141,6 +157,8 @@ export interface CanonicalEvidence {
   original_domain_time: DomainTimeText | null;
   subject_object_ids: PreservedNonBlankText[];
   content: EvidenceContent;
+  /** Present only for server-admitted first-party/public-authority excerpts. */
+  web_provenance?: WebEvidenceProvenance;
 }
 
 export type AcceptedRelationship =

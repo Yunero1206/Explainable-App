@@ -1,5 +1,5 @@
-import React from 'react';
-import { ExternalLink, FileText, Quote, X } from 'lucide-react';
+import React, { useState } from 'react';
+import { Check, Copy, ExternalLink, FileText, Quote, X } from 'lucide-react';
 import type { CaseReference, PresentationCaseData } from '../types.js';
 import { CaseKeyButton } from './CaseKeyButton.js';
 import { useLanguage } from '../contexts/LanguageContext.js';
@@ -16,6 +16,7 @@ export function ReferenceDetailModal({
   onSelectReference: (reference: CaseReference) => void;
 }) {
   const { t } = useLanguage();
+  const [copiedUrl, setCopiedUrl] = useState(false);
   const finding = reference.kind === 'finding'
     ? caseData.claims.find((item) => item.id === reference.id)
     : undefined;
@@ -51,6 +52,17 @@ export function ReferenceDetailModal({
 
   const isImage = evidence?.file_type?.startsWith('image/') ?? false;
   const isPdf = evidence?.file_type === 'application/pdf';
+  const web = evidence?.web_provenance;
+
+  const copySourceUrl = async () => {
+    if (web === undefined || navigator.clipboard?.writeText === undefined) return;
+    try {
+      await navigator.clipboard.writeText(web.source_url);
+      setCopiedUrl(true);
+    } catch {
+      setCopiedUrl(false);
+    }
+  };
 
   return (
     <div
@@ -164,6 +176,51 @@ export function ReferenceDetailModal({
                   </blockquote>
                 )}
               </section>
+
+              {web && (
+                <section className="space-y-3 rounded-xl border border-emerald-100 bg-emerald-50/40 p-4 text-xs text-slate-700">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <span className="mb-1 block font-semibold text-slate-900">{t.sourcePublisher}</span>
+                      <p>{web.publisher}</p>
+                    </div>
+                    <div>
+                      <span className="mb-1 block font-semibold text-slate-900">{t.sourcePageTitle}</span>
+                      <p>{web.page_title}</p>
+                    </div>
+                    <div>
+                      <span className="mb-1 block font-semibold text-slate-900">{t.publishedOrUpdated}</span>
+                      <p>{web.published_or_updated_at ?? '—'}</p>
+                    </div>
+                    <div>
+                      <span className="mb-1 block font-semibold text-slate-900">{t.retrievedAt}</span>
+                      <p>{web.retrieved_at}</p>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <span className="mb-1 block font-semibold text-slate-900">{t.authorityScope}</span>
+                      <p className="leading-relaxed">{web.authority_scope}</p>
+                    </div>
+                  </div>
+                  <div className="border-t border-emerald-100 pt-3">
+                    <span className="mb-1.5 block font-semibold text-slate-900">{t.sourceUrl}</span>
+                    <div className="flex items-start gap-2">
+                      <code className="min-w-0 flex-1 select-all break-all rounded-lg bg-white px-3 py-2 text-[11px] text-slate-700 ring-1 ring-emerald-100">
+                        {web.source_url}
+                      </code>
+                      <button
+                        type="button"
+                        onClick={() => void copySourceUrl()}
+                        className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-white px-2.5 py-2 text-[10px] font-semibold text-emerald-800 ring-1 ring-emerald-200 hover:bg-emerald-50"
+                        title={copiedUrl ? t.urlCopied : t.copyUrl}
+                        aria-label={copiedUrl ? t.urlCopied : t.copyUrl}
+                      >
+                        {copiedUrl ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                        {copiedUrl ? t.urlCopied : t.copyUrl}
+                      </button>
+                    </div>
+                  </div>
+                </section>
+              )}
 
               {(linkedEvents.length > 0 || linkedFindings.length > 0) && (
                 <section className="space-y-2 border-t border-slate-100 pt-4">

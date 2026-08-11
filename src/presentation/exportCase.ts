@@ -1,7 +1,7 @@
 import type { PresentationCaseData } from '../types.js';
 
 export interface CaseViewExport {
-  export_version: 'case-view-2.1.0';
+  export_version: 'case-view-2.2.0';
   case: {
     case_id: string;
     case_number: string;
@@ -39,6 +39,17 @@ export interface CaseViewExport {
       completeness_context: string;
       integrity_signals: string;
       limitations: string[];
+      web_provenance?: {
+        publisher: string;
+        page_title: string;
+        source_url: string;
+        published_or_updated_at: string | null;
+        retrieved_at: string;
+        authority_kind: 'first_party_official' | 'public_authority';
+        authority_entity: string;
+        authority_scope: string;
+        search_query: string;
+      };
     }>;
     findings: Array<{
       id: string;
@@ -77,7 +88,7 @@ export function buildCaseViewExport(caseData: PresentationCaseData): CaseViewExp
   const findingById = new Map(caseData.claims.map((item) => [item.id, item]));
 
   return {
-    export_version: 'case-view-2.1.0',
+    export_version: 'case-view-2.2.0',
     case: {
       case_id: caseData.id,
       case_number: caseData.case_number,
@@ -117,6 +128,9 @@ export function buildCaseViewExport(caseData: PresentationCaseData): CaseViewExp
           completeness_context: item.completeness_context,
           integrity_signals: item.integrity_signals,
           limitations: [...item.limitations],
+          ...(item.web_provenance === undefined ? {} : {
+            web_provenance: { ...item.web_provenance },
+          }),
         })),
       findings: event.finding_ids
         .map((id) => findingById.get(id))

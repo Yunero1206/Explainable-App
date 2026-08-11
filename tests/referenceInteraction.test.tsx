@@ -180,4 +180,64 @@ describe('case reference interactions', () => {
     expect(screen.getByText('Xuất vụ việc')).toBeTruthy();
     expect(screen.getAllByText(finding.text).length).toBeGreaterThan(0);
   });
+
+  it('shows a web evidence excerpt and copyable URL without opening or embedding the webpage', async () => {
+    const { projected } = sample();
+    const sourceUrl = 'https://www.pnj.com.vn/blog/thong-tin-thu-doi-mua-lai/';
+    const original = {
+      id: 'E99',
+      label: 'Thông tin thu đổi, mua lại',
+      claimed_source: 'PNJ',
+      acquisition_method: 'authoritative_web_retrieval' as const,
+      input_form: 'web_excerpt' as const,
+      evidence_time: '22/07/2026',
+      received_at: '2026-08-11T14:00:00.000Z',
+      subject_object_ids: [],
+      content: 'PNJ công bố danh sách cửa hàng tiếp nhận giao dịch mua lại.',
+      source_attribution: 'Website chính thức của PNJ.',
+      case_object_match: 'Chỉ khớp phạm vi chính sách công khai.',
+      case_object_match_status: 'not_assessed' as const,
+      completeness_context: 'Chỉ lưu trích đoạn nguồn.',
+      integrity_signals: 'URL đã qua admission.',
+      limitations: ['Không xác nhận chiếc nhẫn cụ thể.'],
+    };
+    const caseData = {
+      ...projected,
+      evidence: [{
+        ...original,
+        web_provenance: {
+          publisher: 'PNJ',
+          page_title: 'Thông tin thu đổi, mua lại',
+          source_url: sourceUrl,
+          published_or_updated_at: '22/07/2026',
+          retrieved_at: '2026-08-11T14:00:00.000Z',
+          authority_kind: 'first_party_official' as const,
+          authority_entity: 'PNJ',
+          authority_scope: 'Chính sách mua lại, địa điểm và thời gian do PNJ công bố.',
+          search_query: 'PNJ chính sách thu đổi mua lại vàng 18K Sa Đéc',
+        },
+      }, ...projected.evidence],
+    };
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+
+    render(
+      <LanguageProvider>
+        <ReferenceDetailModal
+          caseData={caseData}
+          reference={{ kind: 'evidence', id: original.id }}
+          onClose={() => undefined}
+          onSelectReference={() => undefined}
+        />
+      </LanguageProvider>
+    );
+
+    expect(screen.getByText('PNJ công bố danh sách cửa hàng tiếp nhận giao dịch mua lại.')).toBeTruthy();
+    expect(screen.getByText(sourceUrl)).toBeTruthy();
+    expect(document.querySelector(`a[href="${sourceUrl}"]`)).toBeNull();
+    expect(document.querySelector('iframe')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Copy URL' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(sourceUrl));
+    expect(screen.getByRole('button', { name: 'URL copied' })).toBeTruthy();
+  });
 });
