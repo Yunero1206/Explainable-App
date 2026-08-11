@@ -6,7 +6,7 @@ Repository: `Yunero1206/Explainable-App`
 
 Branch intent: `main` → `origin/main`
 
-Audited HEAD: `9c606f7`
+Audited HEAD: `7ce888a`
 Current phase: **Phase 1A-R Architecture Reset — active and unaccepted**
 
 Persistence/Reload: **pending and inactive**
@@ -25,7 +25,7 @@ The implementation candidate is rejected. Green compile/build reports do not clo
 ## Verified source facts at HEAD
 
 - Ledger V3 strict domain contracts, schema, and tests are implemented and pass validation.
-- The negative test matrix is complete and enforces temporal invariants, branding correctness, delta operations, ID duplication and source integrity constraints independently.
+- The negative test matrix explicitly tests all transition/gap variants, missing/extra sources, delta operations, ID families, duplicate items, and unknown keys independently without genesis rejections.
 - Reconstruction and translation hard-code `gemini-3.6-flash` separately.
 - Provider output is a complete snapshot with provider-supplied IDs.
 - V2 transition code infers changes by comparing provider arrays with the parent.

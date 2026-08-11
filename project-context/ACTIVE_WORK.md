@@ -5,13 +5,13 @@
 - Workstream: `AR` — Proposal Boundary + Ledger V3
 - Repository: `Yunero1206/Explainable-App`
 - Starting base SHA: `f6eacf784ddc07d89823d013445042c4239e63ad`
-- Phase status: complete
+- Phase status: active, unaccepted
 - Persistence/Reload: pending, inactive
 - V0 status: not accepted
-- Active micro-slice: none
-- Active status: COMPLETED
-- Last verified implementation SHA: 9c606f7
-- Last checkpoint SHA: pending
+- Active micro-slice: AR-S1
+- Active status: COMPLETE — AWAITING USER CONTINUE
+- Last verified implementation SHA: 9c606f765ca6c17b50429a6abc1f17c0c5d2cea1
+- Final test-conformance SHA: 7ce888abda51f7b5686407519eeef96889e1a694
 
 ## AR-S1 — Ledger V3 contract
 
@@ -87,20 +87,23 @@ No V2 migration, provider schema, Gemini call, proposal application, UI wiring, 
 - Implemented strict Ledger V3 domain contract in `src/ledger` (types, schema, factory, index) without prohibited constructs (`any`, `as any`, `as unknown as`, `z.any()`).
 - Included all 20+ admission invariants directly in `parseLedgerV3`.
 - Implemented fully-typed neutral test builders in `tests/fixtures/ledgerV3.ts`.
-- Validated complete P01-P10 and N01-N38 test matrix exactly against the approved Ledger V3 Schema Decision Record in `tests/ledgerV3Schema.test.ts`.
+- Validated P01-P10 and initial N01-N39 test matrix against the approved Ledger V3 Schema Decision Record in `tests/ledgerV3Schema.test.ts`.
 - Committed first corrective implementation (SHA `a442aaf`, parent `92a7f55`).
-- Executed second bounded corrective pass for remaining required missing tests.
-- Added explicit negative matrix tests (N39) for ID duplications, wrong-family validation, ID patterns, and temporal constraints.
-- Updated P10 tests to fully cover `intake_ledger` requirement constraints without false positives.
-- Committed full corrective implementation:
-  - Implementation SHA: `0118bd207becbcdd4bf79f6fb6b1d3ec84b68a0e`
-  - Parent SHA: `ec6188d34343a9906e7ddf55aeaf8e5b45b05876`
-  - Changed files: `tests/ledgerV3Schema.test.ts` (306 insertions, 28 deletions)
+- Executed second bounded corrective pass to remove generator scripts and unauthorized artifacts.
+- Committed production/cleanup implementation:
+  - Implementation SHA: `9c606f765ca6c17b50429a6abc1f17c0c5d2cea1`
+  - Parent SHA: `018b3c1f1db4a2c869cc5c52a8fab08ba83fcd9f`
+- Executed final test-and-checkpoint-only correction pass to remove N30/N31 false positive genesis rejections and formally break out all remaining N39 assertions into their required explicit N01, N03, N04, N11, N32, N33, and N35 matrix complement tests.
+- Committed final test-conformance corrections:
+  - Implementation SHA: `7ce888abda51f7b5686407519eeef96889e1a694`
+  - Parent SHA: `e629138fbf4cd35d737aeb9f46640ec1139ee87a`
+  - Changed files: `tests/ledgerV3Schema.test.ts` (373 insertions, 371 deletions)
 
 ### Gate results
 
-- `cmd.exe /c "npm test 2>&1"`: Passed (390/390 tests, 0 failed).
-- `cmd.exe /c "npm run lint 2>&1"` (`tsc --noEmit`): Passed (0 errors).
+- `npm test -- tests/ledgerV3Schema.test.ts`: Passed (330/330 tests, 0 failed).
+- `npm test`: Passed (458/458 tests).
+- `npm run lint`: Passed (0 errors).
 - `git diff --check`: Passed.
 
 ### Dirty files / WIP
