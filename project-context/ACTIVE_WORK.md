@@ -90,13 +90,12 @@ No Gemini SDK call, no ID allocation, no ledger mutation, no App/server endpoint
 * Prior Correction 1 SHA: `7d1150093c90a33e4cafd4117278de1bca919027` (parent: `62777dddcb3c54dcd733d1f193fcbdc2700aac40`)
 * Prior Correction 2 SHA: `2a2b60063a95c7dc801638e24876ebdd9b9f6a5f` (parent: `677fc050541a76da296ca0d025cead6c91658048`)
 * New Correction SHA: `761feb0c0b83f26633b73189f77ea4973c1c922c` (parent: `a564fae3b03fd2a2c1f63c7787011560e2d52176`)
+* Verification/Test-Conformance SHA: `6fb3ebf136c14bdcdf9827cf5e1ee27292bd4038` (parent: `4ebbb1cd5a0b8c9a23335a5b4f03e02f454175ea`)
 * Modified Files:
-  - `src/provider/proposalSchema.ts`
-  - `src/provider/proposalTypes.ts`
   - `tests/proposalSchema.test.ts`
 * Gate Results:
-  - `npm test -- tests/proposalSchema.test.ts`: Passed (42/42 focused tests passed, exit code 0)
-  - `npm test`: Passed (500/500 global tests passed, exit code 0)
+  - `npm test -- tests/proposalSchema.test.ts`: Passed (57/57 focused tests passed, exit code 0)
+  - `npm test`: Passed (515/515 global tests passed, exit code 0)
   - `npm run lint`: Passed (exit code 0)
   - `git diff --check`: Passed (exit code 0)
   - `rg -n "\bas any\b|as unknown as|z\.any\(\)|z\.ZodTypeAny|@ts-expect-error" src/provider tests/proposalSchema.test.ts`: Passed (0 results, exit code 1)
