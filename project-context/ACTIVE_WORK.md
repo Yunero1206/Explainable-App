@@ -85,17 +85,18 @@ No Gemini SDK call, no ID allocation, no ledger mutation, no App/server endpoint
 
 - Centralized inference model config to exactly `gemini-3.5-flash` in `server/inference/modelConfig.ts`.
 - Updated `.env.example` to document model config.
-- Implemented `src/provider/proposalTypes.ts` mapping exact operation types to canonical Ledger V3 IDs and local references.
-- Implemented strict structured-output compatible schema in `src/provider/proposalSchema.ts`.
+- Implemented `src/provider/proposalTypes.ts` mapping exact operation types to canonical Ledger V3 IDs and local references, strictly without placeholders.
+- Implemented strict structured-output compatible schema in `src/provider/proposalSchema.ts` utilizing properly discriminated unions for source disposition.
+- Asserted `z.toJSONSchema` compatibility for structural JSON Schema derivation.
 - Implemented context-dependent semantic validation to reject unknown/wrong-family references, duplicate local refs, and missing sources.
-- Proved 17 positive and negative counterexamples in `tests/proposalSchema.test.ts`.
-- Committed implementation (SHA `55da3ad`, parent `c018f2c`).
+- Proved 22 positive and negative counterexamples in `tests/proposalSchema.test.ts`.
+- Committed corrective implementation (SHA `7d1150093c90a33e4cafd4117278de1bca919027`, parent `62777dddcb3c54dcd733d1f193fcbdc2700aac40`).
 
 ### Gate results
 
-- `npm test -- tests/proposalSchema.test.ts`: Passed (17/17 tests).
+- `npm test -- tests/proposalSchema.test.ts`: Passed (22/22 tests).
 - `npm run lint`: Passed (0 errors).
-- Negative model string search (`rg` equivalent): Passed (0 matches in `src/provider server/inference/modelConfig.ts .env.example`).
+- Negative model string search (`rg` equivalent): Passed (0 matches for prohibited models in `src/provider server/inference/modelConfig.ts .env.example`).
 - `git diff --check`: Passed.
 
 ### Dirty files / WIP
@@ -228,7 +229,7 @@ No V2 migration, provider schema, Gemini call, proposal application, UI wiring, 
 | ID | Objective | Status |
 |---|---|---|
 | AR-S1 | Add strict Ledger V3 types/schema and neutral fixtures, not wired to runtime | completed |
-| AR-S2 | Add explicit provider proposal schema and central `gemini-3.5-flash` config | active |
+| AR-S2 | Add explicit provider proposal schema and central `gemini-3.5-flash` config | completed |
 | AR-S3 | Add deterministic ID allocation, proposal application, deltas and ledger validation | queued |
 | AR-S4 | Wire typed Gemini/replay providers and V3 server intake boundary with model-run envelope | queued |
 | AR-S5 | Switch App to V3 projection and ledger-derived chat; preserve thin UI | queued |
