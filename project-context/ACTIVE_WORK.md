@@ -83,20 +83,22 @@ No Gemini SDK call, no ID allocation, no ledger mutation, no App/server endpoint
 
 ### Completed
 
-- Centralized inference model config to exactly `gemini-3.5-flash` in `server/inference/modelConfig.ts`.
-- Updated `.env.example` to document model config.
-- Implemented `src/provider/proposalTypes.ts` mapping exact operation types to canonical Ledger V3 IDs and local references, strictly without placeholders.
-- Implemented strict structured-output compatible schema in `src/provider/proposalSchema.ts` utilizing properly discriminated unions for source disposition.
-- Asserted `z.toJSONSchema` compatibility for structural JSON Schema derivation.
-- Implemented context-dependent semantic validation to reject unknown/wrong-family references, duplicate local refs, and missing sources.
-- Proved 22 positive and negative counterexamples in `tests/proposalSchema.test.ts`.
-- Committed corrective implementation (SHA `7d1150093c90a33e4cafd4117278de1bca919027`, parent `62777dddcb3c54dcd733d1f193fcbdc2700aac40`).
+### AR-S2: V0 Assistant explanation and untyped proposal envelope
 
-### Gate results
+**Status:** Active (Final Corrective Pass)
 
-- `npm test -- tests/proposalSchema.test.ts`: Passed (22/22 tests).
-- `npm run lint`: Passed (0 errors).
-- Negative model string search (`rg` equivalent): Passed (0 matches for prohibited models in `src/provider server/inference/modelConfig.ts .env.example`).
+**Implementation Record:**
+* Implementation SHA: `2a2b60063a95c7dc801638e24876ebdd9b9f6a5f`
+* Parent SHA: `677fc050541a76da296ca0d025cead6c91658048`
+* Modified Files:
+  - `src/provider/proposalSchema.ts`
+  - `src/provider/proposalTypes.ts`
+  - `tests/proposalSchema.test.ts`
+* Gate Results:
+  - `npm test`: Passed (540 passed)
+  - `npm run lint`: Passed
+  - Negative scan for prohibited types (`! rg -n "\bas any\b|as unknown as|z\.any\(\)|z\.ZodTypeAny|@ts-expect-error" src/provider tests/proposalSchema.test.ts`): Passed (0 results)
+  - Negative scan for prohibited models (`! rg -n "gemini-3\.6-flash|gemini-.*latest|flash-lite" src/provider server/inference/modelConfig.ts .env.example`): Passed (0 results)
 - `git diff --check`: Passed.
 
 ### Dirty files / WIP

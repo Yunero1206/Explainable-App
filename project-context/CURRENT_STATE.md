@@ -26,7 +26,7 @@ The implementation candidate is rejected. Green compile/build reports do not clo
 
 - Ledger V3 strict domain contracts, schema, and tests are implemented and pass validation.
 - The negative test matrix explicitly tests all transition/gap variants, missing/extra sources, delta operations, ID families, duplicate items, and unknown keys independently without genesis rejections.
-- Provider proposal boundary schema, types, and model configuration (`gemini-3.5-flash`) are centralized, implement strict discriminated unions for source disposition, utilize local reference families (`new_event_`, `new_claim_`, etc.), assert structural Zod 4 JSON Schema compatibility, and pass strict validation.
+- Provider proposal boundary schema, types, and model configuration (`gemini-3.5-flash`) are centralized, implement strict structurally valid unions for source disposition and lossless `EvidenceInspection`, enforce duplicate-free arrays natively via Zod `refine`, utilize local reference families (`new_event_`, `new_claim_`, etc.), eliminate prohibited casts (`as any`, `@ts-expect-error`), assert structural Zod 4 JSON Schema compatibility, and pass strict 41-case independent type-checked validation.
 - Reconstruction and translation hard-code `gemini-3.6-flash` separately.
 - Provider output is a complete snapshot with provider-supplied IDs.
 - V2 transition code infers changes by comparing provider arrays with the parent.
