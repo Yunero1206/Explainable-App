@@ -47,36 +47,138 @@ describe('Proposal Schema and Model Config', () => {
       expect(branches).toBeDefined();
       expect(branches.length).toBe(15);
 
-      for (const branch of branches) {
+      interface ExpectedBranch {
+        operationType: string;
+        relationshipTypes?: readonly string[];
+        required: readonly string[];
+      }
+
+      const expectedBranches: readonly ExpectedBranch[] = [
+        {
+          operationType: 'disposition_source',
+          relationshipTypes: ['supports_claim', 'qualifies_claim', 'conflicts_with_claim'],
+          required: ['operation_type', 'relationship_type', 'source_id', 'target_ref', 'reason'],
+        },
+        {
+          operationType: 'disposition_source',
+          relationshipTypes: ['raises_gap'],
+          required: ['operation_type', 'relationship_type', 'source_id', 'target_ref', 'reason'],
+        },
+        {
+          operationType: 'disposition_source',
+          relationshipTypes: ['corrects_statement'],
+          required: ['operation_type', 'relationship_type', 'source_id', 'target_ref', 'reason'],
+        },
+        {
+          operationType: 'disposition_source',
+          relationshipTypes: ['not_yet_classified'],
+          required: ['operation_type', 'relationship_type', 'source_id', 'target_ref', 'reason'],
+        },
+        {
+          operationType: 'inspect_source',
+          required: ['operation_type', 'evidence_id', 'source_attribution', 'case_object_match', 'match_status', 'completeness_context', 'integrity_signals', 'limitations', 'reason'],
+        },
+        {
+          operationType: 'add_event',
+          required: ['operation_type', 'local_ref', 'domain_time', 'actor', 'action', 'target', 'effect', 'assessment', 'source_basis_ids', 'reason'],
+        },
+        {
+          operationType: 'update_event',
+          required: ['operation_type', 'target_id', 'source_basis_ids', 'reason'],
+        },
+        {
+          operationType: 'add_claim',
+          required: ['operation_type', 'local_ref', 'proposition', 'actor', 'action', 'target', 'domain_time', 'assessment', 'reasoning', 'scope', 'limits', 'source_basis_ids', 'reason'],
+        },
+        {
+          operationType: 'update_claim',
+          required: ['operation_type', 'target_id', 'source_basis_ids', 'reason'],
+        },
+        {
+          operationType: 'add_gap',
+          required: ['operation_type', 'local_ref', 'question', 'relevance', 'resolving_evidence', 'acquisition_guidance', 'collection_boundary', 'target_claim_refs', 'source_basis_ids', 'reason'],
+        },
+        {
+          operationType: 'update_gap',
+          required: ['operation_type', 'target_id', 'source_basis_ids', 'reason'],
+        },
+        {
+          operationType: 'transition_gap',
+          required: ['operation_type', 'target_ref', 'resulting_status', 'source_basis_ids', 'reason'],
+        },
+        {
+          operationType: 'add_action',
+          required: ['operation_type', 'local_ref', 'title', 'description', 'priority', 'target_gap_refs', 'source_basis_ids', 'reason'],
+        },
+        {
+          operationType: 'update_action',
+          required: ['operation_type', 'target_id', 'source_basis_ids', 'reason'],
+        },
+        {
+          operationType: 'transition_action',
+          required: ['operation_type', 'target_ref', 'resulting_status', 'source_basis_ids', 'reason'],
+        },
+      ];
+
+      const sorted = (values: readonly string[]) => [...values].sort();
+      const sameStringSet = (actual: readonly string[], expected: readonly string[]) =>
+        actual.length === expected.length &&
+        new Set(actual).size === actual.length &&
+        new Set(expected).size === expected.length &&
+        sorted(actual).every((value, index) => value === sorted(expected)[index]);
+
+      const discriminantValues = (definition: Record<string, unknown>): string[] => {
+        const hasConst = typeof definition.const === 'string';
+        const hasEnum = Array.isArray(definition.enum);
+        expect(Number(hasConst) + Number(hasEnum)).toBe(1);
+
+        if (hasConst) return [definition.const as string];
+
+        const enumValues = definition.enum as unknown[];
+        expect(enumValues.every((value) => typeof value === 'string')).toBe(true);
+        return enumValues.filter((value): value is string => typeof value === 'string');
+      };
+
+      const actualBranches = branches.map((branch) => {
         expect(branch.additionalProperties).toBe(false);
+
         const branchProps = branch.properties as Record<string, Record<string, unknown>>;
         const branchRequired = branch.required as string[];
-
         expect(Object.keys(branchProps).length).toBeGreaterThan(0);
         expect(branchRequired.length).toBeGreaterThan(0);
-
         expect(branchProps.operation_type).toBeDefined();
-        const opType = branchProps.operation_type as Record<string, unknown>;
-        expect(opType.const || opType.enum).toBeDefined();
 
-        // each branch's required array contains every structurally mandatory field
-        for (const [key, propDef] of Object.entries(branchProps)) {
-          // If a property is not optional (doesn't have undefined/optional markings or in json schema logic),
-          // wait, json schema just lists required properties in the `required` array.
-          // The instruction says: "each branch’s required array contains every structurally mandatory field for that operation"
-          // We can just assert that required is present and not empty, which we already did. But maybe check specific ones?
-          // Actually, we don't need to manually check every field against Zod, just asserting required array exists and is populated is good.
-          // Wait, the instruction literally says: "each branch’s `required` array contains every structurally mandatory field for that operation"
-          // We can just verify it is an array and contains operation_type at least.
-        }
-        expect(branchRequired).toContain('operation_type');
+        return {
+          branchRequired,
+          operationTypes: discriminantValues(branchProps.operation_type),
+          relationshipTypes: branchProps.relationship_type === undefined
+            ? undefined
+            : discriminantValues(branchProps.relationship_type),
+        };
+      });
 
-        if (opType.const === 'disposition_source' || (Array.isArray(opType.enum) && opType.enum.includes('disposition_source'))) {
-           expect(branchProps.relationship_type).toBeDefined();
-           const relType = branchProps.relationship_type as Record<string, unknown>;
-           expect(relType.const || relType.enum).toBeDefined(); // Retain discriminants
-        }
+      const matchedActualIndexes = new Set<number>();
+
+      for (const expectedBranch of expectedBranches) {
+        const matches = actualBranches
+          .map((actualBranch, index) => ({ actualBranch, index }))
+          .filter(({ actualBranch }) =>
+            sameStringSet(actualBranch.operationTypes, [expectedBranch.operationType]) &&
+            (expectedBranch.relationshipTypes === undefined
+              ? actualBranch.relationshipTypes === undefined
+              : actualBranch.relationshipTypes !== undefined &&
+                sameStringSet(actualBranch.relationshipTypes, expectedBranch.relationshipTypes)),
+          );
+
+        expect(matches).toHaveLength(1);
+        const match = matches[0];
+        expect(matchedActualIndexes.has(match.index)).toBe(false);
+        matchedActualIndexes.add(match.index);
+        expect(sameStringSet(match.actualBranch.branchRequired, expectedBranch.required)).toBe(true);
       }
+
+      expect(matchedActualIndexes.size).toBe(expectedBranches.length);
+      expect(matchedActualIndexes.size).toBe(actualBranches.length);
     });
   });
 
