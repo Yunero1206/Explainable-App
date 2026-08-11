@@ -241,14 +241,71 @@ export interface ProposalValidationContext {
   existingActionIds: Set<T.ActionId>;
 }
 
+function compactJsonValue(value: unknown): string {
+  const serialized = JSON.stringify(value);
+  if (serialized === undefined) return String(value);
+  return serialized.length <= 120 ? serialized : serialized.slice(0, 117) + '...';
+}
+
+function findCustomIssue(value: unknown): { message: string } | undefined {
+  if (typeof value !== 'object' || value === null) return undefined;
+  const record = value as Record<string, unknown>;
+  if (record.code === 'custom' && typeof record.message === 'string') {
+    return { message: record.message };
+  }
+  for (const child of Object.values(record)) {
+    if (Array.isArray(child)) {
+      for (const item of child) {
+        const found = findCustomIssue(item);
+        if (found !== undefined) return found;
+      }
+    } else {
+      const found = findCustomIssue(child);
+      if (found !== undefined) return found;
+    }
+  }
+  return undefined;
+}
+
+function structuralValidationMessage(raw: unknown, error: z.ZodError): string {
+  const operationIssue = error.issues.find(
+    (issue) => issue.path[0] === 'operations' && typeof issue.path[1] === 'number',
+  );
+  const operationIndex = operationIssue?.path[1];
+  if (typeof operationIndex === 'number') {
+    const customIssue = findCustomIssue(operationIssue);
+    if (customIssue !== undefined) {
+      return `Proposal structural validation failed at operations[${operationIndex}]: ${customIssue.message}`;
+    }
+    const operations = typeof raw === 'object' && raw !== null && Array.isArray((raw as { operations?: unknown }).operations)
+      ? (raw as { operations: unknown[] }).operations
+      : [];
+    const operation = operations[operationIndex];
+    if (typeof operation === 'object' && operation !== null) {
+      const record = operation as Record<string, unknown>;
+      if (record.operation_type === 'disposition_source') {
+        return `Proposal structural validation failed at operations[${operationIndex}]: invalid disposition_source combination (relationship_type=${compactJsonValue(record.relationship_type)}; target_ref=${compactJsonValue(record.target_ref)}). Use a claim relation with a claim ref, raises_gap with a gap ref, corrects_statement with a statement ID, or not_yet_classified with null.`;
+      }
+      return `Proposal structural validation failed at operations[${operationIndex}]: operation_type=${compactJsonValue(record.operation_type)} does not match the required fields for that operation.`;
+    }
+  }
+
+  const firstIssue = error.issues[0];
+  if (firstIssue !== undefined) {
+    const path = firstIssue.path.length === 0 ? 'proposal' : firstIssue.path.join('.');
+    return `Proposal structural validation failed at ${path}: ${firstIssue.message}.`;
+  }
+  return 'Proposal structural validation failed.';
+}
+
 export function parseProviderProposal(raw: unknown, ctx: ProposalValidationContext): P.ProviderProposal {
   // 1. Structural validation
   let parsed: z.infer<typeof ProviderProposalSchema>;
   try {
     parsed = ProviderProposalSchema.parse(raw);
   } catch (err: unknown) {
-    if (err instanceof Error) {
-      throw new Error(`Proposal structural validation failed: ${err.message}`);
+    if (err instanceof z.ZodError) {
+      throw new Error(structuralValidationMessage(raw, err));
     }
     throw err;
   }
@@ -453,4 +510,3 @@ export function parseProviderProposal(raw: unknown, ctx: ProposalValidationConte
 
   return proposal;
 }
-

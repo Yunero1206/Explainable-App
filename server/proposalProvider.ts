@@ -196,6 +196,8 @@ function proposalPrompt(input: ProposalProviderInput): string {
       'Every new source must receive exactly one disposition_source operation.',
       'Every new evidence source must receive exactly one inspect_source operation.',
       'Every new claim must receive at least one claim disposition.',
+      'Use operation_type and relationship_type values exactly as declared by the response schema; never invent or paraphrase enum values.',
+      'For disposition_source, use supports_claim, qualifies_claim, or conflicts_with_claim only with a non-null claim ID/ref; raises_gap only with a non-null gap ID/ref; corrects_statement only with a non-null statement ID; and not_yet_classified only with target_ref null.',
       'Do not infer future events, missing facts, fault, or certainty beyond the sources.',
       'Suggested actions may only acquire or verify evidence.',
       'All generated human-readable prose must use the requested locale.',
@@ -218,6 +220,26 @@ function proposalPrompt(input: ProposalProviderInput): string {
   }, null, 2);
 }
 
+function replaceUnsupportedJsonSchemaConsts(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(replaceUnsupportedJsonSchemaConsts);
+  }
+  if (typeof value !== 'object' || value === null) {
+    return value;
+  }
+
+  const normalized: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value)) {
+    if (key !== 'const') {
+      normalized[key] = replaceUnsupportedJsonSchemaConsts(child);
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(value, 'const')) {
+    normalized.enum = [(value as Record<string, unknown>).const];
+  }
+  return normalized;
+}
+
 function inlinePart(attachment: ProviderAttachment): { inlineData: { mimeType: string; data: string } } | null {
   if (!attachment.mime_type.startsWith('image/') && attachment.mime_type !== 'application/pdf') {
     return null;
@@ -230,8 +252,11 @@ function inlinePart(attachment: ProviderAttachment): { inlineData: { mimeType: s
 export function createProviderResponseJsonSchema() {
   // The local-ref schemas use transforms only to apply TypeScript brands.
   // Gemini needs the pre-transform input shape, which is fully representable
-  // as JSON Schema; Zod's default output mode rejects those transforms.
-  return z.toJSONSchema(ProviderProposalSchema, { io: 'input' });
+  // as JSON Schema; Zod's default output mode rejects those transforms. The
+  // Gemini JSON Schema subset supports enum but not const, so literal
+  // discriminants must be represented as one-value enums before transmission.
+  const schema = z.toJSONSchema(ProviderProposalSchema, { io: 'input' });
+  return replaceUnsupportedJsonSchemaConsts(schema) as typeof schema;
 }
 
 export const runProposalProvider: ProposalProvider = async (mode, input) => {

@@ -33,6 +33,7 @@ describe('Proposal Schema and Model Config', () => {
       const schema = createProviderResponseJsonSchema();
       expect(schema.type).toBe('object');
       expect(schema.additionalProperties).toBe(false);
+      expect(JSON.stringify(schema)).not.toContain('"const"');
 
       const rootRequired = schema.required as string[];
       expect(rootRequired).toContain('explanation');
@@ -128,12 +129,8 @@ describe('Proposal Schema and Model Config', () => {
         sorted(actual).every((value, index) => value === sorted(expected)[index]);
 
       const discriminantValues = (definition: Record<string, unknown>): string[] => {
-        const hasConst = typeof definition.const === 'string';
-        const hasEnum = Array.isArray(definition.enum);
-        expect(Number(hasConst) + Number(hasEnum)).toBe(1);
-
-        if (hasConst) return [definition.const as string];
-
+        expect(definition.const).toBeUndefined();
+        expect(Array.isArray(definition.enum)).toBe(true);
         const enumValues = definition.enum as unknown[];
         expect(enumValues.every((value) => typeof value === 'string')).toBe(true);
         return enumValues.filter((value): value is string => typeof value === 'string');
@@ -382,6 +379,30 @@ describe('Proposal Schema and Model Config', () => {
   });
 
   describe('Strict rejections and bounds', () => {
+    it('summarizes an invalid disposition without dumping the Zod union tree', () => {
+      const raw = {
+        explanation: exp,
+        operations: [{
+          operation_type: 'disposition_source',
+          relationship_type: 'mentions_claim',
+          source_id: 'U01',
+          target_ref: null,
+          reason: 'r',
+        }],
+      };
+
+      expect(() => parseProviderProposal(raw, ctx)).toThrow(
+        'Proposal structural validation failed at operations[0]: invalid disposition_source combination (relationship_type="mentions_claim"; target_ref=null).',
+      );
+      try {
+        parseProviderProposal(raw, ctx);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        expect(message).not.toContain('invalid_union');
+        expect(message.length).toBeLessThan(500);
+      }
+    });
+
     it('rejects unknown fields on explanation', () => {
       const raw = { explanation: { text: 'a', extra: 'b' }, operations: [] };
       expect(() => parseProviderProposal(raw, ctx)).toThrow();

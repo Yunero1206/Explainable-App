@@ -70,6 +70,41 @@ describe('Ledger V3 intake boundary', () => {
     expect('ledger' in result).toBe(false);
   });
 
+  it('returns a compact audit-safe error for an invalid Gemini relationship', async () => {
+    const parent = emptyLedger();
+    const before = JSON.stringify(parent);
+    const rawResponse = JSON.stringify({
+      explanation: { text: 'Invalid provider proposal.' },
+      operations: [{
+        operation_type: 'disposition_source',
+        relationship_type: 'mentions_claim',
+        source_id: 'U01',
+        target_ref: null,
+        reason: 'Invalid generated relationship.',
+      }],
+    });
+    const runIntake = createIntakeService({
+      now: clock(),
+      provider: async () => ({ provider: 'google-gemini', raw_response_text: rawResponse }),
+    });
+
+    const result = parseIntakeResponse(await runIntake({
+      prior_ledger: parent,
+      client_request_id: 'request-invalid-live-relationship',
+      message: 'Record this report.',
+      inference_mode: 'live',
+    }));
+
+    expect(result.success).toBe(false);
+    expect(JSON.stringify(parent)).toBe(before);
+    if (result.success === true) return;
+    expect(result.run.status).toBe('rejected');
+    expect(result.run.raw_response_text).toBe(rawResponse);
+    expect(result.error.message).toContain('invalid disposition_source combination');
+    expect(result.error.message).not.toContain('invalid_union');
+    expect(result.error.message.length).toBeLessThan(500);
+  });
+
   it('accepts an attachment only after hashing and inspecting it', async () => {
     const runIntake = createIntakeService({ now: clock() });
     const bytes = Buffer.from('receipt body', 'utf8');
