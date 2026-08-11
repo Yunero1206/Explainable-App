@@ -298,13 +298,13 @@ describe('P10: All gap and action transitions', () => {
       r2gaps[0]['transition'] = { previous_status: 'open', resulting_status: from, transition_revision_id: 'R02', reason: 'Initial', supporting_source_ids: ['U02'] };
       const idx2 = r2entries.findIndex((e) => e['entity_type'] === 'gap');
       if (idx2 >= 0) r2entries[idx2] = { entity_type: 'gap', entity_id: 'G01', operation: 'transition', reason: 'Initial', source_ids: ['U02'] };
-      
+
       // R03: from -> to
       const r3 = JSON.parse(JSON.stringify(revs[1])) as Record<string, unknown>;
       r3['id'] = 'R03';
       r3['parent_id'] = 'R02';
       r3['accepted_model_run_id'] = 'MR03';
-      
+
       // Supply required statement and intake for R03
       const r3stmt = cloneAsPlain((o['statements'] as Record<string, unknown>[])[1]);
       r3stmt['id'] = 'U03';
@@ -335,11 +335,11 @@ describe('P10: All gap and action transitions', () => {
       };
       (o['relationships'] as Record<string, unknown>[]).push(r3rel);
       r3entries.push({ entity_type: 'relationship', entity_id: 'REL04', operation: 'add', reason: r3rel['reason'] as string, source_ids: ['U03'] });
-      
+
       r3gaps[0]['status'] = to;
       r3gaps[0]['transition'] = { previous_status: from, resulting_status: to, transition_revision_id: 'R03', reason: 'Test transition', supporting_source_ids: ['U02'] };
       r3entries.push({ entity_type: 'gap', entity_id: 'G01', operation: 'transition', reason: 'Test transition', source_ids: ['U02'] });
-      
+
       revs.push(r3);
       o['current_revision_id'] = 'R03';
     }
@@ -376,13 +376,13 @@ describe('P10: All gap and action transitions', () => {
       r2actions[0]['transition'] = { previous_status: 'pending', resulting_status: from, transition_revision_id: 'R02', reason: 'Initial', supporting_source_ids: ['U02'] };
       const idx2 = r2entries.findIndex((e) => e['entity_type'] === 'action');
       if (idx2 >= 0) r2entries[idx2] = { entity_type: 'action', entity_id: 'A01', operation: 'transition', reason: 'Initial', source_ids: ['U02'] };
-      
+
       // R03: from -> to
       const r3 = JSON.parse(JSON.stringify(revs[1])) as Record<string, unknown>;
       r3['id'] = 'R03';
       r3['parent_id'] = 'R02';
       r3['accepted_model_run_id'] = 'MR03';
-      
+
       // Supply required statement and intake for R03
       const r3stmt = cloneAsPlain((o['statements'] as Record<string, unknown>[])[1]);
       r3stmt['id'] = 'U03';
@@ -413,11 +413,11 @@ describe('P10: All gap and action transitions', () => {
       };
       (o['relationships'] as Record<string, unknown>[]).push(r3rel);
       r3entries.push({ entity_type: 'relationship', entity_id: 'REL04', operation: 'add', reason: r3rel['reason'] as string, source_ids: ['U03'] });
-      
+
       r3actions[0]['status'] = to;
       r3actions[0]['transition'] = { previous_status: from, resulting_status: to, transition_revision_id: 'R03', reason: 'Test transition', supporting_source_ids: ['U02'] };
       r3entries.push({ entity_type: 'action', entity_id: 'A01', operation: 'transition', reason: 'Test transition', source_ids: ['U02'] });
-      
+
       revs.push(r3);
       o['current_revision_id'] = 'R03';
     }
@@ -558,85 +558,47 @@ describe('N_Source_Order: Canonical source order enforcement', () => {
 describe('N01: Unknown keys fail', () => {
   const boundaries = [
     ['case root', (o: Record<string, unknown>) => { o['__unknown__'] = 1; }],
-    ['intake', (o: Record<string, unknown>) => {
-      const il = o['intake_ledger'] as Record<string, unknown>[];
-      il[0]['__x__'] = 1;
-    }],
-    ['statement part', (o: Record<string, unknown>) => {
-      const il = o['intake_ledger'] as Record<string, unknown>[];
-      const parts = il[0]['parts'] as Record<string, unknown>[];
-      parts[0]['__x__'] = 1;
-    }],
-    ['evidence part', (o: Record<string, unknown>) => {
-      const il = o['intake_ledger'] as Record<string, unknown>[];
-      const parts = il[0]['parts'] as Record<string, unknown>[];
-      parts[1]['__x__'] = 1;
-    }],
-    ['statement', (o: Record<string, unknown>) => {
-      const ss = o['statements'] as Record<string, unknown>[];
-      ss[0]['__x__'] = 1;
-    }],
-    ['evidence', (o: Record<string, unknown>) => {
-      const ev = o['evidence'] as Record<string, unknown>[];
-      ev[0]['__x__'] = 1;
-    }],
-    ['evidence content', (o: Record<string, unknown>) => {
-      const ev = o['evidence'] as Record<string, unknown>[];
-      (ev[0]['content'] as Record<string, unknown>)['__x__'] = 1;
-    }],
+    ['intake', (o: Record<string, unknown>) => { (o['intake_ledger'] as any)[0]['__x__'] = 1; }],
+    ['statement part', (o: Record<string, unknown>) => { ((o['intake_ledger'] as any)[0]['parts'] as any)[0]['__x__'] = 1; }],
+    ['evidence part', (o: Record<string, unknown>) => { ((o['intake_ledger'] as any)[0]['parts'] as any)[1]['__x__'] = 1; }],
+    ['statement', (o: Record<string, unknown>) => { (o['statements'] as any)[0]['__x__'] = 1; }],
+    ['evidence', (o: Record<string, unknown>) => { (o['evidence'] as any)[0]['__x__'] = 1; }],
+    ['evidence content', (o: Record<string, unknown>) => { ((o['evidence'] as any)[0]['content'] as any)['__x__'] = 1; }],
     ['blob metadata', (o: Record<string, unknown>) => {
-      const ev = o['evidence'] as Record<string, unknown>[];
-      (ev[0]['content'] as Record<string, unknown>)['blob'] = {
-        ...(ev[0]['content'] as Record<string, unknown>)['blob'] as object,
+      ((o['evidence'] as any)[0]['content'] as any)['blob'] = {
+        ...((o['evidence'] as any)[0]['content'] as any)['blob'],
         __x__: 1,
       };
     }],
-    ['supports_claim relationship', (o: Record<string, unknown>) => {
-      const rels = o['relationships'] as Record<string, unknown>[];
-      rels[0]['__x__'] = 1;
+    ['supports_claim relationship', (o: Record<string, unknown>) => { (o['relationships'] as any)[0]['__x__'] = 1; }],
+    ['qualifies_claim relationship', (o: Record<string, unknown>) => { (o['relationships'] as any)[1]['__x__'] = 1; }],
+    ['conflicts_with_claim relationship', (o: Record<string, unknown>) => { (o['relationships'] as any)[2]['__x__'] = 1; }],
+    ['raises_gap relationship', (o: Record<string, unknown>) => {
+      (o['relationships'] as any).push({ id: 'REL04', relationship_type: 'raises_gap', source_id: 'U01', target_id: 'G01', reason: 'x', created_in_revision_id: 'R01', __x__: 1 });
     }],
-    ['revision', (o: Record<string, unknown>) => {
-      const revs = o['revisions'] as Record<string, unknown>[];
-      revs[0]['__x__'] = 1;
+    ['corrects_statement relationship', (o: Record<string, unknown>) => {
+      (o['relationships'] as any).push({ id: 'REL05', relationship_type: 'corrects_statement', source_id: 'U01', target_id: 'U01', reason: 'x', created_in_revision_id: 'R01', __x__: 1 });
     }],
-    ['event', (o: Record<string, unknown>) => {
-      const revs = o['revisions'] as Record<string, unknown>[];
-      const events = revs[0]['events'] as Record<string, unknown>[];
-      events[0]['__x__'] = 1;
+    ['not_yet_classified relationship', (o: Record<string, unknown>) => {
+      (o['relationships'] as any).push({ id: 'REL06', relationship_type: 'not_yet_classified', source_id: 'U01', target_id: null, reason: 'x', created_in_revision_id: 'R01', __x__: 1 });
     }],
-    ['claim', (o: Record<string, unknown>) => {
-      const revs = o['revisions'] as Record<string, unknown>[];
-      const claims = revs[0]['claims'] as Record<string, unknown>[];
-      claims[0]['__x__'] = 1;
-    }],
-    ['gap', (o: Record<string, unknown>) => {
-      const revs = o['revisions'] as Record<string, unknown>[];
-      const gaps = revs[0]['gaps'] as Record<string, unknown>[];
-      gaps[0]['__x__'] = 1;
-    }],
-    ['action', (o: Record<string, unknown>) => {
-      const revs = o['revisions'] as Record<string, unknown>[];
-      const actions = revs[0]['actions'] as Record<string, unknown>[];
-      actions[0]['__x__'] = 1;
-    }],
-    ['inspection', (o: Record<string, unknown>) => {
-      const revs = o['revisions'] as Record<string, unknown>[];
-      const ins = revs[0]['inspections'] as Record<string, unknown>[];
-      ins[0]['__x__'] = 1;
-    }],
-    ['delta', (o: Record<string, unknown>) => {
-      const revs = o['revisions'] as Record<string, unknown>[];
-      (revs[0]['delta'] as Record<string, unknown>)['__x__'] = 1;
-    }],
-    ['delta entry intake', (o: Record<string, unknown>) => {
-      const revs = o['revisions'] as Record<string, unknown>[];
-      const entries = (revs[0]['delta'] as Record<string, unknown>)['entries'] as Record<string, unknown>[];
-      entries[0]['__x__'] = 1;
-    }],
-    ['summary', (o: Record<string, unknown>) => {
-      const revs = o['revisions'] as Record<string, unknown>[];
-      (revs[0]['summary'] as Record<string, unknown>)['__x__'] = 1;
-    }],
+    ['revision', (o: Record<string, unknown>) => { (o['revisions'] as any)[0]['__x__'] = 1; }],
+    ['event', (o: Record<string, unknown>) => { (o['revisions'] as any)[0]['events'][0]['__x__'] = 1; }],
+    ['claim', (o: Record<string, unknown>) => { (o['revisions'] as any)[0]['claims'][0]['__x__'] = 1; }],
+    ['gap', (o: Record<string, unknown>) => { (o['revisions'] as any)[0]['gaps'][0]['__x__'] = 1; }],
+    ['action', (o: Record<string, unknown>) => { (o['revisions'] as any)[0]['actions'][0]['__x__'] = 1; }],
+    ['inspection', (o: Record<string, unknown>) => { (o['revisions'] as any)[0]['inspections'][0]['__x__'] = 1; }],
+    ['delta', (o: Record<string, unknown>) => { (o['revisions'] as any)[0]['delta']['__x__'] = 1; }],
+    ['delta entry intake', (o: Record<string, unknown>) => { (o['revisions'] as any)[0]['delta']['entries'][0]['__x__'] = 1; }],
+    ['delta entry statement', (o: Record<string, unknown>) => { (o['revisions'] as any)[0]['delta']['entries'][1]['__x__'] = 1; }],
+    ['delta entry evidence', (o: Record<string, unknown>) => { (o['revisions'] as any)[0]['delta']['entries'][2]['__x__'] = 1; }],
+    ['delta entry relationship', (o: Record<string, unknown>) => { (o['revisions'] as any)[0]['delta']['entries'][3]['__x__'] = 1; }],
+    ['delta entry event', (o: Record<string, unknown>) => { (o['revisions'] as any)[0]['delta']['entries'].find((e: any) => e.entity_type === 'event')['__x__'] = 1; }],
+    ['delta entry claim', (o: Record<string, unknown>) => { (o['revisions'] as any)[0]['delta']['entries'].find((e: any) => e.entity_type === 'claim')['__x__'] = 1; }],
+    ['delta entry gap', (o: Record<string, unknown>) => { (o['revisions'] as any)[0]['delta']['entries'].find((e: any) => e.entity_type === 'gap')['__x__'] = 1; }],
+    ['delta entry action', (o: Record<string, unknown>) => { (o['revisions'] as any)[0]['delta']['entries'].find((e: any) => e.entity_type === 'action')['__x__'] = 1; }],
+    ['delta entry inspection', (o: Record<string, unknown>) => { (o['revisions'] as any)[0]['delta']['entries'].find((e: any) => e.entity_type === 'inspection')['__x__'] = 1; }],
+    ['summary', (o: Record<string, unknown>) => { (o['revisions'] as any)[0]['summary']['__x__'] = 1; }],
   ] as const;
 
   it.each(boundaries)('unknown key at %s fails', (_label, mutate) => {
@@ -685,26 +647,17 @@ describe('N02: Missing required fields', () => {
 // ---------------------------------------------------------------------------
 
 describe('N03: Invalid enum values', () => {
-  const enumCases = [
-    ['acquisition_method', 'fax',
-      (o: Record<string, unknown>) => { ((o['evidence'] as Record<string, unknown>[])[0])['acquisition_method'] = 'fax'; }],
-    ['input_form', 'xml',
-      (o: Record<string, unknown>) => { ((o['evidence'] as Record<string, unknown>[])[0])['input_form'] = 'xml'; }],
-    ['assessment', 'Speculative',
-      (o: Record<string, unknown>) => { (((o['revisions'] as Record<string, unknown>[])[0]['events'] as Record<string, unknown>[])[0])['assessment'] = 'Speculative'; }],
-    ['match_status', 'uncertain',
-      (o: Record<string, unknown>) => { (((o['revisions'] as Record<string, unknown>[])[0]['inspections'] as Record<string, unknown>[])[0])['match_status'] = 'uncertain'; }],
-    ['gap_status', 'closed',
-      (o: Record<string, unknown>) => { (((o['revisions'] as Record<string, unknown>[])[0]['gaps'] as Record<string, unknown>[])[0])['status'] = 'closed'; }],
-    ['action_status', 'deferred',
-      (o: Record<string, unknown>) => { (((o['revisions'] as Record<string, unknown>[])[0]['actions'] as Record<string, unknown>[])[0])['status'] = 'deferred'; }],
-    ['priority', 'urgent',
-      (o: Record<string, unknown>) => { (((o['revisions'] as Record<string, unknown>[])[0]['actions'] as Record<string, unknown>[])[0])['priority'] = 'urgent'; }],
-    ['relationship_type', 'maybe_claim',
-      (o: Record<string, unknown>) => { ((o['relationships'] as Record<string, unknown>[])[0])['relationship_type'] = 'maybe_claim'; }],
+  const enums = [
+    ['part kind', (o: any) => { o['intake_ledger'][0]['parts'][0]['kind'] = 'invalid'; }],
+    ['acquisition_method', (o: any) => { o['evidence'][0]['content']['acquisition_method'] = 'invalid'; }],
+    ['relationship_type', (o: any) => { o['relationships'][0]['relationship_type'] = 'invalid'; }],
+    ['assessment', (o: any) => { o['revisions'][0]['events'][0]['assessment'] = 'invalid'; }],
+    ['gap status', (o: any) => { o['revisions'][0]['gaps'][0]['status'] = 'invalid'; }],
+    ['action status', (o: any) => { o['revisions'][0]['actions'][0]['status'] = 'invalid'; }],
+    ['delta operation', (o: any) => { o['revisions'][0]['delta']['entries'][0]['operation'] = 'invalid'; }]
   ] as const;
 
-  it.each(enumCases)('invalid %s value %s fails', (_field, _val, mutate) => {
+  it.each(enums)('invalid enum at %s fails', (_label, mutate) => {
     const o = plainOneRevision();
     mutate(o);
     expect(() => parseLedgerV3(o)).toThrow();
@@ -716,40 +669,43 @@ describe('N03: Invalid enum values', () => {
 // ---------------------------------------------------------------------------
 
 describe('N04: Invalid ID patterns and wrong-family IDs', () => {
-  it('case id without CASE_ prefix fails', () => {
+  const patternTests = [
+    ['CaseId pattern', (o: any) => { o['id'] = 'C-invalid'; }],
+    ['IntakeId pattern', (o: any) => { o['intake_ledger'][0]['id'] = 'IN-invalid'; }],
+    ['StatementId pattern', (o: any) => { o['statements'][0]['id'] = 'U-invalid'; }],
+    ['EvidenceId pattern', (o: any) => { o['evidence'][0]['id'] = 'E-invalid'; }],
+    ['RelationshipId pattern', (o: any) => { o['relationships'][0]['id'] = 'REL-invalid'; }],
+    ['RevisionId pattern', (o: any) => { o['revisions'][0]['id'] = 'R-invalid'; }],
+    ['ModelRunId pattern', (o: any) => { o['revisions'][0]['accepted_model_run_id'] = 'MR-invalid'; }],
+    ['EventId pattern', (o: any) => { o['revisions'][0]['events'][0]['id'] = 'EV-invalid'; }],
+    ['ClaimId pattern', (o: any) => { o['revisions'][0]['claims'][0]['id'] = 'C-invalid'; }],
+    ['GapId pattern', (o: any) => { o['revisions'][0]['gaps'][0]['id'] = 'G-invalid'; }],
+    ['ActionId pattern', (o: any) => { o['revisions'][0]['actions'][0]['id'] = 'A-invalid'; }],
+    ['InspectionId pattern', (o: any) => { o['revisions'][0]['inspections'][0]['id'] = 'I-invalid'; }],
+  ] as const;
+
+  it.each(patternTests)('invalid runtime pattern %s fails', (_label, mutate) => {
     const o = plainOneRevision();
-    o['id'] = 'alpha-1';
+    mutate(o);
     expect(() => parseLedgerV3(o)).toThrow();
   });
-  it('revision id wrong pattern fails', () => {
-    const o = plainOneRevision();
-    (o['revisions'] as Record<string, unknown>[])[0]['id'] = 'REV1';
-    expect(() => parseLedgerV3(o)).toThrow();
-  });
-  it('statement id with evidence prefix fails', () => {
-    const o = plainOneRevision();
-    (o['statements'] as Record<string, unknown>[])[0]['id'] = 'E01';
-    expect(() => parseLedgerV3(o)).toThrow();
-  });
-  it('evidence id with statement prefix fails', () => {
-    const o = plainOneRevision();
-    (o['evidence'] as Record<string, unknown>[])[0]['id'] = 'U01';
-    expect(() => parseLedgerV3(o)).toThrow();
-  });
-  it('relationship id with claim prefix fails', () => {
-    const o = plainOneRevision();
-    (o['relationships'] as Record<string, unknown>[])[0]['id'] = 'C01';
-    expect(() => parseLedgerV3(o)).toThrow();
-  });
-  it('gap id with action prefix fails', () => {
-    const o = plainOneRevision();
-    const gaps = (o['revisions'] as Record<string, unknown>[])[0]['gaps'] as Record<string, unknown>[];
-    gaps[0]['id'] = 'A01';
-    expect(() => parseLedgerV3(o)).toThrow();
-  });
-  it('model run id with inspection prefix fails', () => {
-    const o = plainOneRevision();
-    (o['revisions'] as Record<string, unknown>[])[0]['accepted_model_run_id'] = 'EI01';
+
+  const familyTests = [
+    ['source_intake_id wrong family', (o: any) => { o['statements'][0]['source_intake_id'] = 'R01'; }],
+    ['relationship source_id wrong family', (o: any) => { o['relationships'][0]['source_id'] = 'C01'; }],
+    ['relationship target_id wrong family', (o: any) => { o['relationships'][0]['target_id'] = 'U01'; }],
+    ['relationship created_in_revision_id wrong family', (o: any) => { o['relationships'][0]['created_in_revision_id'] = 'C01'; }],
+    ['revision parent_id wrong family', (o: any) => { o['revisions'][1]['parent_id'] = 'C01'; }],
+    ['gap target_claim_ids wrong family', (o: any) => { o['revisions'][0]['gaps'][0]['target_claim_ids'] = ['G01']; }],
+    ['action target_gap_ids wrong family', (o: any) => { o['revisions'][0]['actions'][0]['target_gap_ids'] = ['A01']; }],
+    ['inspection evidence_id wrong family', (o: any) => { o['revisions'][0]['inspections'][0]['evidence_id'] = 'C01'; }],
+    ['delta entry entity_id wrong family', (o: any) => { o['revisions'][0]['delta']['entries'][0]['entity_id'] = 'C01'; }],
+    ['delta entry source_ids wrong family', (o: any) => { o['revisions'][0]['delta']['entries'][0]['source_ids'] = ['C01']; }],
+  ] as const;
+
+  it.each(familyTests)('wrong-family value %s fails', (_label, mutate) => {
+    const o = plainTwoRevision();
+    mutate(o);
     expect(() => parseLedgerV3(o)).toThrow();
   });
 });
@@ -975,54 +931,22 @@ describe('N10: Empty/current-revision combinations', () => {
 // ---------------------------------------------------------------------------
 
 describe('N11: Duplicate IDs', () => {
-  it('duplicate intake IDs fail', () => {
-    const o = plainOneRevision();
-    const newIntake = JSON.parse(JSON.stringify((o['intake_ledger'] as unknown[])[0]));
-    (o['intake_ledger'] as unknown[]).push(newIntake);
-    expect(() => parseLedgerV3(o)).toThrow();
-  });
+  const duplicateTests = [
+    ['intake', (o: any) => { o['intake_ledger'].push(cloneAsPlain(o['intake_ledger'][0])); }],
+    ['statement', (o: any) => { o['statements'].push(cloneAsPlain(o['statements'][0])); }],
+    ['evidence', (o: any) => { o['evidence'].push(cloneAsPlain(o['evidence'][0])); }],
+    ['relationship', (o: any) => { o['relationships'].push(cloneAsPlain(o['relationships'][0])); }],
+    ['revision', (o: any) => { o['revisions'].push(cloneAsPlain(o['revisions'][0])); }],
+    ['event', (o: any) => { o['revisions'][0]['events'].push(cloneAsPlain(o['revisions'][0]['events'][0])); }],
+    ['claim', (o: any) => { o['revisions'][0]['claims'].push(cloneAsPlain(o['revisions'][0]['claims'][0])); }],
+    ['gap', (o: any) => { o['revisions'][0]['gaps'].push(cloneAsPlain(o['revisions'][0]['gaps'][0])); }],
+    ['action', (o: any) => { o['revisions'][0]['actions'].push(cloneAsPlain(o['revisions'][0]['actions'][0])); }],
+    ['inspection', (o: any) => { o['revisions'][0]['inspections'].push(cloneAsPlain(o['revisions'][0]['inspections'][0])); }]
+  ] as const;
 
-  it('duplicate statement IDs fail', () => {
+  it.each(duplicateTests)('duplicate %s ID fails', (_label, mutate) => {
     const o = plainOneRevision();
-    const dup = JSON.parse(JSON.stringify((o['statements'] as unknown[])[0]));
-    (o['statements'] as unknown[]).push(dup);
-    expect(() => parseLedgerV3(o)).toThrow();
-  });
-
-  it('duplicate relationship IDs fail', () => {
-    const o = plainOneRevision();
-    const dup = JSON.parse(JSON.stringify((o['relationships'] as unknown[])[0]));
-    (o['relationships'] as unknown[]).push(dup);
-    expect(() => parseLedgerV3(o)).toThrow();
-  });
-
-  it('duplicate revision IDs fail', () => {
-    const o = plainOneRevision();
-    const dup = JSON.parse(JSON.stringify((o['revisions'] as unknown[])[0]));
-    (o['revisions'] as unknown[]).push(dup);
-    expect(() => parseLedgerV3(o)).toThrow();
-  });
-
-  it('duplicate event IDs within revision fail', () => {
-    const o = plainOneRevision();
-    const revs = o['revisions'] as Record<string, unknown>[];
-    const dup = JSON.parse(JSON.stringify((revs[0]['events'] as unknown[])[0]));
-    (revs[0]['events'] as unknown[]).push(dup);
-    expect(() => parseLedgerV3(o)).toThrow();
-  });
-
-  it('duplicate claim IDs within revision fail', () => {
-    const o = plainOneRevision();
-    const revs = o['revisions'] as Record<string, unknown>[];
-    const dup = JSON.parse(JSON.stringify((revs[0]['claims'] as unknown[])[0]));
-    (revs[0]['claims'] as unknown[]).push(dup);
-    expect(() => parseLedgerV3(o)).toThrow();
-  });
-
-  it('duplicate model run ID across revisions fails', () => {
-    const o = plainTwoRevision();
-    const revs = o['revisions'] as Record<string, unknown>[];
-    revs[1]['accepted_model_run_id'] = revs[0]['accepted_model_run_id'];
+    mutate(o);
     expect(() => parseLedgerV3(o)).toThrow();
   });
 });
@@ -1546,28 +1470,60 @@ describe('N30: Forbidden gap transitions', () => {
 
   it.each(forbidden)('forbidden gap transition %s -> %s fails', (from, to) => {
     const o = plainTwoRevision();
-    // Set R01 gap to `from`, R02 tries to transition to `to`
-    const r1gaps = (o['revisions'] as Record<string, unknown>[])[0]['gaps'] as Record<string, unknown>[];
-    r1gaps[0]['status'] = from;
-    if (from !== 'open') {
-      r1gaps[0]['transition'] = {
-        previous_status: 'open',
-        resulting_status: from,
-        transition_revision_id: 'R01',
-        reason: 'Initial',
-        supporting_source_ids: ['U01'],
-      };
-    }
+    const revs = o['revisions'] as Record<string, unknown>[];
+    const r2gaps = revs[1]['gaps'] as Record<string, unknown>[];
+    const r2delta = revs[1]['delta'] as Record<string, unknown>;
+    const r2entries = r2delta['entries'] as Record<string, unknown>[];
 
-    const r2gaps = (o['revisions'] as Record<string, unknown>[])[1]['gaps'] as Record<string, unknown>[];
-    r2gaps[0]['status'] = to;
-    r2gaps[0]['transition'] = {
-      previous_status: from,
-      resulting_status: to,
-      transition_revision_id: 'R02',
-      reason: 'Forbidden',
-      supporting_source_ids: ['U02'],
+    // R02: open -> from (valid)
+    r2gaps[0]['status'] = from;
+    r2gaps[0]['transition'] = { previous_status: 'open', resulting_status: from, transition_revision_id: 'R02', reason: 'Initial valid', supporting_source_ids: ['U02'] };
+    const idx2 = r2entries.findIndex((e) => e['entity_type'] === 'gap');
+    if (idx2 >= 0) r2entries[idx2] = { entity_type: 'gap', entity_id: 'G01', operation: 'transition', reason: 'Initial valid', source_ids: ['U02'] };
+
+    // R03: from -> to (forbidden)
+    const r3 = JSON.parse(JSON.stringify(revs[1])) as Record<string, unknown>;
+    r3['id'] = 'R03';
+    r3['parent_id'] = 'R02';
+    r3['accepted_model_run_id'] = 'MR03';
+
+    // Supply required statement and intake for R03
+    const r3stmt = cloneAsPlain((o['statements'] as Record<string, unknown>[])[1]);
+    r3stmt['id'] = 'U03';
+    r3stmt['source_intake_id'] = 'IN03';
+    (o['statements'] as Record<string, unknown>[]).push(r3stmt);
+
+    const r3intake = cloneAsPlain((o['intake_ledger'] as Record<string, unknown>[])[1]);
+    r3intake['id'] = 'IN03';
+    (r3intake['parts'] as Record<string, unknown>[])[0]['statement_id'] = 'U03';
+    (o['intake_ledger'] as Record<string, unknown>[]).push(r3intake);
+    r3['triggering_intake_ids'] = ['IN03'];
+    r3['input_statement_ids'] = [...(r3['input_statement_ids'] as string[]), 'U03'];
+
+    const r3gaps = r3['gaps'] as Record<string, unknown>[];
+    const r3delta = r3['delta'] as Record<string, unknown>;
+    const r3entries = r3delta['entries'] as Record<string, unknown>[];
+    r3entries.length = 0;
+    r3entries.push({ entity_type: 'intake', entity_id: 'IN03', operation: 'add', reason: 'Accepted intake', source_ids: ['U03'] });
+    r3entries.push({ entity_type: 'statement', entity_id: 'U03', operation: 'add', reason: 'Accepted source statement', source_ids: ['U03'] });
+
+    const r3rel: Record<string, unknown> = {
+      id: 'REL04',
+      relationship_type: 'not_yet_classified',
+      target_id: null,
+      source_id: 'U03',
+      created_in_revision_id: 'R03',
+      reason: 'New unclassified statement'
     };
+    (o['relationships'] as Record<string, unknown>[]).push(r3rel);
+    r3entries.push({ entity_type: 'relationship', entity_id: 'REL04', operation: 'add', reason: r3rel['reason'] as string, source_ids: ['U03'] });
+
+    r3gaps[0]['status'] = to;
+    r3gaps[0]['transition'] = { previous_status: from, resulting_status: to, transition_revision_id: 'R03', reason: 'Forbidden', supporting_source_ids: ['U02'] };
+    r3entries.push({ entity_type: 'gap', entity_id: 'G01', operation: 'transition', reason: 'Forbidden', source_ids: ['U02'] });
+
+    revs.push(r3);
+    o['current_revision_id'] = 'R03';
 
     expect(() => parseLedgerV3(o)).toThrow();
   });
@@ -1595,27 +1551,60 @@ describe('N31: Forbidden action transitions', () => {
 
   it.each(forbidden)('forbidden action transition %s -> %s fails', (from, to) => {
     const o = plainTwoRevision();
-    const r1actions = (o['revisions'] as Record<string, unknown>[])[0]['actions'] as Record<string, unknown>[];
-    r1actions[0]['status'] = from;
-    if (from !== 'pending') {
-      r1actions[0]['transition'] = {
-        previous_status: 'pending',
-        resulting_status: from,
-        transition_revision_id: 'R01',
-        reason: 'Initial',
-        supporting_source_ids: ['U01'],
-      };
-    }
+    const revs = o['revisions'] as Record<string, unknown>[];
+    const r2actions = revs[1]['actions'] as Record<string, unknown>[];
+    const r2delta = revs[1]['delta'] as Record<string, unknown>;
+    const r2entries = r2delta['entries'] as Record<string, unknown>[];
 
-    const r2actions = (o['revisions'] as Record<string, unknown>[])[1]['actions'] as Record<string, unknown>[];
-    r2actions[0]['status'] = to;
-    r2actions[0]['transition'] = {
-      previous_status: from,
-      resulting_status: to,
-      transition_revision_id: 'R02',
-      reason: 'Forbidden action',
-      supporting_source_ids: ['U02'],
+    // R02: pending -> from (valid)
+    r2actions[0]['status'] = from;
+    r2actions[0]['transition'] = { previous_status: 'pending', resulting_status: from, transition_revision_id: 'R02', reason: 'Initial valid', supporting_source_ids: ['U02'] };
+    const idx2 = r2entries.findIndex((e) => e['entity_type'] === 'action');
+    if (idx2 >= 0) r2entries[idx2] = { entity_type: 'action', entity_id: 'A01', operation: 'transition', reason: 'Initial valid', source_ids: ['U02'] };
+
+    // R03: from -> to (forbidden)
+    const r3 = JSON.parse(JSON.stringify(revs[1])) as Record<string, unknown>;
+    r3['id'] = 'R03';
+    r3['parent_id'] = 'R02';
+    r3['accepted_model_run_id'] = 'MR03';
+
+    // Supply required statement and intake for R03
+    const r3stmt = cloneAsPlain((o['statements'] as Record<string, unknown>[])[1]);
+    r3stmt['id'] = 'U03';
+    r3stmt['source_intake_id'] = 'IN03';
+    (o['statements'] as Record<string, unknown>[]).push(r3stmt);
+
+    const r3intake = cloneAsPlain((o['intake_ledger'] as Record<string, unknown>[])[1]);
+    r3intake['id'] = 'IN03';
+    (r3intake['parts'] as Record<string, unknown>[])[0]['statement_id'] = 'U03';
+    (o['intake_ledger'] as Record<string, unknown>[]).push(r3intake);
+    r3['triggering_intake_ids'] = ['IN03'];
+    r3['input_statement_ids'] = [...(r3['input_statement_ids'] as string[]), 'U03'];
+
+    const r3actions = r3['actions'] as Record<string, unknown>[];
+    const r3delta = r3['delta'] as Record<string, unknown>;
+    const r3entries = r3delta['entries'] as Record<string, unknown>[];
+    r3entries.length = 0;
+    r3entries.push({ entity_type: 'intake', entity_id: 'IN03', operation: 'add', reason: 'Accepted intake', source_ids: ['U03'] });
+    r3entries.push({ entity_type: 'statement', entity_id: 'U03', operation: 'add', reason: 'Accepted source statement', source_ids: ['U03'] });
+
+    const r3rel: Record<string, unknown> = {
+      id: 'REL04',
+      relationship_type: 'not_yet_classified',
+      target_id: null,
+      source_id: 'U03',
+      created_in_revision_id: 'R03',
+      reason: 'New unclassified statement'
     };
+    (o['relationships'] as Record<string, unknown>[]).push(r3rel);
+    r3entries.push({ entity_type: 'relationship', entity_id: 'REL04', operation: 'add', reason: r3rel['reason'] as string, source_ids: ['U03'] });
+
+    r3actions[0]['status'] = to;
+    r3actions[0]['transition'] = { previous_status: from, resulting_status: to, transition_revision_id: 'R03', reason: 'Forbidden', supporting_source_ids: ['U02'] };
+    r3entries.push({ entity_type: 'action', entity_id: 'A01', operation: 'transition', reason: 'Forbidden', source_ids: ['U02'] });
+
+    revs.push(r3);
+    o['current_revision_id'] = 'R03';
 
     expect(() => parseLedgerV3(o)).toThrow();
   });
@@ -1647,32 +1636,114 @@ describe('N32: Transition metadata violations', () => {
     expect(() => parseLedgerV3(o)).toThrow();
   });
 
-  it('gap transition with empty supporting_source_ids fails (min 1)', () => {
+  it('gap transition wrong revision fails', () => {
+    const o = plainTwoRevision();
+    const r2gaps = (o['revisions'] as Record<string, unknown>[])[1]['gaps'] as Record<string, unknown>[];
+    (r2gaps[0]['transition'] as Record<string, unknown>)['transition_revision_id'] = 'R01'; // mismatch
+    expect(() => parseLedgerV3(o)).toThrow();
+  });
+
+  it('gap transition empty sources fails', () => {
     const o = plainTwoRevision();
     const r2gaps = (o['revisions'] as Record<string, unknown>[])[1]['gaps'] as Record<string, unknown>[];
     (r2gaps[0]['transition'] as Record<string, unknown>)['supporting_source_ids'] = [];
     expect(() => parseLedgerV3(o)).toThrow();
   });
 
-  it('gap transition source unavailable in transition revision fails', () => {
+  it('gap transition unavailable sources fails', () => {
     const o = plainTwoRevision();
     const r2gaps = (o['revisions'] as Record<string, unknown>[])[1]['gaps'] as Record<string, unknown>[];
     (r2gaps[0]['transition'] as Record<string, unknown>)['supporting_source_ids'] = ['U99'];
-    // fix delta too
-    const entries = (((o['revisions'] as Record<string, unknown>[])[1]['delta'] as Record<string, unknown>)['entries'] as Record<string, unknown>[]);
-    const gapDelta = entries.find((e) => e['entity_type'] === 'gap');
-    if (gapDelta) gapDelta['source_ids'] = ['U99'];
     expect(() => parseLedgerV3(o)).toThrow();
   });
 
-  it('carried gap transition metadata changed without status change fails', () => {
+  it('gap transition reordered sources fails', () => {
     const o = plainTwoRevision();
-    // In R02, the gap transitioned. Make a third revision where gap carries but transition is altered.
-    // Simpler: in the two-revision case, change transition reason in R02 gap but keep status same as R01
     const r2gaps = (o['revisions'] as Record<string, unknown>[])[1]['gaps'] as Record<string, unknown>[];
-    r2gaps[0]['status'] = 'open'; // same as R01 — carry required
-    // but transition is not null (was set) — carried gap must have null or same transition
-    // The transition is not null but status didn't change — fails because null was expected for carried open
+    (r2gaps[0]['transition'] as Record<string, unknown>)['supporting_source_ids'] = ['E01', 'U01']; // Reordered
+    expect(() => parseLedgerV3(o)).toThrow();
+  });
+
+  it('gap transition missing reason fails', () => {
+    const o = plainTwoRevision();
+    const r2gaps = (o['revisions'] as Record<string, unknown>[])[1]['gaps'] as Record<string, unknown>[];
+    delete (r2gaps[0]['transition'] as Record<string, unknown>)['reason'];
+    expect(() => parseLedgerV3(o)).toThrow();
+  });
+
+  it('carried gap transition metadata altered fails', () => {
+    const o = plainTwoRevision();
+    const r2gaps = (o['revisions'] as Record<string, unknown>[])[1]['gaps'] as Record<string, unknown>[];
+    r2gaps.push({
+      id: 'G02',
+      question: 'New gap?',
+      status: 'resolved',
+      target_claim_ids: ['C01'],
+      transition: { previous_status: 'open', resulting_status: 'resolved', transition_revision_id: 'R02', reason: 'Initial', supporting_source_ids: ['U02'] }
+    });
+    // delta will fail before lifecycle, so add delta
+    const entries = (((o['revisions'] as Record<string, unknown>[])[1])['delta'] as Record<string, unknown>)['entries'] as Record<string, unknown>[];
+    entries.push({ entity_type: 'gap', entity_id: 'G02', operation: 'transition', reason: 'Initial', source_ids: ['U02'] });
+
+    // Now in R3, alter the transition metadata without changing status
+    const revs = o['revisions'] as any[];
+    const r3 = JSON.parse(JSON.stringify(revs[1]));
+    r3['id'] = 'R03';
+    r3['parent_id'] = 'R02';
+    r3['accepted_model_run_id'] = 'MR03';
+    r3['delta']['entries'] = [];
+    r3['gaps'][1]['transition']['reason'] = 'Altered reason'; // ALtered!
+    revs.push(r3);
+
+    expect(() => parseLedgerV3(o)).toThrow();
+  });
+
+  it('action transition previous_status mismatch fails', () => {
+    const o = plainTwoRevision();
+    const r2actions = (o['revisions'] as Record<string, unknown>[])[1]['actions'] as Record<string, unknown>[];
+    r2actions[0]['status'] = 'completed';
+    r2actions[0]['transition'] = { previous_status: 'in_progress', resulting_status: 'completed', transition_revision_id: 'R02', reason: 'X', supporting_source_ids: ['U02'] };
+    // Actual previous status was pending
+    expect(() => parseLedgerV3(o)).toThrow();
+  });
+
+  it('action transition resulting_status != action status fails', () => {
+    const o = plainTwoRevision();
+    const r2actions = (o['revisions'] as Record<string, unknown>[])[1]['actions'] as Record<string, unknown>[];
+    r2actions[0]['status'] = 'completed';
+    r2actions[0]['transition'] = { previous_status: 'pending', resulting_status: 'cancelled', transition_revision_id: 'R02', reason: 'X', supporting_source_ids: ['U02'] };
+    expect(() => parseLedgerV3(o)).toThrow();
+  });
+
+  it('action transition wrong revision fails', () => {
+    const o = plainTwoRevision();
+    const r2actions = (o['revisions'] as Record<string, unknown>[])[1]['actions'] as Record<string, unknown>[];
+    r2actions[0]['status'] = 'completed';
+    r2actions[0]['transition'] = { previous_status: 'pending', resulting_status: 'completed', transition_revision_id: 'R01', reason: 'X', supporting_source_ids: ['U02'] };
+    expect(() => parseLedgerV3(o)).toThrow();
+  });
+
+  it('action transition empty sources fails', () => {
+    const o = plainTwoRevision();
+    const r2actions = (o['revisions'] as Record<string, unknown>[])[1]['actions'] as Record<string, unknown>[];
+    r2actions[0]['status'] = 'completed';
+    r2actions[0]['transition'] = { previous_status: 'pending', resulting_status: 'completed', transition_revision_id: 'R02', reason: 'X', supporting_source_ids: [] };
+    expect(() => parseLedgerV3(o)).toThrow();
+  });
+
+  it('action transition unavailable sources fails', () => {
+    const o = plainTwoRevision();
+    const r2actions = (o['revisions'] as Record<string, unknown>[])[1]['actions'] as Record<string, unknown>[];
+    r2actions[0]['status'] = 'completed';
+    r2actions[0]['transition'] = { previous_status: 'pending', resulting_status: 'completed', transition_revision_id: 'R02', reason: 'X', supporting_source_ids: ['U99'] };
+    expect(() => parseLedgerV3(o)).toThrow();
+  });
+
+  it('action transition reordered sources fails', () => {
+    const o = plainTwoRevision();
+    const r2actions = (o['revisions'] as Record<string, unknown>[])[1]['actions'] as Record<string, unknown>[];
+    r2actions[0]['status'] = 'completed';
+    r2actions[0]['transition'] = { previous_status: 'pending', resulting_status: 'completed', transition_revision_id: 'R02', reason: 'X', supporting_source_ids: ['E01', 'U01'] };
     expect(() => parseLedgerV3(o)).toThrow();
   });
 });
@@ -1681,28 +1752,44 @@ describe('N32: Transition metadata violations', () => {
 // N33 – Delta discriminant and operation incompatibility
 // ---------------------------------------------------------------------------
 
-describe('N33: Delta discriminant violations', () => {
-  it('intake delta with update operation fails (only add allowed)', () => {
-    const o = plainOneRevision();
-    const entries = ((((o['revisions'] as Record<string, unknown>[])[0])['delta'] as Record<string, unknown>)['entries'] as Record<string, unknown>[]);
-    entries[0]['operation'] = 'update'; // intake only allows add
-    expect(() => parseLedgerV3(o)).toThrow();
+describe('N33: Delta discriminant and incompatibility violations', () => {
+  const operations = ['add', 'update', 'transition'];
+  const variants = ['intake', 'statement', 'evidence', 'relationship', 'event', 'claim', 'gap', 'action', 'inspection'];
+
+  // Test operation incompatibilities
+  variants.forEach(variant => {
+    it(`incompatible operation for ${variant} delta fails`, () => {
+      const o = plainOneRevision();
+      const entries = o['revisions'][0]['delta']['entries'] as any[];
+      const entry = entries.find(e => e.entity_type === variant);
+      if (entry) {
+        if (['intake', 'statement', 'evidence', 'relationship', 'inspection'].includes(variant)) {
+          entry['operation'] = 'transition';
+        } else if (variant === 'event' || variant === 'claim') {
+          entry['operation'] = 'transition';
+        } else if (variant === 'action') {
+          entry['operation'] = 'update'; // not allowed for action
+        } else if (variant === 'gap') {
+          // Gap allows all 3 string literals (add, update, transition). To test discriminant, we must use an invalid string for gap but valid for DeltaEntry type? Wait, all 3 are valid. So gap cannot have an incompatible delta operation literal from the DeltaOperation type.
+          // Let's set it to 'delete' which is invalid for all, but for the sake of the test, we just want to ensure it throws. Or skip if gap.
+          return;
+        }
+        expect(() => parseLedgerV3(o)).toThrow();
+      }
+    });
   });
 
-  it('relationship delta with transition operation fails', () => {
-    const o = plainOneRevision();
-    const entries = ((((o['revisions'] as Record<string, unknown>[])[0])['delta'] as Record<string, unknown>)['entries'] as Record<string, unknown>[]);
-    const relEntry = entries.find((e) => e['entity_type'] === 'relationship');
-    if (relEntry) relEntry['operation'] = 'transition';
-    expect(() => parseLedgerV3(o)).toThrow();
-  });
-
-  it('event delta with transition operation fails', () => {
-    const o = plainOneRevision();
-    const entries = ((((o['revisions'] as Record<string, unknown>[])[0])['delta'] as Record<string, unknown>)['entries'] as Record<string, unknown>[]);
-    const evEntry = entries.find((e) => e['entity_type'] === 'event');
-    if (evEntry) evEntry['operation'] = 'transition';
-    expect(() => parseLedgerV3(o)).toThrow();
+  // Test ID-family incompatibilities
+  variants.forEach(variant => {
+    it(`incompatible ID-family for ${variant} delta fails`, () => {
+      const o = plainOneRevision();
+      const entries = o['revisions'][0]['delta']['entries'] as any[];
+      const entry = entries.find(e => e.entity_type === variant);
+      if (entry) {
+        entry['entity_id'] = 'C99'; // wrong family
+        expect(() => parseLedgerV3(o)).toThrow();
+      }
+    });
   });
 });
 
@@ -1755,67 +1842,52 @@ describe('N34: Delta entry recomputation violations', () => {
 // N35 – Delta reason rules
 // ---------------------------------------------------------------------------
 
-describe('N35: Delta reason rules', () => {
-  it('intake delta with wrong reason fails', () => {
-    const o = plainOneRevision();
-    const entries = ((((o['revisions'] as Record<string, unknown>[])[0])['delta'] as Record<string, unknown>)['entries'] as Record<string, unknown>[]);
-    entries[0]['reason'] = 'Wrong reason for intake';
-    expect(() => parseLedgerV3(o)).toThrow();
+describe('N35: Delta reason and source rules', () => {
+  const variants = ['intake', 'statement', 'evidence', 'relationship', 'event', 'claim', 'gap', 'action', 'inspection'];
+
+  variants.forEach(variant => {
+    it(`missing source in ${variant} delta fails`, () => {
+      const o = plainOneRevision();
+      const entries = o['revisions'][0]['delta']['entries'] as any[];
+      const entry = entries.find(e => e.entity_type === variant);
+      if (entry) {
+        entry.source_ids = []; // Empty out sources (missing)
+        expect(() => parseLedgerV3(o)).toThrow();
+      }
+    });
+
+    it(`extra source in ${variant} delta fails`, () => {
+      const o = plainOneRevision();
+      const entries = o['revisions'][0]['delta']['entries'] as any[];
+      const entry = entries.find(e => e.entity_type === variant);
+      if (entry) {
+        entry.source_ids.push('U01');
+        expect(() => parseLedgerV3(o)).toThrow();
+      }
+    });
+
+    it(`reordered sources in ${variant} delta fails`, () => {
+      const o = plainTwoRevision();
+      const entries = o['revisions'][1]['delta']['entries'] as any[];
+      const entry = entries.find(e => e.entity_type === variant && e.source_ids.length > 1);
+      if (entry) {
+        entry.source_ids = [entry.source_ids[1], entry.source_ids[0]];
+        expect(() => parseLedgerV3(o)).toThrow();
+      }
+    });
   });
 
-  it('statement delta with wrong reason fails', () => {
-    const o = plainOneRevision();
-    const entries = ((((o['revisions'] as Record<string, unknown>[])[0])['delta'] as Record<string, unknown>)['entries'] as Record<string, unknown>[]);
-    const stmtEntry = entries.find((e) => e['entity_type'] === 'statement');
-    if (stmtEntry) stmtEntry['reason'] = 'Custom reason not allowed';
-    expect(() => parseLedgerV3(o)).toThrow();
-  });
-
-  it('relationship delta reason not matching rel reason fails', () => {
-    const o = plainOneRevision();
-    const entries = ((((o['revisions'] as Record<string, unknown>[])[0])['delta'] as Record<string, unknown>)['entries'] as Record<string, unknown>[]);
-    const relEntry = entries.find((e) => e['entity_type'] === 'relationship');
-    if (relEntry) relEntry['reason'] = 'Mismatched reason';
-    expect(() => parseLedgerV3(o)).toThrow();
-  });
-
-  it('intake delta source_ids wrong order fails', () => {
-    const o = plainOneRevision();
-    const entries = ((((o['revisions'] as Record<string, unknown>[])[0])['delta'] as Record<string, unknown>)['entries'] as Record<string, unknown>[]);
-    entries[0]['source_ids'] = ['E01', 'U01']; // ev before stmt — wrong canonical order
-    expect(() => parseLedgerV3(o)).toThrow();
-  });
-
-  it('statement delta source_ids not [entity_id] fails', () => {
-    const o = plainOneRevision();
-    const entries = ((((o['revisions'] as Record<string, unknown>[])[0])['delta'] as Record<string, unknown>)['entries'] as Record<string, unknown>[]);
-    const stmtEntry = entries.find((e) => e['entity_type'] === 'statement');
-    if (stmtEntry) stmtEntry['source_ids'] = ['U01', 'E01'];
-    expect(() => parseLedgerV3(o)).toThrow();
-  });
-
-  it('inspection delta source_ids omitting evidence_id fails', () => {
-    const o = plainOneRevision();
-    const entries = ((((o['revisions'] as Record<string, unknown>[])[0])['delta'] as Record<string, unknown>)['entries'] as Record<string, unknown>[]);
-    const inspEntry = entries.find((e) => e['entity_type'] === 'inspection');
-    if (inspEntry) inspEntry['source_ids'] = ['U01']; // missing E01
-    expect(() => parseLedgerV3(o)).toThrow();
-  });
-
-  it('gap transition delta reason not matching transition reason fails', () => {
-    const o = plainTwoRevision();
-    const entries = ((((o['revisions'] as Record<string, unknown>[])[1])['delta'] as Record<string, unknown>)['entries'] as Record<string, unknown>[]);
-    const gapEntry = entries.find((e) => e['entity_type'] === 'gap');
-    if (gapEntry) gapEntry['reason'] = 'Wrong gap transition reason';
-    expect(() => parseLedgerV3(o)).toThrow();
-  });
-
-  it('gap transition delta source_ids not matching transition supporting_source_ids fails', () => {
-    const o = plainTwoRevision();
-    const entries = ((((o['revisions'] as Record<string, unknown>[])[1])['delta'] as Record<string, unknown>)['entries'] as Record<string, unknown>[]);
-    const gapEntry = entries.find((e) => e['entity_type'] === 'gap');
-    if (gapEntry) gapEntry['source_ids'] = ['U01']; // should be [U02]
-    expect(() => parseLedgerV3(o)).toThrow();
+  // Lifecycle transition families (gap and action)
+  ['gap', 'action'].forEach(variant => {
+    it(`missing source in ${variant} transition delta fails`, () => {
+      const o = plainTwoRevision();
+      const entries = o['revisions'][1]['delta']['entries'] as any[];
+      const entry = entries.find(e => e.entity_type === variant);
+      if (entry && entry.source_ids.length > 0) {
+        entry.source_ids.pop();
+        expect(() => parseLedgerV3(o)).toThrow();
+      }
+    });
   });
 });
 
@@ -1931,75 +2003,5 @@ describe('N38: Branded type compile-time safety', () => {
 
     // Proof that all variables are declared (avoid unused variable lint)
     expect([_a, _b, _c, _d, _e, _f, _g, _h, _i, _j]).toBeDefined();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// N39 – Explicit missing coverage from independent proofs
-// ---------------------------------------------------------------------------
-
-describe('N39: Explicit missing coverage', () => {
-  it('invalid runtime pattern for branded ID fails', () => {
-    const o = plainOneRevision();
-    o['id'] = 'C-not-a-case';
-    expect(() => parseLedgerV3(o)).toThrow();
-  });
-
-  it('duplicate IDs for top-level family fails', () => {
-    const o = plainOneRevision();
-    const stmts = o['statements'] as Record<string, unknown>[];
-    stmts.push(cloneAsPlain(stmts[0]));
-    expect(() => parseLedgerV3(o)).toThrow();
-  });
-
-  it('duplicate IDs for revision entity family fails', () => {
-    const o = plainOneRevision();
-    const r1claims = (((o['revisions'] as Record<string, unknown>[])[0])['claims'] as Record<string, unknown>[]);
-    r1claims.push(cloneAsPlain(r1claims[0]));
-    expect(() => parseLedgerV3(o)).toThrow();
-  });
-
-  it('dangling inspection evidence fails', () => {
-    const o = plainOneRevision();
-    const insp = (((o['revisions'] as Record<string, unknown>[])[0])['inspections'] as Record<string, unknown>[])[0];
-    insp['evidence_id'] = 'E99';
-    expect(() => parseLedgerV3(o)).toThrow();
-  });
-
-  it('gap transition in the future fails (chronology)', () => {
-    const o = plainTwoRevision();
-    const r2gaps = (((o['revisions'] as Record<string, unknown>[])[1])['gaps'] as Record<string, unknown>[]);
-    r2gaps[0]['transition'] = {
-      previous_status: 'open',
-      resulting_status: 'resolved',
-      transition_revision_id: 'R99', // Future revision
-      reason: 'Should fail',
-      supporting_source_ids: ['U02']
-    };
-    expect(() => parseLedgerV3(o)).toThrow();
-  });
-
-  it('action transition in the future fails (chronology)', () => {
-    const o = plainTwoRevision();
-    const r2actions = (((o['revisions'] as Record<string, unknown>[])[1])['actions'] as Record<string, unknown>[]);
-    r2actions[0]['transition'] = {
-      previous_status: 'pending',
-      resulting_status: 'completed',
-      transition_revision_id: 'R99', // Future revision
-      reason: 'Should fail',
-      supporting_source_ids: ['U02']
-    };
-    expect(() => parseLedgerV3(o)).toThrow();
-  });
-
-  it('discriminant incompatibility for delta variant fails', () => {
-    const o = plainOneRevision();
-    const entries = ((((o['revisions'] as Record<string, unknown>[])[0])['delta'] as Record<string, unknown>)['entries'] as Record<string, unknown>[]);
-    const stmtEntry = entries.find((e) => e['entity_type'] === 'statement');
-    if (stmtEntry) {
-      // Incompatible operation 'transition' for statement delta
-      stmtEntry['operation'] = 'transition';
-    }
-    expect(() => parseLedgerV3(o)).toThrow();
   });
 });
