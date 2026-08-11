@@ -9,8 +9,8 @@
 - Persistence/Reload: pending, inactive
 - V0 status: not accepted
 - Active micro-slice: AR-S2
-- Active status: ACTIVE — AWAITING HANDSHAKE APPROVAL
-- Last verified implementation SHA: 9c606f765ca6c17b50429a6abc1f17c0c5d2cea1
+- Active status: COMPLETE — AWAITING USER CONTINUE
+- Last verified implementation SHA: 55da3ad363989c922bc960e6cdba3697eb2bcfba
 - Final test-conformance SHA: 7ce888abda51f7b5686407519eeef96889e1a694
 
 ## AR-S2 — Proposal schema and model config
@@ -78,6 +78,29 @@ Define the only shape Gemini may return and centralize the exact V0 provider con
 ### Non-goals
 
 No Gemini SDK call, no ID allocation, no ledger mutation, no App/server endpoint wiring and no old-code deletion.
+
+## AR-S2 Work log
+
+### Completed
+
+- Centralized inference model config to exactly `gemini-3.5-flash` in `server/inference/modelConfig.ts`.
+- Updated `.env.example` to document model config.
+- Implemented `src/provider/proposalTypes.ts` mapping exact operation types to canonical Ledger V3 IDs and local references.
+- Implemented strict structured-output compatible schema in `src/provider/proposalSchema.ts`.
+- Implemented context-dependent semantic validation to reject unknown/wrong-family references, duplicate local refs, and missing sources.
+- Proved 17 positive and negative counterexamples in `tests/proposalSchema.test.ts`.
+- Committed implementation (SHA `55da3ad`, parent `c018f2c`).
+
+### Gate results
+
+- `npm test -- tests/proposalSchema.test.ts`: Passed (17/17 tests).
+- `npm run lint`: Passed (0 errors).
+- Negative model string search (`rg` equivalent): Passed (0 matches in `src/provider server/inference/modelConfig.ts .env.example`).
+- `git diff --check`: Passed.
+
+### Dirty files / WIP
+
+- None recorded.
 
 ## AR-S1 — Ledger V3 contract
 
