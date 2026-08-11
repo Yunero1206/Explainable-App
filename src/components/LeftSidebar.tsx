@@ -47,8 +47,8 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   const [deletingCase, setDeletingCase] = useState<PresentationCaseData | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Filter out archived cases for recent list
-  const activeCases = cases.filter((c) => !c.is_archived);
+  // Archived cases remain visible so users can restore them.
+  const activeCases = cases;
 
   // Close popup menu on click outside
   useEffect(() => {
@@ -82,9 +82,9 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
     setEditingCase(null);
   };
 
-  const handleArchive = (cId: string, e: React.MouseEvent) => {
+  const handleArchive = (caseData: PresentationCaseData, e: React.MouseEvent) => {
     e.stopPropagation();
-    onArchiveCase(cId);
+    onArchiveCase(caseData.id);
     setOpenMenuCaseId(null);
   };
 
@@ -233,6 +233,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                   </div>
                   <div className="text-xs font-medium text-slate-800 truncate group-hover:text-slate-900">
                     {caseTitle}
+                    {c.is_archived && <span className="ml-1 text-[9px] uppercase tracking-wider text-slate-400">Archived</span>}
                   </div>
                 </div>
 
@@ -268,11 +269,11 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                       </button>
                       <button
                         type="button"
-                        onClick={(e) => handleArchive(c.id, e)}
+                        onClick={(e) => handleArchive(c, e)}
                         className="w-full text-left px-3 py-1.5 hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
                       >
                         <Archive className="w-3.5 h-3.5 text-slate-500" />
-                        <span>{t.archive}</span>
+                        <span>{c.is_archived ? 'Restore' : t.archive}</span>
                       </button>
                       <div className="my-1 border-t border-slate-100" />
                       <button

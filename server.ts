@@ -1,26 +1,35 @@
-import { createApp } from './server/app.js';
-import { runIntakeTransition } from './server/productionService.js';
+import 'dotenv/config';
 import express from 'express';
-import path from 'path';
+import path from 'node:path';
+import { createApp } from './server/app.js';
+import { createIntakeService } from './server/intakeService.js';
 
-const PORT = 3000;
+async function start() {
+  const port = Number.parseInt(process.env.PORT ?? '3000', 10);
+  const root = process.cwd();
+  const app = createApp({ runIntake: createIntakeService() });
 
-const app = createApp({ runIntakeTransition });
+  if (process.env.NODE_ENV === 'production') {
+    const dist = path.resolve(root, 'dist');
+    app.use(express.static(dist));
+    app.get('*', (_request, response) => response.sendFile(path.join(dist, 'index.html')));
+  } else {
+    const { createServer: createViteServer } = await import('vite');
+    const vite = await createViteServer({ root, server: { middlewareMode: true }, appType: 'spa' });
+    app.use(vite.middlewares);
+  }
 
-// Health endpoint
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
+  const server = app.listen(port, () => {
+    console.log(`Explainable Trust listening on http://localhost:${port}`);
+    console.log('Inference defaults to replay; set GEMINI_API_KEY and choose live mode for Gemini.');
+  });
 
-// Serve static assets in production
-const distPath = path.resolve(process.cwd(), 'dist');
-app.use(express.static(distPath));
+  function shutdown() {
+    server.close(() => process.exit(0));
+  }
 
-// Fallback to index.html for React Router
-app.get('*', (req, res) => {
-  res.sendFile(path.resolve(distPath, 'index.html'));
-});
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
+}
 
-app.listen(PORT, () => {
-  console.log(`Server listening on port ${PORT}`);
-});
+void start();

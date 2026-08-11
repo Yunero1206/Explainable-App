@@ -225,6 +225,9 @@ export const CaseIntakeChat: React.FC<CaseIntakeChatProps> = ({
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
+    if (e.dataTransfer.files.length > 0) {
+      void handleFiles(e.dataTransfer.files);
+    }
   };
 
   return (
@@ -270,7 +273,7 @@ export const CaseIntakeChat: React.FC<CaseIntakeChatProps> = ({
                 <div
                   onClick={() => {
                     if (onLoadSample) {
-                      onLoadSample('case-sample-01');
+                      onLoadSample('CASE_quickbite-demo');
                     } else {
                       setInputText(
                         'I had my subscription cancelled abruptly without clear reason. I received a notice email and my service access stopped working immediately.'
@@ -280,17 +283,17 @@ export const CaseIntakeChat: React.FC<CaseIntakeChatProps> = ({
                   className="p-3.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 cursor-pointer transition-all shadow-2xs hover:shadow-xs group"
                 >
                   <p className="font-medium text-slate-900 group-hover:text-slate-800 mb-1">
-                    Sample 1: Cloud Service Dispute
+                    Open the QuickBite demo
                   </p>
                   <p className="text-slate-500 line-clamp-2">
-                    SaaS subscription cancellation & dispute record
+                    A validated report, claim, gap, action, revision, and audit
                   </p>
                 </div>
 
                 <div
                   onClick={() => {
                     if (onLoadSample) {
-                      onLoadSample('case-sample-02');
+                      setInputText('The merchant confirmed my refund was received today.');
                     } else {
                       setInputText(
                         'I was charged for an order that courier claims was delivered, but the seller tracking mismatch shows delivery in another city.'
@@ -300,10 +303,10 @@ export const CaseIntakeChat: React.FC<CaseIntakeChatProps> = ({
                   className="p-3.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 cursor-pointer transition-all shadow-2xs hover:shadow-xs group"
                 >
                   <p className="font-medium text-slate-900 group-hover:text-slate-800 mb-1">
-                    Sample 2: E-Commerce Delivery Mismatch
+                    Try a follow-up update
                   </p>
                   <p className="text-slate-500 line-clamp-2">
-                    Order non-receipt & courier tracking mismatch
+                    Replay can transition an earlier gap and action
                   </p>
                 </div>
               </div>

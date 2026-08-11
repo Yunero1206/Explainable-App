@@ -1,38 +1,16 @@
+import type { LedgerV3Case, RelationshipType } from './ledger/types.js';
+import type { ModelRunAudit } from './runtime/modelRun.js';
+
 export type AcquisitionMethod = 'user_upload' | 'pasted_text' | 'file_drop' | 'manual_entry';
-
-export type InputForm =
-  | 'screenshot'
-  | 'image'
-  | 'email_text'
-  | 'pdf'
-  | 'receipt'
-  | 'chat_transcript'
-  | 'document'
-  | 'other';
-
-export type GapStatus =
-  | 'open'
-  | 'narrowed'
-  | 'resolved'
-  | 'abandoned'
-  | 'superseded'
-  | 'unavailable'
-  | 'no-longer-material';
-
-export type AssessmentState =
-  | 'Reported'
-  | 'Corroborated'
-  | 'Contested'
-  | 'Established within current record'
-  | 'Mutually acknowledged';
+export type InputForm = 'screenshot' | 'image' | 'email_text' | 'pdf' | 'receipt' | 'chat_transcript' | 'document' | 'other';
+export type AssessmentState = 'Reported' | 'Corroborated' | 'Contested' | 'Established within current record' | 'Mutually acknowledged';
 
 export interface UserStatement {
-  id: string; // e.g. U01, U02
+  id: string;
   text: string;
-  submitted_at: string; // ISO string timestamp
-  attachment_ids?: string[];
-  disposition?: 'supports_finding' | 'challenges_finding' | 'corrects_statement' | 'supports_gap' | 'irrelevant' | 'not_yet_classified';
-  corrects_statement_ids?: string[];
+  submitted_at: string;
+  attachment_ids: string[];
+  disposition?: RelationshipType;
   disposition_reason?: string;
 }
 
@@ -48,54 +26,43 @@ export interface RawSubmission {
 }
 
 export interface EvidenceItem {
-  id: string; // e.g. E01, E02
+  id: string;
   label: string;
-  claimed_source: string; // e.g., "Adobe", "Bank of America", "User", "Unspecified"
+  claimed_source: string;
   acquisition_method: AcquisitionMethod;
   input_form: InputForm;
-  evidence_time?: string | null;
-  received_at?: string;
-  subject_object_ids: string[]; // e.g. ["Account: #SUB-9941", "Order: #ORD-8812"]
-  content: string; // extracted or supplied text
-  content_summary?: string; // AI generated inspection summary
+  evidence_time: string | null;
+  received_at: string;
+  subject_object_ids: string[];
+  content: string;
   raw_submission?: RawSubmission;
-  
-  disposition?: 'supports_finding' | 'challenges_finding' | 'corrects_statement' | 'supports_gap' | 'irrelevant' | 'not_yet_classified';
+  disposition?: RelationshipType;
   disposition_reason?: string;
-
-  // Provenance & inspection
   source_attribution: string;
   case_object_match: string;
   case_object_match_status?: 'matched' | 'mismatched' | 'unclear' | 'not_assessed';
   completeness_context: string;
   integrity_signals: string;
-
-  corroborated_by?: string[];
-  qualified_by?: string[];
-  conflicted_by?: string[];
   limitations: string[];
-
-  // Local presentation/attachment properties
   file_name?: string;
   file_type?: string;
   file_data_url?: string;
 }
 
 export interface CaseEvent {
-  id: string; // e.g. EV01
-  time: string; // Exact, date only, approximate, or "Unknown"
+  id: string;
+  time: string;
   actor: string;
   action: string;
   target: string;
   effect: string;
   evidence_ids: string[];
-  user_statement_ids?: string[];
+  user_statement_ids: string[];
   assessment: AssessmentState;
-  is_user_reported_only?: boolean;
 }
 
 export interface Claim {
-  id: string; // e.g. C01
+  id: string;
   text: string;
   actor: string;
   action: string;
@@ -104,71 +71,67 @@ export interface Claim {
   supporting_evidence: string[];
   qualifying_evidence: string[];
   conflicting_evidence: string[];
-  user_statement_ids?: string[];
+  user_statement_ids: string[];
   assessment: AssessmentState;
   reasoning: string;
   scope: string;
   limits: string[];
-  causal_relationship: 'established' | 'unresolved' | 'not_supported' | 'none';
 }
 
 export interface EvidenceGap {
-  id: string; // e.g. G01
+  id: string;
   what_is_unknown: string;
   why_it_matters: string;
   what_evidence_could_resolve_it: string;
   where_how_to_obtain: string;
   what_not_to_over_collect: string;
-  target_claim_ids?: string[]; // Structural link Claim -> Gap
-  status?: GapStatus;
+  target_claim_ids: string[];
+  status: 'open' | 'resolved' | 'superseded' | 'unavailable' | 'no_longer_material';
   resolution_reason?: string;
   resolution_evidence_ids?: string[];
 }
 
 export interface NextAction {
-  id: string; // e.g. A01
+  id: string;
   title: string;
   description: string;
-  target_gap_id: string; // Structural link Action -> Gap
+  target_gap_id: string;
+  target_gap_ids: string[];
   priority: 'high' | 'medium' | 'low';
+  status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
 }
 
 export interface AnalysisSummary {
-  epistemic_warning?: string;
   total_evidence_count: number;
   established_claims_count: number;
   unresolved_claims_count: number;
   conflicted_claims_count: number;
   user_reported_claims_count: number;
-  timeline_span?: string;
-  unresolved_questions_count?: number;
-  revision_delta_summary?: string;
+  unresolved_questions_count: number;
 }
 
-export interface CaseRevision {
-  revision_id: string; // e.g. R01, R02
+export interface RevisionAuditView {
+  id: string;
+  parent_id: string | null;
   created_at: string;
-  input_statement_ids: string[];
-  input_evidence_ids: string[];
-  events: CaseEvent[];
-  claims: Claim[];
-  gaps: EvidenceGap[];
-  actions: NextAction[];
-  summary: AnalysisSummary;
-  model_id?: string;
-  reasoning_contract_version?: string;
-  schema_version?: string;
-  revision_delta_summary?: string;
+  explanation: string;
+  accepted_model_run_id: string;
+  delta_entries: Array<{
+    entity_type: string;
+    entity_id: string;
+    operation: 'add' | 'update' | 'transition';
+    reason: string;
+    source_ids: string[];
+  }>;
 }
 
 export interface AttachmentFile {
   id: string;
   name: string;
   type: string;
-  dataUrl: string; // base64 data url
+  dataUrl: string;
   size?: number;
   extractedText?: string;
-  sha256_hash?: string;
 }
 
 export interface ChatMessage {
@@ -178,32 +141,8 @@ export interface ChatMessage {
   attachments?: AttachmentFile[];
   timestamp: string;
   revision_id?: string;
-  summary_snapshot?: {
-    evidence_count: number;
-    established_count: number;
-    gap_count: number;
-  };
   isAnalyzing?: boolean;
   error?: string;
-}
-
-export interface LegacyCaseData {
-  id: string;
-  case_number: string;
-  title: string;
-  objective: string;
-  user_story?: string;
-  statements: UserStatement[];
-  evidence: EvidenceItem[];
-  current_revision_id?: string;
-  revisions?: CaseRevision[];
-  events: CaseEvent[];
-  claims: Claim[];
-  gaps: EvidenceGap[];
-  actions: NextAction[];
-  summary?: AnalysisSummary;
-  is_archived?: boolean;
-  locale?: string;
 }
 
 export interface PresentationCaseData {
@@ -211,7 +150,6 @@ export interface PresentationCaseData {
   case_number: string;
   title: string;
   objective: string;
-  user_story?: string;
   statements: UserStatement[];
   evidence: EvidenceItem[];
   current_revision_id?: string;
@@ -220,6 +158,9 @@ export interface PresentationCaseData {
   gaps: EvidenceGap[];
   actions: NextAction[];
   summary?: AnalysisSummary;
-  is_archived?: boolean;
-  locale?: string;
+  is_archived: boolean;
+  locale: string;
+  revisions: RevisionAuditView[];
+  model_runs: ModelRunAudit[];
+  authoritative_record: LedgerV3Case;
 }

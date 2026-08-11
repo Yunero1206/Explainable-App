@@ -107,7 +107,7 @@ export const EvidenceDetailModal: React.FC<EvidenceDetailModalProps> = ({
             </div>
           )}
 
-          {/* Extracted Artifact Content & AI Summary (Kept Separate) */}
+          {/* Extracted or submitted source content */}
           <div className="space-y-4">
             <div className="space-y-1.5">
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
@@ -118,16 +118,6 @@ export const EvidenceDetailModal: React.FC<EvidenceDetailModalProps> = ({
               </div>
             </div>
 
-            {evidence.content_summary && (
-              <div className="space-y-1.5">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                  AI Inspection Summary
-                </h4>
-                <div className="p-3 bg-slate-50 text-slate-800 text-xs rounded-xl border border-slate-200 leading-relaxed">
-                  {evidence.content_summary}
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Subject/Object Identifiers Observed */}

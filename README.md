@@ -1,21 +1,42 @@
-# Explainable Trust V0
+# Explainable Trust
 
-Explainable Trust is a portfolio case for turning messy evidence into an auditable, explainable decision ledger. V0 is intentionally local-first and thin: React UI, a server-held Gemini boundary, deterministic ledger application, IndexedDB persistence and replayable proof.
+Explainable Trust turns a messy user report and attached files into a traceable case ledger. It is a working local-first product: the default replay mode needs no API key, while live mode calls Gemini only from the server.
 
-## Current reset
+## What works
 
-The active architecture-reset cursor is `project-context/ACTIVE_WORK.md`. The reset replaces model-authored full snapshots with typed proposals applied by deterministic code to Ledger V3. The V0 model is pinned to `gemini-3.5-flash`.
+- Three-pane case workspace with local case creation, rename, archive, and deletion.
+- Text and file intake, including click-to-upload and drag-and-drop.
+- Immutable raw statements, attachment metadata, SHA-256 fixity, and locally preserved blobs.
+- Deterministic proposal application into a strictly validated Ledger V3 revision.
+- Claims, events, evidence inspections, gaps, next actions, revision deltas, and model-run audit.
+- Rejected/provider-error runs preserve the last accepted ledger.
+- Atomic IndexedDB commits for the accepted ledger, model run, and attachment blobs.
+- Portable JSON export of the authoritative ledger plus its run audit.
 
-## Start an Antigravity turn
+## Run locally
 
-Ask Antigravity:
+Requirements: Node.js 20 or newer and npm.
 
-```text
-Continue from project-context/ACTIVE_WORK.md. Load project truth, inspect actual git state, and plan only the active micro-slice. Stop for approval before editing.
+```bash
+npm ci
+npm run dev
 ```
 
-The agent must return a handshake and plan first. Approve only one slice at a time. The always-on contract is `.agents/rules/explainable-trust-operating-contract.md`; the execution workflow is `.agents/workflows/execute-active-work.md`.
+Open `http://localhost:3000`. Replay is selected by default and works without credentials.
 
-## Local commands
+For live inference, copy `.env.example` to `.env`, add `GEMINI_API_KEY`, start the app, then choose **Live** in the left sidebar. The model is deliberately pinned to `gemini-3.5-flash`; there is no alias, fallback, router, or client override.
 
-Use the commands declared by the repository's current `package.json`. Do not infer acceptance from a dev server alone; each slice names its own focused and aggregate gates.
+## Production and verification
+
+```bash
+npm run verify
+NODE_ENV=production npm start
+```
+
+`npm run verify` type-checks, runs the complete test suite, and builds the browser and server bundles. Set `PORT` to override the default port `3000`.
+
+## Data and trust boundary
+
+The authoritative browser database is `ExplainableTrustV3`. The app never deletes or upgrades the former V2 database automatically. UI language changes presentation labels only; accepted source text and IDs are not translated or rewritten.
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the runtime flow and invariants.
