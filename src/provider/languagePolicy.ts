@@ -2,6 +2,15 @@ import type { ProviderProposal } from './proposalTypes.js';
 
 export type DetectedContentLanguage = 'vi' | 'en' | 'es' | 'fr' | 'zh-CN' | 'ja';
 
+const LANGUAGE_LABELS: Record<DetectedContentLanguage, string> = {
+  vi: 'Vietnamese',
+  en: 'English',
+  es: 'Spanish',
+  fr: 'French',
+  'zh-CN': 'Chinese (Simplified)',
+  ja: 'Japanese',
+};
+
 export interface LanguageSignal {
   language: DetectedContentLanguage;
   confidence: number;
@@ -93,12 +102,27 @@ function collectGeneratedText(value: unknown, key: string | null = null): string
   return Object.entries(value).flatMap(([childKey, child]) => collectGeneratedText(child, childKey));
 }
 
+/**
+ * Returns a human-readable language label for use in Gemini prompts (e.g. "Vietnamese"),
+ * or null if the language cannot be determined or is mixed.
+ */
+export function detectSourceLanguageLabel(text: string): string | null {
+  const signal = detectContentLanguage(text);
+  if (signal === null || signal.mixed || signal.confidence < 0.58) return null;
+  return LANGUAGE_LABELS[signal.language] ?? null;
+}
+
+/**
+ * Checks whether the proposal language matches the source language.
+ * Returns a warning string if there is a mismatch, or null if everything is fine.
+ * Callers should log the warning rather than rejecting the proposal.
+ */
 export function assertProposalPreservesSourceLanguage(input: {
   sourceTexts: string[];
   proposal: ProviderProposal;
-}): void {
+}): string | null {
   const sourceText = input.sourceTexts.filter((text) => text.trim().length > 0).join('\n\n');
-  if (sourceText.length === 0 || translationWasRequested(sourceText)) return;
+  if (sourceText.length === 0 || translationWasRequested(sourceText)) return null;
 
   const source = detectContentLanguage(sourceText);
   const generated = detectContentLanguage(collectGeneratedText(input.proposal).join('\n'));
@@ -106,9 +130,7 @@ export function assertProposalPreservesSourceLanguage(input: {
     source === null || generated === null || source.mixed || generated.mixed ||
     source.confidence < 0.58 || generated.confidence < 0.58 ||
     source.language === generated.language
-  ) return;
+  ) return null;
 
-  throw new Error(
-    `Content language mismatch: the current intake is ${source.language}, but the generated case content is ${generated.language}. UI language cannot translate source-owned content.`
-  );
+  return `Content language mismatch: the current intake is ${source.language}, but the generated case content is ${generated.language}. UI language cannot translate source-owned content.`;
 }

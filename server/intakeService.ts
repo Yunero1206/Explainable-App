@@ -333,7 +333,7 @@ export function createIntakeService(dependencies: IntakeServiceDependencies = {}
     const baseWithRaw = { ...runBase, provider: result.provider, raw_response_text: result.raw_response_text };
     try {
       const proposal = parseProviderProposal(cleanJson(result.raw_response_text), validationContext(parent, prepared));
-      assertProposalPreservesSourceLanguage({
+      const languageWarning = assertProposalPreservesSourceLanguage({
         sourceTexts: [
           message,
           ...prepared.evidence.flatMap((item) => [
@@ -344,6 +344,9 @@ export function createIntakeService(dependencies: IntakeServiceDependencies = {}
         ],
         proposal,
       });
+      if (languageWarning !== null) {
+        console.warn('[intakeService] Language mismatch warning (proposal accepted anyway):', languageWarning);
+      }
       const ledger = applyProposal({ parent, prepared, proposal });
       const run = parseModelRunAudit({
         ...baseWithRaw,
