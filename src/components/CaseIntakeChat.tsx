@@ -13,6 +13,7 @@ import {
 import type { AttachmentFile, CaseReference, ChatMessage } from '../types.js';
 import { CASE_REFERENCE_SPLIT_PATTERN, caseReferenceFromId } from '../presentation/caseReferences.js';
 import { CaseKeyButton } from './CaseKeyButton.js';
+import { useLanguage } from '../contexts/LanguageContext.js';
 
 interface CaseIntakeChatProps {
   messages: ChatMessage[];
@@ -35,6 +36,7 @@ export const CaseIntakeChat: React.FC<CaseIntakeChatProps> = ({
   onLoadSample,
   insertedInputText,
 }) => {
+  const { t } = useLanguage();
   const isLoading = isLoadingProp || isAnalyzingProp;
   const [inputText, setInputText] = useState('');
   const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
@@ -231,8 +233,8 @@ export const CaseIntakeChat: React.FC<CaseIntakeChatProps> = ({
         <div className="absolute inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-6 border-2 border-dashed border-slate-700 m-4 rounded-2xl pointer-events-none">
           <div className="bg-white rounded-2xl p-6 shadow-xl text-center max-w-sm space-y-2">
             <Paperclip className="w-8 h-8 text-slate-700 mx-auto animate-bounce" />
-            <p className="text-sm font-semibold text-slate-900">Drop files or documents here</p>
-            <p className="text-xs text-slate-500">Images, screenshots, PDFs, or text exports</p>
+            <p className="text-sm font-semibold text-slate-900">{t.dropFilesHere}</p>
+            <p className="text-xs text-slate-500">{t.dropFilesDescription}</p>
           </div>
         </div>
       )}
@@ -249,11 +251,10 @@ export const CaseIntakeChat: React.FC<CaseIntakeChatProps> = ({
 
               <div className="max-w-xl mx-auto space-y-2">
                 <p className="text-lg font-medium text-slate-800">
-                  &ldquo;Tell me what happened.&rdquo;
+                  &ldquo;{t.welcomePrompt}&rdquo;
                 </p>
                 <p className="text-sm text-slate-600 leading-relaxed">
-                  Describe the situation in your own words and attach anything relevant.
-                  You don&apos;t need to organize it first.
+                  {t.welcomeDescription}
                 </p>
               </div>
 
@@ -272,17 +273,17 @@ export const CaseIntakeChat: React.FC<CaseIntakeChatProps> = ({
                   className="p-3.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 cursor-pointer transition-all shadow-2xs hover:shadow-xs group"
                 >
                   <p className="font-medium text-slate-900 group-hover:text-slate-800 mb-1">
-                    Open the QuickBite demo
+                    {t.openDemo}
                   </p>
                   <p className="text-slate-500 line-clamp-2">
-                    A validated report, claim, gap, action, revision, and audit
+                    {t.openDemoDescription}
                   </p>
                 </div>
 
                 <div
                   onClick={() => {
                     if (onLoadSample) {
-                      setInputText('The merchant confirmed my refund was received today.');
+                      setInputText(t.sampleFollowUpText);
                     } else {
                       setInputText(
                         'I was charged for an order that courier claims was delivered, but the seller tracking mismatch shows delivery in another city.'
@@ -292,10 +293,10 @@ export const CaseIntakeChat: React.FC<CaseIntakeChatProps> = ({
                   className="p-3.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 cursor-pointer transition-all shadow-2xs hover:shadow-xs group"
                 >
                   <p className="font-medium text-slate-900 group-hover:text-slate-800 mb-1">
-                    Try a follow-up update
+                    {t.tryFollowUp}
                   </p>
                   <p className="text-slate-500 line-clamp-2">
-                    A follow-up can resolve an earlier gap and update its action
+                    {t.followUpDescription}
                   </p>
                 </div>
               </div>
@@ -353,7 +354,7 @@ export const CaseIntakeChat: React.FC<CaseIntakeChatProps> = ({
                           type="button"
                           onClick={() => toggleSubmissionExpand(msg.id)}
                           className="text-slate-400 hover:text-slate-200 p-0.5 cursor-pointer shrink-0 mt-0.5"
-                          title={isExpanded ? 'Collapse message' : 'Expand full message'}
+                          title={isExpanded ? t.collapseMessage : t.expandMessage}
                         >
                           {isExpanded ? (
                             <ChevronUp className="w-4 h-4" />
@@ -390,7 +391,7 @@ export const CaseIntakeChat: React.FC<CaseIntakeChatProps> = ({
                       <div className="space-y-2">
                         <div className="flex items-center gap-2 text-amber-700 font-medium text-xs">
                           <AlertTriangle className="w-4 h-4 text-amber-600" />
-                          <span>Notice</span>
+                          <span>{t.notice}</span>
                         </div>
                         <p className="text-xs text-slate-700 leading-relaxed">
                           {msg.error}
@@ -420,8 +421,8 @@ export const CaseIntakeChat: React.FC<CaseIntakeChatProps> = ({
             <div className="flex items-center gap-3 p-4 bg-white rounded-2xl border border-slate-200 shadow-2xs max-w-md">
               <Loader2 className="w-4 h-4 text-slate-600 animate-spin" />
               <div className="text-xs text-slate-600">
-                <p className="font-medium text-slate-900">Reconstructing case record...</p>
-                <p className="text-[11px] text-slate-500">Updating timeline & findings</p>
+                <p className="font-medium text-slate-900">{t.reconstructingRecord}</p>
+                <p className="text-[11px] text-slate-500">{t.updatingRecord}</p>
               </div>
             </div>
           )}
@@ -451,7 +452,7 @@ export const CaseIntakeChat: React.FC<CaseIntakeChatProps> = ({
                     type="button"
                     onClick={() => removeAttachment(att.id)}
                     className="p-0.5 hover:bg-slate-200 rounded-full text-slate-500 hover:text-slate-800 cursor-pointer"
-                    title="Remove attachment"
+                    title={t.removeAttachment}
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -479,8 +480,8 @@ export const CaseIntakeChat: React.FC<CaseIntakeChatProps> = ({
               type="button"
               onClick={() => fileInputRef.current?.click()}
               className="p-2 rounded-full text-slate-500 hover:text-slate-900 hover:bg-slate-200/70 transition-colors cursor-pointer shrink-0"
-              title="Add photos & files"
-              aria-label="Add photos and files"
+              title={t.addFiles}
+              aria-label={t.addFiles}
             >
               <Paperclip className="w-5 h-5" />
             </button>
@@ -493,8 +494,8 @@ export const CaseIntakeChat: React.FC<CaseIntakeChatProps> = ({
               onKeyDown={handleKeyDown}
               placeholder={
                 messages.length === 0
-                  ? 'Describe the situation and attach files...'
-                  : 'Add details, reply, or attach documents...'
+                  ? t.initialComposerPlaceholder
+                  : t.followUpComposerPlaceholder
               }
               rows={1}
               className="flex-1 bg-transparent text-slate-900 text-sm placeholder-slate-400 focus:outline-none resize-none py-2 px-1 max-h-44"
@@ -509,15 +510,15 @@ export const CaseIntakeChat: React.FC<CaseIntakeChatProps> = ({
                   ? 'bg-slate-900 text-white hover:bg-slate-800 shadow-xs'
                   : 'bg-slate-200 text-slate-400 cursor-not-allowed'
               }`}
-              title="Send message"
+              title={t.sendMessage}
             >
               <Send className="w-4 h-4" />
             </button>
           </form>
 
           <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
-            <span>Supports images, PDFs, text files & screenshots</span>
-            <span>Press Enter to send, Shift+Enter for newline</span>
+            <span>{t.supportsFiles}</span>
+            <span>{t.composerShortcut}</span>
           </div>
         </div>
       </div>

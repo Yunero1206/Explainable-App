@@ -228,6 +228,10 @@ describe('restored product analysis pattern', () => {
     expect(exported.gaps_and_actions).toHaveLength(3);
     expect(exported.timeline[4].keys).toMatchObject({ case_number: 'CASE-001', event: 'EV05', findings: ['C05'] });
     expect(exported.gaps_and_actions[0].keys.events).toEqual(['EV05', 'EV06']);
+    expect(exported.export_version).toBe('case-view-2.1.0');
+    expect(serialized).not.toContain('resolving_evidence');
+    expect(serialized).not.toContain('acquisition_guidance');
+    expect(serialized).not.toContain('collection_boundary');
     expect(serialized).not.toContain('model_runs');
     expect(serialized).not.toContain('Revision audit');
     expect(serialized).not.toContain('authoritative_record');
@@ -246,6 +250,10 @@ describe('restored product analysis pattern', () => {
     expect(prompt).toContain('protect people or assets while uncertainty remains, or recover and resolve the case');
     expect(prompt).toContain('explanation.user_goal');
     expect(prompt).toContain('Every open gap must own at least one pending or in-progress action');
+    expect(prompt).toContain('USER INTENT GOVERNS GAPS');
+    expect(prompt).toContain('Do not create generic completeness, corroboration, provenance, or verification gaps');
+    expect(prompt).toContain('Add execution details or limits only when the user statement or accepted record supports them');
+    expect(prompt).toContain('Re-evaluate every existing open gap against the current user intent');
     expect(prompt).not.toContain('Suggested actions may only acquire or verify evidence');
   });
 

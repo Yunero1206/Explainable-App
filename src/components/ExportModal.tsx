@@ -2,12 +2,14 @@ import React from 'react';
 import { FileCode, Printer, X } from 'lucide-react';
 import { buildCaseViewExport } from '../presentation/exportCase.js';
 import type { PresentationCaseData } from '../types.js';
+import { useLanguage } from '../contexts/LanguageContext.js';
 
 function keys(values: string[]): string {
   return values.map((value) => `[${value}]`).join(' ');
 }
 
 export function ExportModal({ caseData, onClose }: { caseData: PresentationCaseData; onClose: () => void }) {
+  const { t } = useLanguage();
   const exportPayload = buildCaseViewExport(caseData);
   const exportJson = JSON.stringify(exportPayload, null, 2);
 
@@ -46,16 +48,16 @@ export function ExportModal({ caseData, onClose }: { caseData: PresentationCaseD
         <div
           role="dialog"
           aria-modal="true"
-          aria-label="Export case"
+          aria-label={t.exportCase}
           onMouseDown={(event) => event.stopPropagation()}
           className="absolute top-14 right-4 w-72 bg-white border border-slate-200 rounded-xl shadow-2xl p-2"
         >
           <div className="px-2 py-1.5 flex items-center justify-between gap-2">
             <div>
-              <p className="text-xs font-semibold text-slate-900">Export case</p>
+              <p className="text-xs font-semibold text-slate-900">{t.exportCase}</p>
               <p className="text-[10px] font-mono text-slate-500">{caseData.case_number}</p>
             </div>
-            <button type="button" onClick={onClose} className="p-1 text-slate-400 hover:text-slate-800 rounded" title="Close export">
+            <button type="button" onClick={onClose} className="p-1 text-slate-400 hover:text-slate-800 rounded" title={t.closeExport}>
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -68,7 +70,7 @@ export function ExportModal({ caseData, onClose }: { caseData: PresentationCaseD
             >
               <FileCode className="w-4 h-4 text-slate-700 mb-2" />
               <span className="block text-xs font-semibold text-slate-900">JSON</span>
-              <span className="block text-[10px] text-slate-500 mt-0.5">Timeline + gaps</span>
+              <span className="block text-[10px] text-slate-500 mt-0.5">{t.timelineAndGaps}</span>
             </button>
             <button
               type="button"
@@ -76,8 +78,8 @@ export function ExportModal({ caseData, onClose }: { caseData: PresentationCaseD
               className="rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-50 p-3 text-left transition-colors"
             >
               <Printer className="w-4 h-4 text-slate-700 mb-2" />
-              <span className="block text-xs font-semibold text-slate-900">Print</span>
-              <span className="block text-[10px] text-slate-500 mt-0.5">Same case view</span>
+              <span className="block text-xs font-semibold text-slate-900">{t.print}</span>
+              <span className="block text-[10px] text-slate-500 mt-0.5">{t.sameCaseView}</span>
             </button>
           </div>
         </div>
@@ -87,11 +89,11 @@ export function ExportModal({ caseData, onClose }: { caseData: PresentationCaseD
         <header className="border-b border-slate-300 pb-4 mb-5">
           <p className="font-mono text-slate-500">{exportPayload.case.case_number}</p>
           <h1 className="text-2xl font-bold mt-1">{exportPayload.case.title}</h1>
-          <p className="mt-2"><strong>User goal:</strong> {exportPayload.case.user_goal}</p>
+          <p className="mt-2"><strong>{t.userGoal}:</strong> {exportPayload.case.user_goal}</p>
         </header>
 
         <section className="mb-7">
-          <h2 className="text-base font-bold uppercase tracking-wide mb-3">Timeline</h2>
+          <h2 className="text-base font-bold uppercase tracking-wide mb-3">{t.timeline}</h2>
           <div className="space-y-4">
             {exportPayload.timeline.map((item) => (
               <div key={item.keys.event} className="border border-slate-300 rounded-lg p-3 break-inside-avoid">
@@ -100,11 +102,11 @@ export function ExportModal({ caseData, onClose }: { caseData: PresentationCaseD
                 </div>
                 <p className="text-slate-500">{item.time}</p>
                 <p className="font-medium mt-1">{item.actor} {item.action} {item.target}{item.effect ? ` — ${item.effect}` : ''}</p>
-                <p className="text-slate-600 mt-1">Assessment: {item.assessment}</p>
+                <p className="text-slate-600 mt-1">{t.assessment}: {item.assessment}</p>
 
                 {item.statements.map((statement) => (
                   <div key={statement.id} className="mt-2 pl-3 border-l-2 border-slate-200">
-                    <p><strong>[{statement.id}] User statement</strong></p>
+                    <p><strong>[{statement.id}] {t.userStatement}</strong></p>
                     <p className="whitespace-pre-wrap text-slate-700">{statement.text}</p>
                   </div>
                 ))}
@@ -113,21 +115,21 @@ export function ExportModal({ caseData, onClose }: { caseData: PresentationCaseD
                   <div key={finding.id} className="mt-2 pl-3 border-l-2 border-indigo-200">
                     <p><strong>[{finding.id}] {finding.text}</strong> · {finding.assessment}</p>
                     <p className="text-slate-600">{finding.reasoning}</p>
-                    <p className="text-slate-500">Scope: {finding.scope}</p>
-                    {finding.limits.length > 0 && <p className="text-slate-500">Limits: {finding.limits.join(' · ')}</p>}
+                    <p className="text-slate-500">{t.scope}: {finding.scope}</p>
+                    {finding.limits.length > 0 && <p className="text-slate-500">{t.limitations}: {finding.limits.join(' · ')}</p>}
                   </div>
                 ))}
 
                 {item.evidence.map((evidence) => (
                   <div key={evidence.id} className="mt-2 pl-3 border-l-2 border-emerald-200">
-                    <p><strong>[{evidence.id}] {evidence.label}</strong> · Claimed source: {evidence.claimed_source}</p>
-                    {evidence.evidence_time && <p className="text-slate-500">Evidence time: {evidence.evidence_time}</p>}
+                    <p><strong>[{evidence.id}] {evidence.label}</strong> · {t.claimedSource}: {evidence.claimed_source}</p>
+                    {evidence.evidence_time && <p className="text-slate-500">{t.evidenceTime}: {evidence.evidence_time}</p>}
                     {evidence.content && <p className="whitespace-pre-wrap text-slate-700">{evidence.content}</p>}
-                    <p className="text-slate-500">Source attribution: {evidence.source_attribution}</p>
-                    <p className="text-slate-500">Case match: {evidence.case_object_match}</p>
-                    <p className="text-slate-500">Completeness: {evidence.completeness_context}</p>
-                    <p className="text-slate-500">Integrity: {evidence.integrity_signals}</p>
-                    {evidence.limitations.length > 0 && <p className="text-slate-500">Limits: {evidence.limitations.join(' · ')}</p>}
+                    <p className="text-slate-500">{t.sourceAttribution}: {evidence.source_attribution}</p>
+                    <p className="text-slate-500">{t.caseMatch}: {evidence.case_object_match}</p>
+                    <p className="text-slate-500">{t.completeness}: {evidence.completeness_context}</p>
+                    <p className="text-slate-500">{t.integrity}: {evidence.integrity_signals}</p>
+                    {evidence.limitations.length > 0 && <p className="text-slate-500">{t.limitations}: {evidence.limitations.join(' · ')}</p>}
                   </div>
                 ))}
               </div>
@@ -136,22 +138,18 @@ export function ExportModal({ caseData, onClose }: { caseData: PresentationCaseD
         </section>
 
         <section>
-          <h2 className="text-base font-bold uppercase tracking-wide mb-3">Gaps</h2>
+          <h2 className="text-base font-bold uppercase tracking-wide mb-3">{t.gaps}</h2>
           <div className="space-y-4">
             {exportPayload.gaps_and_actions.map((gap) => (
               <div key={gap.keys.gap} className="border border-slate-300 rounded-lg p-3 break-inside-avoid">
                 <p className="font-mono text-[10px] text-slate-600">
-                  [{gap.keys.gap}] {keys(gap.keys.events)} {keys(gap.keys.findings)} {keys(gap.keys.evidence)} {keys(gap.keys.actions)}
+                  [{gap.keys.gap}] {keys(gap.keys.events)} {keys(gap.keys.findings)} {keys(gap.keys.evidence)}
                 </p>
-                <p className="text-slate-500 uppercase text-[10px]">{gap.status}</p>
                 <p className="font-semibold mt-1">{gap.unknown}</p>
-                <p className="mt-1"><strong>Relevance:</strong> {gap.relevance}</p>
-                <p><strong>Could resolve:</strong> {gap.resolving_evidence}</p>
-                <p><strong>How to obtain:</strong> {gap.acquisition_guidance}</p>
-                <p><strong>Boundary:</strong> {gap.collection_boundary}</p>
                 {gap.actions.map((action) => (
                   <div key={action.id} className="mt-2 bg-slate-50 rounded p-2">
-                    <p><strong>[{action.id}] {action.title}</strong> · {action.priority} · {action.status}</p>
+                    <p className="font-mono text-[10px] text-slate-600">[{action.id}] {keys(action.related_event_ids)} {keys(action.finding_ids)} {keys(action.evidence_ids)}</p>
+                    <p><strong>{action.title}</strong></p>
                     <p>{action.description}</p>
                   </div>
                 ))}

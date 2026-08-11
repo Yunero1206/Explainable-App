@@ -2,6 +2,7 @@ import React from 'react';
 import { ExternalLink, FileText, Quote, X } from 'lucide-react';
 import type { CaseReference, PresentationCaseData } from '../types.js';
 import { CaseKeyButton } from './CaseKeyButton.js';
+import { useLanguage } from '../contexts/LanguageContext.js';
 
 export function ReferenceDetailModal({
   caseData,
@@ -14,6 +15,7 @@ export function ReferenceDetailModal({
   onClose: () => void;
   onSelectReference: (reference: CaseReference) => void;
 }) {
+  const { t } = useLanguage();
   const finding = reference.kind === 'finding'
     ? caseData.claims.find((item) => item.id === reference.id)
     : undefined;
@@ -66,7 +68,7 @@ export function ReferenceDetailModal({
             <div className="flex items-center gap-2">
               <span className="font-mono text-xs font-bold text-slate-900">[{reference.id}]</span>
               <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                {finding ? 'Finding citation' : 'Evidence source'}
+                {finding ? t.findingCitation : t.evidenceSource}
               </span>
             </div>
             <h3 className="truncate text-base font-semibold text-slate-900">
@@ -77,7 +79,7 @@ export function ReferenceDetailModal({
             type="button"
             onClick={onClose}
             className="rounded-lg bg-slate-100 p-1.5 text-slate-500 hover:bg-slate-200 hover:text-slate-900 cursor-pointer"
-            title="Close citation"
+            title={t.closeCitation}
           >
             <X className="h-4 w-4" />
           </button>
@@ -89,7 +91,7 @@ export function ReferenceDetailModal({
               <section className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4">
                 <div className="mb-2 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-indigo-700">
                   <Quote className="h-3.5 w-3.5" />
-                  Finding
+                  {t.findings}
                 </div>
                 <blockquote className="whitespace-pre-wrap text-sm leading-relaxed text-slate-900">
                   {finding.text}
@@ -98,7 +100,7 @@ export function ReferenceDetailModal({
 
               {findingSourceReferences.length > 0 && (
                 <section className="space-y-2">
-                  <h4 className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Source citations</h4>
+                  <h4 className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t.sourceCitations}</h4>
                   <div className="flex flex-wrap gap-1.5">
                     {findingSourceReferences.map((source) => (
                       <CaseKeyButton key={`${source.kind}:${source.id}`} reference={source} onSelect={closeThenSelect} />
@@ -109,15 +111,15 @@ export function ReferenceDetailModal({
 
               <section className="grid gap-3 text-xs text-slate-700 sm:grid-cols-2">
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 sm:col-span-2">
-                  <span className="mb-1 block font-semibold text-slate-900">Why this finding</span>
+                  <span className="mb-1 block font-semibold text-slate-900">{t.whyThisFinding}</span>
                   <p className="leading-relaxed">{finding.reasoning}</p>
                 </div>
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <span className="mb-1 block font-semibold text-slate-900">Scope</span>
+                  <span className="mb-1 block font-semibold text-slate-900">{t.scope}</span>
                   <p className="leading-relaxed">{finding.scope}</p>
                 </div>
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <span className="mb-1 block font-semibold text-slate-900">Limits</span>
+                  <span className="mb-1 block font-semibold text-slate-900">{t.limitations}</span>
                   <ul className="space-y-1">
                     {finding.limits.length === 0 ? <li>—</li> : finding.limits.map((limit) => <li key={limit}>{limit}</li>)}
                   </ul>
@@ -132,7 +134,7 @@ export function ReferenceDetailModal({
                 <div className="flex items-center justify-between gap-2">
                   <h4 className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
                     <FileText className="h-3.5 w-3.5" />
-                    {evidence.raw_submission ? 'Original attachment' : 'Source excerpt'}
+                    {evidence.raw_submission ? t.originalAttachment : t.sourceExcerpt}
                   </h4>
                   {evidence.file_data_url && !isImage && !isPdf && (
                     <a
@@ -141,7 +143,7 @@ export function ReferenceDetailModal({
                       rel="noreferrer"
                       className="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-700 hover:text-indigo-900"
                     >
-                      Open file <ExternalLink className="h-3 w-3" />
+                      {t.openFile} <ExternalLink className="h-3 w-3" />
                     </a>
                   )}
                 </div>
@@ -158,14 +160,14 @@ export function ReferenceDetailModal({
                   />
                 ) : (
                   <blockquote className="max-h-[52vh] overflow-y-auto whitespace-pre-wrap rounded-xl border border-slate-200 bg-slate-50 p-4 font-mono text-xs leading-relaxed text-slate-900">
-                    {evidence.content || 'No text was extracted from this attachment. Use Open file to inspect the preserved original.'}
+                    {evidence.content || t.noExtractedText}
                   </blockquote>
                 )}
               </section>
 
               {(linkedEvents.length > 0 || linkedFindings.length > 0) && (
                 <section className="space-y-2 border-t border-slate-100 pt-4">
-                  <h4 className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Used by</h4>
+                  <h4 className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t.usedBy}</h4>
                   <div className="flex flex-wrap gap-1.5">
                     {linkedEvents.map((event) => (
                       <CaseKeyButton key={event.id} reference={{ kind: 'event', id: event.id }} onSelect={closeThenSelect} title={`${event.time} · ${event.actor} ${event.action} ${event.target}`} />
@@ -178,7 +180,7 @@ export function ReferenceDetailModal({
               )}
 
               <p className="border-t border-slate-100 pt-4 text-[10px] leading-relaxed text-slate-500">
-                Claimed source: {evidence.claimed_source} · Received {evidence.received_at}
+                {t.claimedSource}: {evidence.claimed_source} · {t.receivedAt} {evidence.received_at}
               </p>
             </>
           )}

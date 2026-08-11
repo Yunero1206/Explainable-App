@@ -62,12 +62,16 @@ describe('case reference UI', () => {
 
   it('renders statement keys in chat and exposes only the configured Live model summary', () => {
     const { ledger } = SAMPLE_CASES[0];
-    const chatMarkup = renderToStaticMarkup(React.createElement(CaseIntakeChat, {
-      messages: deriveChatMessages(ledger, []),
-      onSendMessage: async () => undefined,
-      onSelectReference: () => undefined,
-      focusedReference: { kind: 'statement', id: 'U01' },
-    }));
+    const chatMarkup = renderToStaticMarkup(React.createElement(
+      LanguageProvider,
+      null,
+      React.createElement(CaseIntakeChat, {
+        messages: deriveChatMessages(ledger, []),
+        onSendMessage: async () => undefined,
+        onSelectReference: () => undefined,
+        focusedReference: { kind: 'statement', id: 'U01' },
+      })
+    ));
     const modelMarkup = renderToStaticMarkup(React.createElement(ModelRunsSummary));
 
     expect(chatMarkup).toContain('data-case-key="U01"');
@@ -75,5 +79,26 @@ describe('case reference UI', () => {
     expect(modelMarkup).toContain('gemini-3.6-flash');
     expect(modelMarkup).not.toContain('Replay');
     expect(modelMarkup).not.toContain('>Live<');
+  });
+
+  it('keeps the gap surface intent-first and renders record citations on each action', () => {
+    const projected = projectedSample();
+    const markup = renderToStaticMarkup(React.createElement(
+      LanguageProvider,
+      null,
+      React.createElement(RightCaseRecord, {
+        caseData: projected,
+        onSelectReference: () => undefined,
+        focusSection: 'gaps',
+      })
+    ));
+
+    const firstAction = projected.gaps[0].actions[0];
+    expect(markup).toContain(`data-case-key="${firstAction.id}"`);
+    expect(firstAction.related_event_ids.some((id) => markup.includes(`data-case-key="${id}"`))).toBe(true);
+    expect(markup).not.toContain('Could resolve:');
+    expect(markup).not.toContain('How to obtain:');
+    expect(markup).not.toContain('Boundary:');
+    expect(markup).not.toContain('>Relevance<');
   });
 });

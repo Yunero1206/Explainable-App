@@ -2,8 +2,9 @@
 
 import React, { useState } from 'react';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CaseIntakeChat } from '../src/components/CaseIntakeChat';
+import { ExportModal } from '../src/components/ExportModal';
 import { ReferenceDetailModal } from '../src/components/ReferenceDetailModal';
 import { RightCaseRecord } from '../src/components/RightCaseRecord';
 import { LanguageProvider } from '../src/contexts/LanguageContext';
@@ -23,6 +24,7 @@ beforeAll(() => {
   });
 });
 
+beforeEach(() => localStorage.clear());
 afterEach(() => cleanup());
 
 function sample() {
@@ -124,7 +126,7 @@ describe('case reference interactions', () => {
     });
 
     const eventId = gap.related_event_ids[0];
-    fireEvent.click(within(gapCard).getByRole('button', { name: `Open event ${eventId}` }));
+    fireEvent.click(within(gapCard).getAllByRole('button', { name: `Open event ${eventId}` })[0]);
     await waitFor(() => {
       const eventCard = document.querySelector<HTMLElement>(
         `[data-case-reference="${caseReferenceTarget({ kind: 'event', id: eventId })}"]`
@@ -148,5 +150,34 @@ describe('case reference interactions', () => {
       expect(message?.firstElementChild?.className).toContain('ring-sky-400');
     });
     expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
+  });
+
+  it('localizes chat, citation, and export chrome without translating case content', () => {
+    localStorage.setItem('locale', 'vi');
+    const { projected } = sample();
+    const finding = projected.claims[0];
+
+    render(
+      <LanguageProvider>
+        <CaseIntakeChat
+          messages={[]}
+          onSendMessage={async () => undefined}
+          isAnalyzing
+        />
+        <ReferenceDetailModal
+          caseData={projected}
+          reference={{ kind: 'finding', id: finding.id }}
+          onClose={() => undefined}
+          onSelectReference={() => undefined}
+        />
+        <ExportModal caseData={projected} onClose={() => undefined} />
+      </LanguageProvider>
+    );
+
+    expect(screen.getByText('Đang tái dựng hồ sơ vụ việc...')).toBeTruthy();
+    expect(screen.getByText('Hỗ trợ ảnh, PDF, tệp văn bản và ảnh chụp màn hình')).toBeTruthy();
+    expect(screen.getByText('Trích dẫn phát hiện')).toBeTruthy();
+    expect(screen.getByText('Xuất vụ việc')).toBeTruthy();
+    expect(screen.getAllByText(finding.text).length).toBeGreaterThan(0);
   });
 });

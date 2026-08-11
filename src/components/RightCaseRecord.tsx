@@ -60,7 +60,7 @@ export const RightCaseRecord: React.FC<RightCaseRecordProps> = ({
   if (!caseData) {
     return (
       <aside className="hidden lg:block w-80 xl:w-96 shrink-0 h-full bg-slate-50 border-l border-slate-200 p-6 text-center text-slate-500 text-xs">
-        <p className="mt-12">No active case selected.</p>
+        <p className="mt-12">{t.noActiveCase}</p>
       </aside>
     );
   }
@@ -83,8 +83,8 @@ export const RightCaseRecord: React.FC<RightCaseRecordProps> = ({
     <div className="h-full flex flex-col bg-white text-slate-800 text-xs border-l border-slate-200 select-none overflow-hidden">
       {onCloseMobile && (
         <div className="lg:hidden px-3 py-2 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0">
-          <span className="font-semibold text-xs text-slate-800 uppercase tracking-wider">Living Case Record</span>
-          <button type="button" onClick={onCloseMobile} className="p-1 text-slate-500 hover:text-slate-900 cursor-pointer" title="Close panel">
+          <span className="font-semibold text-xs text-slate-800 uppercase tracking-wider">{t.livingCaseRecord}</span>
+          <button type="button" onClick={onCloseMobile} className="p-1 text-slate-500 hover:text-slate-900 cursor-pointer" title={t.closePanel}>
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -182,23 +182,9 @@ export const RightCaseRecord: React.FC<RightCaseRecordProps> = ({
 
                     <h4 className="text-[13px] font-semibold text-slate-900 leading-snug">{gap.what_is_unknown}</h4>
 
-                    {gap.why_it_matters.trim().length > 0 && (
-                      <section className="space-y-1">
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Relevance</span>
-                        <p className="text-[11px] text-slate-700 leading-snug">{gap.why_it_matters}</p>
-                      </section>
-                    )}
-
-                    <section className="grid gap-1 text-[11px] text-slate-700 bg-slate-50 border border-slate-100 rounded-lg p-2.5">
-                      <p><span className="font-semibold text-slate-800">Could resolve:</span> {gap.what_evidence_could_resolve_it}</p>
-                      <p><span className="font-semibold text-slate-800">How to obtain:</span> {gap.where_how_to_obtain}</p>
-                      <p><span className="font-semibold text-slate-800">Boundary:</span> {gap.what_not_to_over_collect}</p>
-                    </section>
-
                     <section className="pt-2 border-t border-slate-100 space-y-2">
-                      <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Actions</div>
                       {gap.actions.length === 0 ? (
-                        <p className="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-[11px] text-amber-900">No action is connected to this gap yet.</p>
+                        <p className="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-[11px] text-amber-900">{t.emptyActions}</p>
                       ) : gap.actions.map((action) => {
                         const actionReference: CaseReference = { kind: 'action', id: action.id };
                         return (
@@ -209,7 +195,9 @@ export const RightCaseRecord: React.FC<RightCaseRecordProps> = ({
                           >
                             <div className="flex flex-wrap items-center gap-1.5">
                               {key(actionReference, action.title)}
-                              {action.target_gap_ids.map((id) => key({ kind: 'gap', id }))}
+                              {action.related_event_ids.map((id) => key({ kind: 'event', id }))}
+                              {action.finding_ids.map((id) => key({ kind: 'finding', id }, caseData.claims.find((item) => item.id === id)?.text))}
+                              {action.evidence_ids.map((id) => key({ kind: 'evidence', id }, caseData.evidence.find((item) => item.id === id)?.label))}
                             </div>
                             <p className="text-[11px] font-semibold text-slate-900">{action.title}</p>
                             <p className="text-[11px] text-slate-700 leading-snug">{action.description}</p>

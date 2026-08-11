@@ -1,7 +1,7 @@
 import type { PresentationCaseData } from '../types.js';
 
 export interface CaseViewExport {
-  export_version: 'case-view-2.0.0';
+  export_version: 'case-view-2.1.0';
   case: {
     case_id: string;
     case_number: string;
@@ -58,18 +58,11 @@ export interface CaseViewExport {
       evidence: string[];
       actions: string[];
     };
-    status: string;
     unknown: string;
-    relevance: string;
-    resolving_evidence: string;
-    acquisition_guidance: string;
-    collection_boundary: string;
     actions: Array<{
       id: string;
       title: string;
       description: string;
-      priority: string;
-      status: string;
       target_gap_ids: string[];
       related_event_ids: string[];
       finding_ids: string[];
@@ -84,7 +77,7 @@ export function buildCaseViewExport(caseData: PresentationCaseData): CaseViewExp
   const findingById = new Map(caseData.claims.map((item) => [item.id, item]));
 
   return {
-    export_version: 'case-view-2.0.0',
+    export_version: 'case-view-2.1.0',
     case: {
       case_id: caseData.id,
       case_number: caseData.case_number,
@@ -148,18 +141,11 @@ export function buildCaseViewExport(caseData: PresentationCaseData): CaseViewExp
           evidence: [...gap.evidence_ids],
           actions: actions.map((action) => action.id),
         },
-        status: gap.status,
         unknown: gap.what_is_unknown,
-        relevance: gap.why_it_matters,
-        resolving_evidence: gap.what_evidence_could_resolve_it,
-        acquisition_guidance: gap.where_how_to_obtain,
-        collection_boundary: gap.what_not_to_over_collect,
         actions: actions.map((action) => ({
           id: action.id,
           title: action.title,
           description: action.description,
-          priority: action.priority,
-          status: action.status,
           target_gap_ids: [...action.target_gap_ids],
           related_event_ids: [...action.related_event_ids],
           finding_ids: [...action.finding_ids],

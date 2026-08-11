@@ -1,5 +1,6 @@
 import React from 'react';
 import type { CaseReference, CaseReferenceKind } from '../types.js';
+import { useLanguage } from '../contexts/LanguageContext.js';
 
 const styles: Record<CaseReferenceKind, string> = {
   statement: 'border-sky-200 bg-sky-50 text-sky-800 hover:bg-sky-100',
@@ -21,6 +22,17 @@ export function CaseKeyButton({
   active?: boolean;
   title?: string;
 }) {
+  const { t } = useLanguage();
+  const referenceLabel: Record<CaseReferenceKind, string> = {
+    statement: t.statementReference,
+    evidence: t.evidenceReference,
+    event: t.eventReference,
+    finding: t.findingReference,
+    gap: t.gapReference,
+    action: t.actionReference,
+  };
+  const accessibleLabel = `${t.openReference} ${referenceLabel[reference.kind]} ${reference.id}`;
+
   return (
     <button
       type="button"
@@ -28,8 +40,8 @@ export function CaseKeyButton({
       data-case-kind={reference.kind}
       onClick={() => onSelect(reference)}
       className={`inline-flex font-mono text-[10px] font-bold leading-none px-1.5 py-1 rounded border transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-1 ${styles[reference.kind]} ${active ? 'ring-2 ring-indigo-500 ring-offset-1' : ''}`}
-      title={title ?? `Open ${reference.kind} ${reference.id}`}
-      aria-label={`Open ${reference.kind} ${reference.id}`}
+      title={title ?? accessibleLabel}
+      aria-label={accessibleLabel}
     >
       [{reference.id}]
     </button>

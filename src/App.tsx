@@ -45,7 +45,7 @@ function replaceById<T extends { id: string }>(items: T[], next: T): T[] {
 }
 
 export default function App() {
-  const { locale } = useLanguage();
+  const { locale, t } = useLanguage();
   const [ledgers, setLedgers] = useState<LedgerV3Case[]>([]);
   const [runs, setRuns] = useState<ModelRunAudit[]>([]);
   const [blobs, setBlobs] = useState<PersistedBlob[]>([]);
@@ -224,7 +224,7 @@ export default function App() {
     const submittedMessage: ChatMessage = {
       id: `attempt-user-${crypto.randomUUID()}`,
       role: 'user',
-      text: text.length > 0 ? text : `Submitted files: ${attachments.map((item) => item.name).join(', ')}`,
+      text: text.length > 0 ? text : `${t.submittedFiles}: ${attachments.map((item) => item.name).join(', ')}`,
       attachments,
       timestamp,
     };
@@ -298,20 +298,20 @@ export default function App() {
   };
 
   if (!casesLoaded) {
-    return <div className="h-screen grid place-items-center bg-slate-50 text-sm text-slate-600">Loading the local case ledger…</div>;
+    return <div className="h-screen grid place-items-center bg-slate-50 text-sm text-slate-600">{t.loadingLedger}</div>;
   }
 
   return (
     <div className="h-screen w-screen overflow-hidden flex flex-col bg-white font-sans antialiased text-slate-900 selection:bg-slate-200 selection:text-slate-900">
       <header className="lg:hidden bg-white p-3 flex items-center justify-between border-b border-slate-200 shrink-0">
-        <button type="button" onClick={() => setIsLeftMobileOpen(true)} className="p-2 rounded-lg bg-slate-100 text-slate-600" title="Open case navigation">
+        <button type="button" onClick={() => setIsLeftMobileOpen(true)} className="p-2 rounded-lg bg-slate-100 text-slate-600" title={t.openCaseNavigation}>
           <PanelLeft className="w-5 h-5" />
         </button>
         <div className="flex items-center gap-2">
           <ShieldCheck className="w-4 h-4 text-slate-700" />
           <span className="font-semibold text-sm truncate max-w-[180px]">{currentPresentationCase?.case_number ?? 'Explainable Trust'}</span>
         </div>
-        <button type="button" onClick={() => setIsRightMobileOpen(true)} className="p-2 rounded-lg bg-slate-100 text-slate-600" title="Open case record">
+        <button type="button" onClick={() => setIsRightMobileOpen(true)} className="p-2 rounded-lg bg-slate-100 text-slate-600" title={t.openCaseRecord}>
           <PanelRight className="w-5 h-5" />
         </button>
       </header>
