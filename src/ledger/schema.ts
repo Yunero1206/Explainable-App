@@ -841,6 +841,23 @@ const ACTION_ALLOWED_TRANSITIONS: Record<T.ActionStatus, T.ActionStatus[]> = {
 };
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function isDuplicateFreeSubsequence(sub: string[], full: string[]): boolean {
+  if (new Set(sub).size !== sub.length) return false;
+  let fullIdx = 0;
+  for (const item of sub) {
+    while (fullIdx < full.length && full[fullIdx] !== item) {
+      fullIdx++;
+    }
+    if (fullIdx === full.length) return false;
+    fullIdx++;
+  }
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 // parseLedgerV3 – the sole public admission function
 // ---------------------------------------------------------------------------
 
@@ -1274,16 +1291,16 @@ export function parseLedgerV3(raw: unknown): T.LedgerV3Case {
 
         // Transition sources available in the transition revision
         const transRev = c.revisions[transRevIdx];
-        const transAvailSrcs = new Set<string>([
+        const transCanonicalSources = [
           ...transRev.input_statement_ids,
           ...transRev.input_evidence_ids,
-        ]);
-        for (const src of g.transition.supporting_source_ids) {
-          if (!transAvailSrcs.has(src))
-            throw new Error(
-              `Gap transition supporting source unavailable in transition revision: ${src}`
-            );
-        }
+        ];
+        if (g.transition.supporting_source_ids.length === 0)
+          throw new Error('Gap transition supporting_source_ids must be non-empty');
+        if (!isDuplicateFreeSubsequence(g.transition.supporting_source_ids, transCanonicalSources))
+          throw new Error(
+            `Gap transition supporting_source_ids must be a duplicate-free subsequence of canonical source order in transition revision: [${g.transition.supporting_source_ids}] not in [${transCanonicalSources}]`
+          );
 
         if (prevRev !== null) {
           const pg = prevRev.gaps.find((pg) => pg.id === g.id);
@@ -1323,15 +1340,10 @@ export function parseLedgerV3(raw: unknown): T.LedgerV3Case {
               );
           }
         } else {
-          // Genesis revision — any non-null transition must own this revision
-          if (g.transition.transition_revision_id !== r.id)
-            throw new Error(
-              `Genesis gap ${g.id} transition_revision_id must be the genesis revision`
-            );
-          if (!GAP_ALLOWED_TRANSITIONS['open'].includes(g.status))
-            throw new Error(
-              `Forbidden gap transition in genesis from implied open -> ${g.status}`
-            );
+          // Genesis revision — all gaps are new
+          throw new Error(
+            `New gap ${g.id} must have status 'open' and transition null`
+          );
         }
       } else {
         // transition is null — must be open (new gap rule)
@@ -1365,16 +1377,16 @@ export function parseLedgerV3(raw: unknown): T.LedgerV3Case {
           throw new Error('Action transition_revision_id is in the future');
 
         const transRev = c.revisions[transRevIdx];
-        const transAvailSrcs = new Set<string>([
+        const transCanonicalSources = [
           ...transRev.input_statement_ids,
           ...transRev.input_evidence_ids,
-        ]);
-        for (const src of a.transition.supporting_source_ids) {
-          if (!transAvailSrcs.has(src))
-            throw new Error(
-              `Action transition supporting source unavailable in transition revision: ${src}`
-            );
-        }
+        ];
+        if (a.transition.supporting_source_ids.length === 0)
+          throw new Error('Action transition supporting_source_ids must be non-empty');
+        if (!isDuplicateFreeSubsequence(a.transition.supporting_source_ids, transCanonicalSources))
+          throw new Error(
+            `Action transition supporting_source_ids must be a duplicate-free subsequence of canonical source order in transition revision`
+          );
 
         if (prevRev !== null) {
           const pa = prevRev.actions.find((pa) => pa.id === a.id);
@@ -1408,14 +1420,10 @@ export function parseLedgerV3(raw: unknown): T.LedgerV3Case {
               );
           }
         } else {
-          if (a.transition.transition_revision_id !== r.id)
-            throw new Error(
-              `Genesis action ${a.id} transition_revision_id must be the genesis revision`
-            );
-          if (!ACTION_ALLOWED_TRANSITIONS['pending'].includes(a.status))
-            throw new Error(
-              `Forbidden action transition in genesis from implied pending -> ${a.status}`
-            );
+          // Genesis revision — all actions are new
+          throw new Error(
+            `New action ${a.id} must have status 'pending' and transition null`
+          );
         }
       } else {
         if (prevRev !== null) {
@@ -1645,13 +1653,20 @@ export function parseLedgerV3(raw: unknown): T.LedgerV3Case {
         }
       }
 
-      // All source_ids available in this revision
-      for (const src of got.source_ids) {
-        if (!availSources.has(src))
-          throw new Error(
-            `Delta source unavailable in revision ${r.id}: ${src}`
-          );
-      }
+      // All source_ids must be a non-empty, duplicate-free subsequence of canonical source order
+      // (except for specific entities checked below, but all must be subsequences)
+      const canonicalSources = [
+        ...r.input_statement_ids,
+        ...r.input_evidence_ids,
+      ];
+      
+      if (got.source_ids.length === 0)
+        throw new Error(`Delta source_ids cannot be empty for ${got.entity_id}`);
+        
+      if (!isDuplicateFreeSubsequence(got.source_ids, canonicalSources))
+        throw new Error(
+          `Delta source_ids must be a duplicate-free subsequence of canonical source order in revision ${r.id}: ${got.entity_id}`
+        );
 
       // Inspection delta source_ids must include the evidence_id
       if (exp.entity_type === 'inspection') {
