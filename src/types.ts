@@ -58,6 +58,7 @@ export interface CaseEvent {
   effect: string;
   evidence_ids: string[];
   user_statement_ids: string[];
+  finding_ids: string[];
   assessment: AssessmentState;
 }
 
@@ -86,6 +87,8 @@ export interface EvidenceGap {
   where_how_to_obtain: string;
   what_not_to_over_collect: string;
   target_claim_ids: string[];
+  related_event_ids: string[];
+  evidence_ids: string[];
   status: 'open' | 'resolved' | 'superseded' | 'unavailable' | 'no_longer_material';
   resolution_reason?: string;
   resolution_evidence_ids?: string[];
@@ -97,6 +100,9 @@ export interface NextAction {
   description: string;
   target_gap_id: string;
   target_gap_ids: string[];
+  related_event_ids: string[];
+  finding_ids: string[];
+  evidence_ids: string[];
   priority: 'high' | 'medium' | 'low';
   status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
 }

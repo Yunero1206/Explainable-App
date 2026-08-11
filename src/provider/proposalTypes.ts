@@ -22,6 +22,7 @@ export type ReferenceOrId<IdType extends string, RefType extends string> = IdTyp
 
 export interface AssistantExplanation {
   text: SemanticText;
+  user_goal: SemanticText;
 }
 
 export interface DispositionSupportsClaim {
@@ -83,6 +84,7 @@ export interface AddEventOperation {
   target: SemanticText;
   effect: SemanticText;
   assessment: AssessmentState;
+  finding_refs: ReferenceOrId<ClaimId, ClaimLocalRef>[];
   source_basis_ids: SourceId[];
   reason: SemanticText;
 }
@@ -96,6 +98,7 @@ export interface UpdateEventOperation {
   target?: SemanticText;
   effect?: SemanticText;
   assessment?: AssessmentState;
+  finding_refs?: ReferenceOrId<ClaimId, ClaimLocalRef>[];
   source_basis_ids: SourceId[];
   reason: SemanticText;
 }

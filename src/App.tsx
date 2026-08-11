@@ -61,7 +61,6 @@ export default function App() {
   const [selectedEvidenceForOriginal, setSelectedEvidenceForOriginal] = useState<EvidenceItem | null>(null);
   const [isLeftMobileOpen, setIsLeftMobileOpen] = useState(false);
   const [isRightMobileOpen, setIsRightMobileOpen] = useState(false);
-  const [focusSection, setFocusSection] = useState<string | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -110,7 +109,12 @@ export default function App() {
   const currentMessages = currentLedger === null
     ? []
     : [
-        ...deriveChatMessages(currentLedger, blobs.filter((blob) => blob.case_id === currentLedger.id)),
+        ...deriveChatMessages(
+          currentLedger,
+          blobs.filter((blob) => blob.case_id === currentLedger.id),
+          currentPresentationCase?.case_number ?? currentLedger.case_number,
+          locale,
+        ),
         ...(attemptMessages[currentLedger.id] ?? []),
       ];
 
@@ -283,12 +287,6 @@ export default function App() {
     }
   };
 
-  const handleOpenEvidenceInventory = () => {
-    if (window.innerWidth < 1024) setIsRightMobileOpen(true);
-    setFocusSection('inventory');
-    window.setTimeout(() => setFocusSection(null), 500);
-  };
-
   if (!casesLoaded) {
     return <div className="h-screen grid place-items-center bg-slate-50 text-sm text-slate-600">Loading the local case ledger…</div>;
   }
@@ -320,23 +318,25 @@ export default function App() {
             onDeleteCase={(id) => void handleDeleteCase(id)}
             isMobileOpen={isLeftMobileOpen}
             onCloseMobile={() => setIsLeftMobileOpen(false)}
-            testModeNode={<InferenceModeControl inferenceMode={inferenceMode} onChangeInferenceMode={setInferenceMode} />}
+            testModeNode={(
+              <InferenceModeControl
+                inferenceMode={inferenceMode}
+                onChangeInferenceMode={setInferenceMode}
+                latestRun={currentPresentationCase?.model_runs.at(-1)}
+              />
+            )}
           />
 
           <main className="flex-1 flex flex-col h-full bg-[#F8FAFC] relative overflow-hidden min-w-0">
             <CaseIntakeChat
               messages={currentMessages}
-              currentCase={currentPresentationCase}
               onSendMessage={handleSendMessage}
               isAnalyzing={isAnalyzing}
-              onOpenWorkspace={() => setIsRightMobileOpen(true)}
-              onOpenEvidenceInventory={handleOpenEvidenceInventory}
               onSelectEvidence={(evidenceId) => {
                 const found = currentPresentationCase?.evidence.find((item) => item.id === evidenceId);
                 if (found !== undefined) setSelectedEvidenceForSummary(found);
               }}
               onLoadSample={() => void handleLoadSample()}
-              onExportJson={() => setIsExportOpen(true)}
             />
           </main>
 
@@ -346,7 +346,6 @@ export default function App() {
             onExportJson={() => setIsExportOpen(true)}
             isMobileOpen={isRightMobileOpen}
             onCloseMobile={() => setIsRightMobileOpen(false)}
-            focusSection={focusSection}
           />
         </ErrorBoundary>
       </div>

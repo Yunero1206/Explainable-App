@@ -382,6 +382,13 @@ export const EventSchema = z
       .refine((arr) => new Set(arr).size === arr.length, {
         message: 'Duplicate source_support_ids',
       }),
+    finding_ids: z
+      .array(ClaimIdSchema)
+      .min(1)
+      .refine((arr) => new Set(arr).size === arr.length, {
+        message: 'Duplicate finding_ids',
+      })
+      .optional(),
     assessment: AssessmentStateSchema,
   })
   .strict();
@@ -1269,6 +1276,10 @@ export function parseLedgerV3(raw: unknown): T.LedgerV3Case {
       for (const src of ev.source_support_ids) {
         if (!availSources.has(src))
           throw new Error(`Event source unavailable: ${src}`);
+      }
+      for (const findingId of ev.finding_ids ?? []) {
+        if (!r.claims.find((claim) => claim.id === findingId))
+          throw new Error(`Event finding not in revision: ${findingId}`);
       }
     }
 

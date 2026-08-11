@@ -170,6 +170,7 @@ function applyValidatedProposal(input: ApplyProposalInput): LedgerV3Case {
           target: operation.target,
           effect: operation.effect,
           source_support_ids: canonicalizeSources(operation.source_basis_ids, canonicalSourceOrder),
+          finding_ids: operation.finding_refs.map(resolveClaim),
           assessment: operation.assessment,
         });
         recordChange('event', id, operation.reason, operation.source_basis_ids);
@@ -187,6 +188,9 @@ function applyValidatedProposal(input: ApplyProposalInput): LedgerV3Case {
           ...(operation.target === undefined ? {} : { target: operation.target }),
           ...(operation.effect === undefined ? {} : { effect: operation.effect }),
           ...(operation.assessment === undefined ? {} : { assessment: operation.assessment }),
+          ...(operation.finding_refs === undefined
+            ? {}
+            : { finding_ids: operation.finding_refs.map(resolveClaim) }),
           source_support_ids: canonicalizeSources(
             [...current.source_support_ids, ...operation.source_basis_ids],
             canonicalSourceOrder
@@ -652,7 +656,7 @@ function applyValidatedProposal(input: ApplyProposalInput): LedgerV3Case {
         id: prepared.revision_id,
         parent_id: parent.current_revision_id,
         created_at: prepared.created_at,
-        objective: previousRevision?.objective ?? prepared.objective,
+        objective: input.proposal.explanation.user_goal,
         explanation: input.proposal.explanation.text,
         assistant_message: input.proposal.explanation.text,
         accepted_model_run_id: prepared.model_run_id,

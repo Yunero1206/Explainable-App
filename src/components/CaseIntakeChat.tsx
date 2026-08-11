@@ -1,47 +1,34 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  Plus,
   Paperclip,
   Send,
   X,
   FileText,
   Image as ImageIcon,
-  Sparkles,
   Loader2,
   AlertTriangle,
-  Download,
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
-import { AttachmentFile, ChatMessage, PresentationCaseData } from '../types.js';
+import { AttachmentFile, ChatMessage } from '../types.js';
 
 interface CaseIntakeChatProps {
   messages: ChatMessage[];
-  currentCase?: PresentationCaseData | null;
   onSendMessage: (text: string, attachments: AttachmentFile[]) => Promise<void>;
-  onOpenWorkspace: () => void;
-  onOpenEvidenceInventory?: () => void;
   onSelectEvidence?: (evidenceId: string) => void;
   isLoading?: boolean;
   isAnalyzing?: boolean;
   onLoadSample?: (sampleId: string) => void;
-  onExportJson?: () => void;
-  topControlNode?: React.ReactNode;
   insertedInputText?: string;
 }
 
 export const CaseIntakeChat: React.FC<CaseIntakeChatProps> = ({
   messages,
-  currentCase = null,
   onSendMessage,
-  onOpenWorkspace,
-  onOpenEvidenceInventory,
   onSelectEvidence,
   isLoading: isLoadingProp = false,
   isAnalyzing: isAnalyzingProp = false,
   onLoadSample,
-  onExportJson,
-  topControlNode,
   insertedInputText,
 }) => {
   const isLoading = isLoadingProp || isAnalyzingProp;
@@ -49,7 +36,6 @@ export const CaseIntakeChat: React.FC<CaseIntakeChatProps> = ({
   const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [expandedSubmissions, setExpandedSubmissions] = useState<Record<string, boolean>>({});
-  const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
 
   useEffect(() => {
     if (insertedInputText) {
@@ -60,7 +46,6 @@ export const CaseIntakeChat: React.FC<CaseIntakeChatProps> = ({
     }
   }, [insertedInputText]);
 
-  const plusMenuRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -68,21 +53,6 @@ export const CaseIntakeChat: React.FC<CaseIntakeChatProps> = ({
   const toggleSubmissionExpand = (id: string) => {
     setExpandedSubmissions((prev) => ({ ...prev, [id]: !prev[id] }));
   };
-
-  // Close plus menu on outside click
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (plusMenuRef.current && !plusMenuRef.current.contains(e.target as Node)) {
-        setIsPlusMenuOpen(false);
-      }
-    };
-    if (isPlusMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isPlusMenuOpen]);
 
   // Helper to render assistant text with interactive evidence chips
   const renderTextWithChips = (text: string) => {
@@ -470,52 +440,15 @@ export const CaseIntakeChat: React.FC<CaseIntakeChatProps> = ({
             onSubmit={handleSubmit}
             className="flex items-end gap-2 bg-slate-50 border border-slate-200 rounded-2xl p-2 focus-within:ring-2 focus-within:ring-slate-300 focus-within:border-slate-300 transition-all"
           >
-            {/* "+" Button with Contextual Menu */}
-            <div className="relative shrink-0" ref={plusMenuRef}>
-              <button
-                type="button"
-                onClick={() => setIsPlusMenuOpen(!isPlusMenuOpen)}
-                className={`p-2 rounded-full transition-colors cursor-pointer ${
-                  isPlusMenuOpen
-                    ? 'bg-slate-200 text-slate-900'
-                    : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200/70'
-                }`}
-                title="Add options"
-              >
-                <Plus className="w-5 h-5" />
-              </button>
-
-              {/* "+" Popover Menu */}
-              {isPlusMenuOpen && (
-                <div className="absolute left-0 bottom-12 z-50 w-48 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 text-xs text-slate-700">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsPlusMenuOpen(false);
-                      fileInputRef.current?.click();
-                    }}
-                    className="w-full text-left px-3 py-2 hover:bg-slate-100 flex items-center gap-2.5 font-medium cursor-pointer"
-                  >
-                    <Paperclip className="w-4 h-4 text-slate-500" />
-                    <span>Add photos & files</span>
-                  </button>
-
-                  {onExportJson && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsPlusMenuOpen(false);
-                        onExportJson();
-                      }}
-                      className="w-full text-left px-3 py-2 hover:bg-slate-100 flex items-center gap-2.5 font-medium cursor-pointer"
-                    >
-                      <Download className="w-4 h-4 text-slate-500" />
-                      <span>Download case</span>
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="p-2 rounded-full text-slate-500 hover:text-slate-900 hover:bg-slate-200/70 transition-colors cursor-pointer shrink-0"
+              title="Add photos & files"
+              aria-label="Add photos and files"
+            >
+              <Paperclip className="w-5 h-5" />
+            </button>
 
             {/* Textarea */}
             <textarea

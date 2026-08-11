@@ -233,6 +233,12 @@ export interface Event {
   target: SemanticText;
   effect: SemanticText;
   source_support_ids: SourceId[];
+  /**
+   * Explicit product-view connection from a material timeline event to the
+   * finding(s) that assess it. Optional only so ledgers accepted before this
+   * additive edge was introduced remain readable.
+   */
+  finding_ids?: ClaimId[];
   assessment: AssessmentState;
 }
 

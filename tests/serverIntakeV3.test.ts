@@ -74,7 +74,10 @@ describe('Ledger V3 intake boundary', () => {
     const parent = emptyLedger();
     const before = JSON.stringify(parent);
     const rawResponse = JSON.stringify({
-      explanation: { text: 'Invalid provider proposal.' },
+      explanation: {
+        text: 'Invalid provider proposal.',
+        user_goal: 'Exercise the rejected-run boundary.',
+      },
       operations: [{
         operation_type: 'disposition_source',
         relationship_type: 'mentions_claim',

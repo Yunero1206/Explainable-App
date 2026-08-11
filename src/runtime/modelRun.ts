@@ -25,7 +25,7 @@ export interface ModelRunAudit {
   committed_revision_id: RevisionId | null;
   provider: 'google-gemini' | 'deterministic-replay';
   model_id: 'gemini-3.5-flash';
-  prompt_version: 'explainable-trust-proposal-v1';
+  prompt_version: 'explainable-trust-proposal-v1' | 'explainable-trust-analysis-v2';
   started_at: StructuralInstant;
   finished_at: StructuralInstant;
   status: ModelRunStatus;
@@ -42,7 +42,7 @@ export const ModelRunAuditSchema = z.object({
   committed_revision_id: RevisionIdSchema.nullable(),
   provider: z.enum(['google-gemini', 'deterministic-replay']),
   model_id: z.literal('gemini-3.5-flash'),
-  prompt_version: z.literal('explainable-trust-proposal-v1'),
+  prompt_version: z.enum(['explainable-trust-proposal-v1', 'explainable-trust-analysis-v2']),
   started_at: StructuralInstantSchema,
   finished_at: StructuralInstantSchema,
   status: z.enum(['accepted', 'rejected', 'provider_error']),

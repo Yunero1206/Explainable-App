@@ -38,7 +38,10 @@ function genesisPrepared() {
 function genesisProposal() {
   const statementId = mkStatementId('U01');
   return parseProviderProposal({
-    explanation: { text: 'The damaged-order report is recorded as a reported claim with one verification gap.' },
+    explanation: {
+      text: 'The damaged-order report is recorded as a reported claim with one verification gap.',
+      user_goal: 'Determine what the current record supports and what to do next.',
+    },
     operations: [
       {
         operation_type: 'add_claim',
@@ -64,6 +67,7 @@ function genesisProposal() {
         target: 'the order',
         effect: 'Damage was observed',
         assessment: 'Reported',
+        finding_refs: ['new_claim_1'],
         source_basis_ids: ['U01'],
         reason: 'Record the reported delivery event',
       },
@@ -124,6 +128,7 @@ describe('deterministic Ledger V3 proposal application', () => {
     expect(result.current_revision_id).toBe('R01');
     expect(result.revisions).toHaveLength(1);
     expect(result.revisions[0].events[0].id).toBe('EV01');
+    expect(result.revisions[0].events[0].finding_ids).toEqual(['C01']);
     expect(result.revisions[0].claims[0].id).toBe('C01');
     expect(result.revisions[0].gaps[0].id).toBe('G01');
     expect(result.revisions[0].actions[0].id).toBe('A01');
@@ -173,7 +178,10 @@ describe('deterministic Ledger V3 proposal application', () => {
     };
 
     const proposal = parseProviderProposal({
-      explanation: { text: 'The new confirmation corroborates the claim and closes the existing recovery work.' },
+      explanation: {
+        text: 'The new confirmation corroborates the claim and closes the existing recovery work.',
+        user_goal: 'Confirm whether the recovery outcome resolves the case.',
+      },
       operations: [
         {
           operation_type: 'update_claim',
@@ -227,7 +235,10 @@ describe('deterministic Ledger V3 proposal application', () => {
   it('rejects an introduced source without an explicit disposition and exposes no candidate', () => {
     const parent = buildEmptyCase();
     const proposal = parseProviderProposal({
-      explanation: { text: 'No epistemic change was proposed.' },
+      explanation: {
+        text: 'No epistemic change was proposed.',
+        user_goal: 'Assess the submitted report.',
+      },
       operations: [],
     }, {
       availableSourceIds: new Set([mkStatementId('U01')]),

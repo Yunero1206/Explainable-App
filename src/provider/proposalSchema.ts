@@ -25,6 +25,7 @@ const SourceIdSchema = z.union([StatementIdSchema, EvidenceIdSchema]);
 
 const AssistantExplanationSchema = z.object({
   text: SemanticTextSchema,
+  user_goal: SemanticTextSchema,
 }).strict();
 
 // Disposition variants
@@ -81,6 +82,7 @@ const AddEventOperationSchema = z.object({
   target: SemanticTextSchema,
   effect: SemanticTextSchema,
   assessment: AssessmentStateSchema,
+  finding_refs: z.array(z.union([ClaimIdSchema, ClaimLocalRefSchema])).min(1).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items'),
   source_basis_ids: z.array(SourceIdSchema).min(1).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items'),
   reason: SemanticTextSchema,
 }).strict();
@@ -94,10 +96,11 @@ const UpdateEventOperationSchema = z.object({
   target: SemanticTextSchema.optional(),
   effect: SemanticTextSchema.optional(),
   assessment: AssessmentStateSchema.optional(),
+  finding_refs: z.array(z.union([ClaimIdSchema, ClaimLocalRefSchema])).min(1).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items').optional(),
   source_basis_ids: z.array(SourceIdSchema).min(1).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items'),
   reason: SemanticTextSchema,
 }).strict().superRefine((val, ctx) => {
-  if (val.domain_time === undefined && val.actor === undefined && val.action === undefined && val.target === undefined && val.effect === undefined && val.assessment === undefined) {
+  if (val.domain_time === undefined && val.actor === undefined && val.action === undefined && val.target === undefined && val.effect === undefined && val.assessment === undefined && val.finding_refs === undefined) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Update operation must contain at least one actual mutable-field change.' });
   }
 });
@@ -372,6 +375,18 @@ export function parseProviderProposal(raw: unknown, ctx: ProposalValidationConte
       }
     }
 
+    if (op.operation_type === 'add_event' || (op.operation_type === 'update_event' && op.finding_refs !== undefined)) {
+      for (const ref of op.finding_refs) {
+        if (ref.startsWith('new_')) {
+          if (!declaredLocalRefs.has(ref)) {
+            throw new Error(`Forward or undeclared local reference in event finding_refs: ${ref}`);
+          }
+        } else if (!ctx.existingClaimIds.has(ref as T.ClaimId)) {
+          throw new Error(`Event finding not found: ${ref}`);
+        }
+      }
+    }
+
     if (op.operation_type === 'update_event') {
       if (!ctx.existingEventIds.has(op.target_id)) throw new Error(`Target event not found: ${op.target_id}`);
       const keys = Object.keys(op).filter(k => k !== 'operation_type' && k !== 'target_id' && k !== 'source_basis_ids' && k !== 'reason');
@@ -481,9 +496,9 @@ export function parseProviderProposal(raw: unknown, ctx: ProposalValidationConte
     } else if (op.operation_type === 'inspect_source') {
       typedOperations.push({ operation_type: 'inspect_source', evidence_id: op.evidence_id, source_attribution: op.source_attribution, case_object_match: op.case_object_match, match_status: op.match_status, completeness_context: op.completeness_context, integrity_signals: op.integrity_signals, limitations: op.limitations, reason: op.reason });
     } else if (op.operation_type === 'add_event') {
-      typedOperations.push({ operation_type: 'add_event', local_ref: op.local_ref, domain_time: op.domain_time, actor: op.actor, action: op.action, target: op.target, effect: op.effect, assessment: op.assessment, source_basis_ids: op.source_basis_ids, reason: op.reason });
+      typedOperations.push({ operation_type: 'add_event', local_ref: op.local_ref, domain_time: op.domain_time, actor: op.actor, action: op.action, target: op.target, effect: op.effect, assessment: op.assessment, finding_refs: op.finding_refs, source_basis_ids: op.source_basis_ids, reason: op.reason });
     } else if (op.operation_type === 'update_event') {
-      typedOperations.push({ operation_type: 'update_event', target_id: op.target_id, domain_time: op.domain_time, actor: op.actor, action: op.action, target: op.target, effect: op.effect, assessment: op.assessment, source_basis_ids: op.source_basis_ids, reason: op.reason });
+      typedOperations.push({ operation_type: 'update_event', target_id: op.target_id, domain_time: op.domain_time, actor: op.actor, action: op.action, target: op.target, effect: op.effect, assessment: op.assessment, finding_refs: op.finding_refs, source_basis_ids: op.source_basis_ids, reason: op.reason });
     } else if (op.operation_type === 'add_claim') {
       typedOperations.push({ operation_type: 'add_claim', local_ref: op.local_ref, proposition: op.proposition, actor: op.actor, action: op.action, target: op.target, domain_time: op.domain_time, assessment: op.assessment, reasoning: op.reasoning, scope: op.scope, limits: op.limits, source_basis_ids: op.source_basis_ids, reason: op.reason });
     } else if (op.operation_type === 'update_claim') {
@@ -504,7 +519,7 @@ export function parseProviderProposal(raw: unknown, ctx: ProposalValidationConte
   }
 
   const proposal: P.ProviderProposal = {
-    explanation: { text: parsed.explanation.text },
+    explanation: { text: parsed.explanation.text, user_goal: parsed.explanation.user_goal },
     operations: typedOperations,
   };
 

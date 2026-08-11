@@ -1,4 +1,4 @@
-import type { LedgerV3Case, SourceId } from '../ledger/types.js';
+import type { LedgerV3Case, Revision, SourceId } from '../ledger/types.js';
 import type { ModelRunAudit } from '../runtime/modelRun.js';
 import type { CaseUiMetadata, PersistedBlob } from '../storage/ledgerStore.js';
 import type {
@@ -15,6 +15,10 @@ function receivedAt(ledger: LedgerV3Case, intakeId: string): string {
 
 function latestDisposition(ledger: LedgerV3Case, sourceId: SourceId) {
   return [...ledger.relationships].reverse().find((relationship) => relationship.source_id === sourceId);
+}
+
+function unique(values: string[]): string[] {
+  return values.filter((value, index, all) => all.indexOf(value) === index);
 }
 
 export function projectLedger(input: {
@@ -84,6 +88,119 @@ export function projectLedger(input: {
     };
   });
 
+  const headClaims = head?.claims ?? [];
+  const claims = headClaims.map((claim) => ({
+    id: claim.id,
+    text: claim.proposition,
+    actor: claim.actor,
+    action: claim.action,
+    target: claim.target,
+    time: claim.domain_time,
+    supporting_evidence: claim.supporting_source_ids.filter((id) => id.startsWith('E')),
+    qualifying_evidence: claim.qualifying_source_ids.filter((id) => id.startsWith('E')),
+    conflicting_evidence: claim.conflicting_source_ids.filter((id) => id.startsWith('E')),
+    user_statement_ids: unique([
+      ...claim.supporting_source_ids,
+      ...claim.qualifying_source_ids,
+      ...claim.conflicting_source_ids,
+    ].filter((id) => id.startsWith('U'))),
+    assessment: claim.assessment,
+    reasoning: claim.reasoning,
+    scope: claim.scope,
+    limits: [...claim.limits],
+  }));
+
+  const sourceIdsForClaim = (claim: (typeof headClaims)[number]): string[] => unique([
+    ...claim.supporting_source_ids,
+    ...claim.qualifying_source_ids,
+    ...claim.conflicting_source_ids,
+  ]);
+
+  const findingIdsForEvent = (event: NonNullable<typeof head>['events'][number]): string[] => {
+    if (event.finding_ids !== undefined && event.finding_ids.length > 0) {
+      return [...event.finding_ids];
+    }
+
+    // Backward-compatible projection for ledgers accepted before Event ->
+    // Finding became an explicit edge. Prefer shared provenance plus the same
+    // domain time and semantic tuple; never invent a cross-case connection.
+    const sourceSet = new Set<string>(event.source_support_ids);
+    const sourceCandidates = headClaims.filter((claim) =>
+      sourceIdsForClaim(claim).some((sourceId) => sourceSet.has(sourceId))
+    );
+    const timeCandidates = sourceCandidates.filter((claim) => claim.domain_time === event.domain_time);
+    const tupleCandidates = timeCandidates.filter((claim) =>
+      claim.actor === event.actor || claim.action === event.action || claim.target === event.target
+    );
+    const selected = tupleCandidates.length > 0
+      ? tupleCandidates
+      : timeCandidates.length === 1
+        ? timeCandidates
+        : sourceCandidates.length === 1
+          ? sourceCandidates
+          : [];
+    return selected.map((claim) => claim.id);
+  };
+
+  const events = (head?.events ?? []).map((event) => ({
+    id: event.id,
+    time: event.domain_time,
+    actor: event.actor,
+    action: event.action,
+    target: event.target,
+    effect: event.effect,
+    evidence_ids: event.source_support_ids.filter((id) => id.startsWith('E')),
+    user_statement_ids: event.source_support_ids.filter((id) => id.startsWith('U')),
+    finding_ids: findingIdsForEvent(event),
+    assessment: event.assessment,
+  }));
+
+  const gaps = (head?.gaps ?? []).map((gap) => {
+    const targetClaimIds = [...gap.target_claim_ids];
+    const relatedEvents = events.filter((event) =>
+      event.finding_ids.some((findingId) => targetClaimIds.includes(findingId as never))
+    );
+    const targetClaims = claims.filter((claim) => targetClaimIds.includes(claim.id as never));
+    const evidenceIds = unique([
+      ...relatedEvents.flatMap((event) => event.evidence_ids),
+      ...targetClaims.flatMap((claim) => [
+        ...claim.supporting_evidence,
+        ...claim.qualifying_evidence,
+        ...claim.conflicting_evidence,
+      ]),
+    ]);
+    return {
+      id: gap.id,
+      what_is_unknown: gap.question,
+      why_it_matters: gap.relevance,
+      what_evidence_could_resolve_it: gap.resolving_evidence,
+      where_how_to_obtain: gap.acquisition_guidance,
+      what_not_to_over_collect: gap.collection_boundary,
+      target_claim_ids: targetClaimIds,
+      related_event_ids: relatedEvents.map((event) => event.id),
+      evidence_ids: evidenceIds,
+      status: gap.status,
+      resolution_reason: gap.transition?.reason,
+      resolution_evidence_ids: gap.transition?.supporting_source_ids.filter((id) => id.startsWith('E')),
+    };
+  });
+
+  const actions = (head?.actions ?? []).map((action) => {
+    const targetGaps = gaps.filter((gap) => action.target_gap_ids.includes(gap.id as never));
+    return {
+      id: action.id,
+      title: action.title,
+      description: action.description,
+      target_gap_id: action.target_gap_ids[0] ?? '',
+      target_gap_ids: [...action.target_gap_ids],
+      related_event_ids: unique(targetGaps.flatMap((gap) => gap.related_event_ids)),
+      finding_ids: unique(targetGaps.flatMap((gap) => gap.target_claim_ids)),
+      evidence_ids: unique(targetGaps.flatMap((gap) => gap.evidence_ids)),
+      priority: action.priority,
+      status: action.status,
+    };
+  });
+
   return {
     id: ledger.id,
     case_number: metadata.display_case_number,
@@ -92,58 +209,10 @@ export function projectLedger(input: {
     statements,
     evidence,
     current_revision_id: ledger.current_revision_id ?? undefined,
-    events: (head?.events ?? []).map((event) => ({
-      id: event.id,
-      time: event.domain_time,
-      actor: event.actor,
-      action: event.action,
-      target: event.target,
-      effect: event.effect,
-      evidence_ids: event.source_support_ids.filter((id) => id.startsWith('E')),
-      user_statement_ids: event.source_support_ids.filter((id) => id.startsWith('U')),
-      assessment: event.assessment,
-    })),
-    claims: (head?.claims ?? []).map((claim) => ({
-      id: claim.id,
-      text: claim.proposition,
-      actor: claim.actor,
-      action: claim.action,
-      target: claim.target,
-      time: claim.domain_time,
-      supporting_evidence: claim.supporting_source_ids.filter((id) => id.startsWith('E')),
-      qualifying_evidence: claim.qualifying_source_ids.filter((id) => id.startsWith('E')),
-      conflicting_evidence: claim.conflicting_source_ids.filter((id) => id.startsWith('E')),
-      user_statement_ids: [
-        ...claim.supporting_source_ids,
-        ...claim.qualifying_source_ids,
-        ...claim.conflicting_source_ids,
-      ].filter((id, index, all) => id.startsWith('U') && all.indexOf(id) === index),
-      assessment: claim.assessment,
-      reasoning: claim.reasoning,
-      scope: claim.scope,
-      limits: [...claim.limits],
-    })),
-    gaps: (head?.gaps ?? []).map((gap) => ({
-      id: gap.id,
-      what_is_unknown: gap.question,
-      why_it_matters: gap.relevance,
-      what_evidence_could_resolve_it: gap.resolving_evidence,
-      where_how_to_obtain: gap.acquisition_guidance,
-      what_not_to_over_collect: gap.collection_boundary,
-      target_claim_ids: [...gap.target_claim_ids],
-      status: gap.status,
-      resolution_reason: gap.transition?.reason,
-      resolution_evidence_ids: gap.transition?.supporting_source_ids.filter((id) => id.startsWith('E')),
-    })),
-    actions: (head?.actions ?? []).map((action) => ({
-      id: action.id,
-      title: action.title,
-      description: action.description,
-      target_gap_id: action.target_gap_ids[0] ?? '',
-      target_gap_ids: [...action.target_gap_ids],
-      priority: action.priority,
-      status: action.status,
-    })),
+    events,
+    claims,
+    gaps,
+    actions,
     summary: head === null ? undefined : {
       ...head.summary,
       unresolved_questions_count: head.gaps.filter((gap) => gap.status === 'open').length,
@@ -171,11 +240,49 @@ export function projectLedger(input: {
 
 export function deriveChatMessages(
   ledger: LedgerV3Case,
-  blobs: PersistedBlob[]
+  blobs: PersistedBlob[],
+  caseNumber: string = ledger.case_number,
+  locale: string = 'en'
 ): ChatMessage[] {
   const messages: ChatMessage[] = [];
   const evidenceById = new Map(ledger.evidence.map((item) => [item.id, item]));
   const blobByRef = new Map(blobs.map((blob) => [blob.blob_ref, blob.data_url]));
+
+  const acceptedUpdateMessage = (revision: Revision): string => {
+    const eventIds = revision.delta.entries
+      .filter((entry) => entry.entity_type === 'event')
+      .map((entry) => entry.entity_id);
+    const evidenceIds = revision.delta.entries
+      .filter((entry) => entry.entity_type === 'evidence')
+      .map((entry) => entry.entity_id);
+    const statementIds = revision.delta.entries
+      .filter((entry) => entry.entity_type === 'statement')
+      .map((entry) => entry.entity_id);
+    const evidenceSummary = evidenceIds.length > 0
+      ? evidenceIds.map((id) => {
+          const item = evidenceById.get(id as never);
+          return `[${id}]${item === undefined ? '' : ` ${item.label}`}`;
+        }).join('; ')
+      : locale === 'vi'
+        ? `không có evidence mới; nguồn tường thuật ${statementIds.map((id) => `[${id}]`).join(' ') || '—'}`
+        : `no new evidence; narrative source ${statementIds.map((id) => `[${id}]`).join(' ') || '—'}`;
+    const timelineSummary = eventIds.length > 0
+      ? eventIds.map((id) => `[${id}]`).join(' ')
+      : locale === 'vi' ? 'không thay đổi' : 'no change';
+
+    if (locale === 'vi') {
+      return [
+        `Tóm tắt: ${revision.explanation}`,
+        `Bạn muốn: ${revision.objective}`,
+        `Đã ghi vào ${caseNumber} · Timeline (${eventIds.length}): ${timelineSummary} · Evidence (${evidenceIds.length}): ${evidenceSummary}`,
+      ].join('\n');
+    }
+    return [
+      `Summary: ${revision.explanation}`,
+      `You want: ${revision.objective}`,
+      `Recorded in ${caseNumber} · Timeline (${eventIds.length}): ${timelineSummary} · Evidence (${evidenceIds.length}): ${evidenceSummary}`,
+    ].join('\n');
+  };
 
   for (const revision of ledger.revisions) {
     for (const intakeId of revision.triggering_intake_ids) {
@@ -211,7 +318,7 @@ export function deriveChatMessages(
     messages.push({
       id: `revision-${revision.id}`,
       role: 'assistant',
-      text: revision.assistant_message,
+      text: acceptedUpdateMessage(revision),
       timestamp: new Date(revision.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       revision_id: revision.id,
     });

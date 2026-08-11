@@ -29,21 +29,10 @@ const modelRunId = ModelRunIdSchema.parse('MR01');
 const statementText = PreservedNonBlankTextSchema.parse('My QuickBite order arrived damaged, and I want to determine what the current record supports.');
 const rawProposal = {
   explanation: {
-    text: 'Recorded the damaged-delivery report as a sourced proposition and opened a focused verification gap.'
+    text: 'The customer reports that a QuickBite order arrived damaged, while the current record has no independent delivery-condition artifact.',
+    user_goal: 'Determine what the record supports and what to do next about the damaged delivery.'
   },
   operations: [
-    {
-      operation_type: 'add_event',
-      local_ref: 'new_event_1',
-      domain_time: 'At delivery, as reported by the user',
-      actor: 'QuickBite customer',
-      action: 'reported receiving',
-      target: 'a damaged order',
-      effect: 'The delivery condition is disputed and requires a corroborating record.',
-      assessment: 'Reported',
-      source_basis_ids: ['U01'],
-      reason: 'The event is bounded to the submitted user report.',
-    },
     {
       operation_type: 'add_claim',
       local_ref: 'new_claim_1',
@@ -58,6 +47,19 @@ const rawProposal = {
       limits: ['No photo, receipt, support message, or merchant response has been accepted yet.'],
       source_basis_ids: ['U01'],
       reason: 'The user statement creates a material but single-source proposition.',
+    },
+    {
+      operation_type: 'add_event',
+      local_ref: 'new_event_1',
+      domain_time: 'At delivery, as reported by the user',
+      actor: 'QuickBite customer',
+      action: 'reported receiving',
+      target: 'a damaged order',
+      effect: 'The delivery condition is disputed and requires a corroborating record.',
+      assessment: 'Reported',
+      finding_refs: ['new_claim_1'],
+      source_basis_ids: ['U01'],
+      reason: 'The event is bounded to the submitted user report.',
     },
     {
       operation_type: 'disposition_source',
@@ -123,7 +125,7 @@ const run = parseModelRunAudit({
   committed_revision_id: revisionId,
   provider: 'deterministic-replay',
   model_id: 'gemini-3.5-flash',
-  prompt_version: 'explainable-trust-proposal-v1',
+  prompt_version: 'explainable-trust-analysis-v2',
   started_at: createdAt,
   finished_at: createdAt,
   status: 'accepted',

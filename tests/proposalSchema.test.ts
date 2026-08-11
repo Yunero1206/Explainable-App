@@ -10,13 +10,13 @@ describe('Proposal Schema and Model Config', () => {
     it('exports the exact model configuration', () => {
       expect(INFERENCE_MODEL.provider).toBe('google-gemini');
       expect(INFERENCE_MODEL.modelId).toBe('gemini-3.5-flash');
-      expect(INFERENCE_MODEL.promptVersion).toBe('explainable-trust-proposal-v1');
+      expect(INFERENCE_MODEL.promptVersion).toBe('explainable-trust-analysis-v2');
     });
   });
 
   describe('Compile-time agreement', () => {
     it('parseProviderProposal output matches ProviderProposal', () => {
-      const raw = { explanation: { text: 'a' }, operations: [] };
+      const raw = { explanation: { text: 'a', user_goal: 'g' }, operations: [] };
       const parsed = parseProviderProposal(raw, {
         availableSourceIds: new Set(),
         existingClaimIds: new Set(),
@@ -42,6 +42,7 @@ describe('Proposal Schema and Model Config', () => {
       const props = schema.properties as Record<string, Record<string, unknown>>;
       expect(props.explanation.additionalProperties).toBe(false);
       expect((props.explanation.required as string[])).toContain('text');
+      expect((props.explanation.required as string[])).toContain('user_goal');
 
       const items = (props.operations as Record<string, unknown>).items as Record<string, unknown>;
       const branches = items.anyOf as Record<string, unknown>[];
@@ -81,7 +82,7 @@ describe('Proposal Schema and Model Config', () => {
         },
         {
           operationType: 'add_event',
-          required: ['operation_type', 'local_ref', 'domain_time', 'actor', 'action', 'target', 'effect', 'assessment', 'source_basis_ids', 'reason'],
+          required: ['operation_type', 'local_ref', 'domain_time', 'actor', 'action', 'target', 'effect', 'assessment', 'finding_refs', 'source_basis_ids', 'reason'],
         },
         {
           operationType: 'update_event',
@@ -195,7 +196,7 @@ describe('Proposal Schema and Model Config', () => {
     existingActionIds: new Set(),
   };
 
-  const exp = { text: 'exp' };
+  const exp = { text: 'exp', user_goal: 'goal' };
 
   describe('Immutable-card explicit cases', () => {
     it('accepts combined source disposition plus linked event/claim additions', () => {
@@ -226,6 +227,7 @@ describe('Proposal Schema and Model Config', () => {
             target: 't',
             effect: 'e',
             assessment: 'Reported',
+            finding_refs: ['new_claim_1'],
             source_basis_ids: ['U01'],
             reason: 'r'
           },
@@ -404,7 +406,7 @@ describe('Proposal Schema and Model Config', () => {
     });
 
     it('rejects unknown fields on explanation', () => {
-      const raw = { explanation: { text: 'a', extra: 'b' }, operations: [] };
+      const raw = { explanation: { text: 'a', user_goal: 'g', extra: 'b' }, operations: [] };
       expect(() => parseProviderProposal(raw, ctx)).toThrow();
     });
 
@@ -492,12 +494,12 @@ describe('Proposal Schema and Model Config', () => {
     it('accepts rich inputs across all non-update variants', () => {
       const ops = [
         { operation_type: 'add_claim', local_ref: 'new_claim_1', proposition: 'p', actor: 'a', action: 'a', target: 't', domain_time: 'd', assessment: 'Reported', reasoning: 'r', scope: 's', limits: ['limit 1'], source_basis_ids: ['U01'], reason: 'r' },
-        { operation_type: 'add_event', local_ref: 'new_event_1', domain_time: 't', actor: 'a', action: 'act', target: 't', effect: 'e', assessment: 'Reported', source_basis_ids: ['U01'], reason: 'r' },
+        { operation_type: 'add_event', local_ref: 'new_event_1', domain_time: 't', actor: 'a', action: 'act', target: 't', effect: 'e', assessment: 'Reported', finding_refs: ['new_claim_1'], source_basis_ids: ['U01'], reason: 'r' },
         { operation_type: 'add_gap', local_ref: 'new_gap_1', question: 'q', relevance: 'r', resolving_evidence: 'e', acquisition_guidance: 'a', collection_boundary: 'c', target_claim_refs: ['new_claim_1', 'C01'], source_basis_ids: ['U01'], reason: 'r' },
         { operation_type: 'add_action', local_ref: 'new_action_1', title: 't', description: 'd', priority: 'high', target_gap_refs: ['new_gap_1', 'G01'], source_basis_ids: ['U01'], reason: 'r' },
         { operation_type: 'inspect_source', evidence_id: 'E01', source_attribution: 's', case_object_match: 'c', match_status: 'matched', completeness_context: 'c', integrity_signals: 'i', limitations: ['l1', 'l2'], reason: 'r' },
         { operation_type: 'disposition_source', relationship_type: 'supports_claim', source_id: 'U01', target_ref: 'new_claim_1', reason: 'r' },
-        { operation_type: 'disposition_source', relationship_type: 'not_yet_classified', source_id: 'U01', target_ref: null, reason: 'r' }
+        { operation_type: 'disposition_source', relationship_type: 'not_yet_classified', source_id: 'E01', target_ref: null, reason: 'r' }
       ];
       expect(() => parseProviderProposal({ explanation: exp, operations: ops }, ctx)).not.toThrow();
     });
@@ -510,7 +512,7 @@ describe('Proposal Schema and Model Config', () => {
       ['corrects_statement', { operation_type: 'disposition_source', relationship_type: 'corrects_statement', source_id: 'U01', target_ref: 'U02', reason: 'r' }],
       ['not_yet_classified', { operation_type: 'disposition_source', relationship_type: 'not_yet_classified', source_id: 'U01', target_ref: null, reason: 'r' }],
       ['inspect_source', { operation_type: 'inspect_source', evidence_id: 'E01', source_attribution: 's', case_object_match: 'c', match_status: 'matched', completeness_context: 'c', integrity_signals: 'i', limitations: [], reason: 'r' }],
-      ['add_event', { operation_type: 'add_event', local_ref: 'new_event_1', domain_time: 't', actor: 'a', action: 'act', target: 't', effect: 'e', assessment: 'Reported', source_basis_ids: ['U01'], reason: 'r' }],
+      ['add_event', { operation_type: 'add_event', local_ref: 'new_event_1', domain_time: 't', actor: 'a', action: 'act', target: 't', effect: 'e', assessment: 'Reported', finding_refs: ['C01'], source_basis_ids: ['U01'], reason: 'r' }],
       ['update_event', { operation_type: 'update_event', target_id: 'EV01', effect: 'e', source_basis_ids: ['U01'], reason: 'r' }],
       ['add_claim', { operation_type: 'add_claim', local_ref: 'new_claim_1', proposition: 'p', actor: 'a', action: 'a', target: 't', domain_time: 'd', assessment: 'Reported', reasoning: 'r', scope: 's', limits: [], source_basis_ids: ['U01'], reason: 'r' }],
       ['update_claim', { operation_type: 'update_claim', target_id: 'C01', proposition: 'p', source_basis_ids: ['U01'], reason: 'r' }],
