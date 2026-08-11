@@ -138,7 +138,7 @@ export function buildCaseViewExport(caseData: PresentationCaseData): CaseViewExp
         })),
     })),
     gaps_and_actions: caseData.gaps.map((gap) => {
-      const actions = caseData.actions.filter((action) => action.target_gap_ids.includes(gap.id));
+      const actions = gap.actions;
       return {
         keys: {
           case_number: caseData.case_number,

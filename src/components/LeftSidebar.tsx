@@ -293,10 +293,9 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
         )}
       </div>
 
-      {/* Footer: Test Mode & Language Controls */}
+      {/* Footer: Model and interface-language controls */}
       <div className="border-t border-slate-200 p-2 space-y-2 shrink-0 bg-slate-50/50">
-        {/* Embedded Test Mode Control */}
-        {testModeNode && (
+        {testModeNode && !isCollapsed && (
           <div>
             {testModeNode}
           </div>

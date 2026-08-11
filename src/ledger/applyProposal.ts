@@ -409,6 +409,18 @@ function applyValidatedProposal(input: ApplyProposalInput): LedgerV3Case {
     }
   }
 
+  const uncoveredOpenGaps = gaps.filter((gap) =>
+    gap.status === 'open' && !actions.some((action) =>
+      action.target_gap_ids.includes(gap.id) &&
+      (action.status === 'pending' || action.status === 'in_progress')
+    )
+  );
+  if (uncoveredOpenGaps.length > 0) {
+    throw new Error(
+      `Every open gap requires a pending or in-progress action: ${uncoveredOpenGaps.map((gap) => gap.id).join(', ')}`
+    );
+  }
+
   const introducedSources: SourceId[] = [
     ...prepared.statements.map((statement) => statement.id),
     ...prepared.evidence.map((item) => item.id),

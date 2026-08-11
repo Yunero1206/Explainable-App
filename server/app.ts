@@ -11,7 +11,7 @@ export function createApp(dependencies: AppDependencies) {
   app.use(express.json({ limit: '20mb' }));
 
   app.get('/api/health', (_request, response) => {
-    response.json({ status: 'ok', default_inference_mode: 'replay' });
+    response.json({ status: 'ok', default_inference_mode: 'live' });
   });
 
   app.post('/api/intake', async (request, response) => {
@@ -28,7 +28,7 @@ export function createApp(dependencies: AppDependencies) {
           ? headerMode.toLowerCase()
           : typeof body.inference_mode === 'string'
             ? body.inference_mode.toLowerCase()
-            : 'replay',
+            : 'live',
       };
       const result = await dependencies.runIntake(payload);
       return response.status(result.success ? 200 : result.run.status === 'provider_error' ? 502 : 422).json(result);

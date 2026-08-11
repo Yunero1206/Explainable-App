@@ -23,12 +23,11 @@ import { deriveChatMessages, projectLedger } from './presentation/projectLedger.
 import { LeftSidebar } from './components/LeftSidebar';
 import { RightCaseRecord } from './components/RightCaseRecord';
 import { CaseIntakeChat } from './components/CaseIntakeChat';
-import { EvidenceDetailModal } from './components/EvidenceDetailModal';
-import { OriginalArtifactModal } from './components/OriginalArtifactModal';
+import { ReferenceDetailModal } from './components/ReferenceDetailModal';
 import { ExportModal } from './components/ExportModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { InferenceModeControl, type InferenceMode } from './components/TestModeBanner';
-import type { AttachmentFile, ChatMessage, EvidenceItem, PresentationCaseData } from './types.js';
+import { ModelRunsSummary } from './components/TestModeBanner';
+import type { AttachmentFile, CaseReference, ChatMessage, PresentationCaseData } from './types.js';
 import { SAMPLE_CASES } from './data/sampleCases.js';
 import { useLanguage } from './contexts/LanguageContext';
 
@@ -47,7 +46,6 @@ function replaceById<T extends { id: string }>(items: T[], next: T): T[] {
 
 export default function App() {
   const { locale } = useLanguage();
-  const [inferenceMode, setInferenceMode] = useState<InferenceMode>('replay');
   const [ledgers, setLedgers] = useState<LedgerV3Case[]>([]);
   const [runs, setRuns] = useState<ModelRunAudit[]>([]);
   const [blobs, setBlobs] = useState<PersistedBlob[]>([]);
@@ -57,8 +55,7 @@ export default function App() {
   const [currentCaseId, setCurrentCaseId] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
-  const [selectedEvidenceForSummary, setSelectedEvidenceForSummary] = useState<EvidenceItem | null>(null);
-  const [selectedEvidenceForOriginal, setSelectedEvidenceForOriginal] = useState<EvidenceItem | null>(null);
+  const [selectedReference, setSelectedReference] = useState<CaseReference | null>(null);
   const [isLeftMobileOpen, setIsLeftMobileOpen] = useState(false);
   const [isRightMobileOpen, setIsRightMobileOpen] = useState(false);
 
@@ -117,6 +114,20 @@ export default function App() {
         ),
         ...(attemptMessages[currentLedger.id] ?? []),
       ];
+
+  React.useEffect(() => {
+    setSelectedReference(null);
+  }, [currentCaseId]);
+
+  const handleSelectReference = (reference: CaseReference) => {
+    // Always allocate a new object so selecting the same key twice replays the
+    // scroll/highlight behavior in the receiving surface.
+    setSelectedReference({ ...reference });
+    if (reference.kind === 'statement') setIsRightMobileOpen(false);
+    if (reference.kind === 'event' || reference.kind === 'gap' || reference.kind === 'action') {
+      setIsRightMobileOpen(true);
+    }
+  };
 
   const handleNewCase = async () => {
     const token = crypto.randomUUID().replaceAll('-', '_');
@@ -223,14 +234,13 @@ export default function App() {
     try {
       const response = await fetch('/api/intake', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-ET-Inference-Mode': inferenceMode },
+        headers: { 'Content-Type': 'application/json', 'X-ET-Inference-Mode': 'live' },
         body: JSON.stringify({
           prior_ledger: currentLedger,
           client_request_id: crypto.randomUUID(),
           message: text,
           attachments,
-          locale,
-          inference_mode: inferenceMode,
+          inference_mode: 'live',
         }),
       });
       const raw: unknown = await response.json();
@@ -319,11 +329,7 @@ export default function App() {
             isMobileOpen={isLeftMobileOpen}
             onCloseMobile={() => setIsLeftMobileOpen(false)}
             testModeNode={(
-              <InferenceModeControl
-                inferenceMode={inferenceMode}
-                onChangeInferenceMode={setInferenceMode}
-                latestRun={currentPresentationCase?.model_runs.at(-1)}
-              />
+              <ModelRunsSummary />
             )}
           />
 
@@ -332,17 +338,16 @@ export default function App() {
               messages={currentMessages}
               onSendMessage={handleSendMessage}
               isAnalyzing={isAnalyzing}
-              onSelectEvidence={(evidenceId) => {
-                const found = currentPresentationCase?.evidence.find((item) => item.id === evidenceId);
-                if (found !== undefined) setSelectedEvidenceForSummary(found);
-              }}
+              onSelectReference={handleSelectReference}
+              focusedReference={selectedReference}
               onLoadSample={() => void handleLoadSample()}
             />
           </main>
 
           <RightCaseRecord
             caseData={currentPresentationCase}
-            onOpenEvidenceDetail={setSelectedEvidenceForSummary}
+            onSelectReference={handleSelectReference}
+            focusedReference={selectedReference}
             onExportJson={() => setIsExportOpen(true)}
             isMobileOpen={isRightMobileOpen}
             onCloseMobile={() => setIsRightMobileOpen(false)}
@@ -350,17 +355,13 @@ export default function App() {
         </ErrorBoundary>
       </div>
 
-      {selectedEvidenceForSummary && (
-        <EvidenceDetailModal
-          evidence={selectedEvidenceForSummary}
-          events={currentPresentationCase?.events ?? []}
-          claims={currentPresentationCase?.claims ?? []}
-          onClose={() => setSelectedEvidenceForSummary(null)}
-          onOpenOriginal={(item) => setSelectedEvidenceForOriginal(item)}
+      {selectedReference && currentPresentationCase && (selectedReference.kind === 'evidence' || selectedReference.kind === 'finding') && (
+        <ReferenceDetailModal
+          caseData={currentPresentationCase}
+          reference={selectedReference}
+          onClose={() => setSelectedReference(null)}
+          onSelectReference={handleSelectReference}
         />
-      )}
-      {selectedEvidenceForOriginal && (
-        <OriginalArtifactModal evidence={selectedEvidenceForOriginal} onClose={() => setSelectedEvidenceForOriginal(null)} />
       )}
       {isExportOpen && currentPresentationCase && (
         <ExportModal caseData={currentPresentationCase} onClose={() => setIsExportOpen(false)} />

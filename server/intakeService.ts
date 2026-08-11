@@ -19,6 +19,7 @@ import type {
   SemanticText,
 } from '../src/ledger/types.js';
 import { parseProviderProposal } from '../src/provider/proposalSchema.js';
+import { assertProposalPreservesSourceLanguage } from '../src/provider/languagePolicy.js';
 import { parseModelRunAudit, type IntakeResponse, type ModelRunAudit } from '../src/runtime/modelRun.js';
 import { INFERENCE_MODEL } from './inference/modelConfig.js';
 import {
@@ -153,8 +154,9 @@ export function createIntakeService(dependencies: IntakeServiceDependencies = {}
     if (message.trim().length === 0 && attachments.length === 0) {
       throw new Error('An intake requires a non-blank statement or at least one attachment.');
     }
-    const mode: InferenceMode = payload.inference_mode === 'live' ? 'live' : 'replay';
-    const locale = typeof payload.locale === 'string' && payload.locale.trim().length > 0 ? payload.locale : 'en';
+    // Live is the product default. Replay remains an explicit server-side test
+    // path so deterministic regression fixtures do not require credentials.
+    const mode: InferenceMode = payload.inference_mode === 'replay' ? 'replay' : 'live';
 
     const allocator = createLedgerIdAllocator(parent);
     const revisionId = allocator.nextRevisionId();
@@ -240,7 +242,6 @@ export function createIntakeService(dependencies: IntakeServiceDependencies = {}
         ledger: parent,
         prepared,
         message,
-        locale,
         attachments: providerAttachments,
       });
     } catch (error: unknown) {
@@ -257,6 +258,16 @@ export function createIntakeService(dependencies: IntakeServiceDependencies = {}
     const baseWithRaw = { ...runBase, provider: result.provider, raw_response_text: result.raw_response_text };
     try {
       const proposal = parseProviderProposal(cleanJson(result.raw_response_text), validationContext(parent, prepared));
+      assertProposalPreservesSourceLanguage({
+        sourceTexts: [
+          message,
+          ...prepared.evidence.flatMap((item) => [
+            item.content.raw_text ?? '',
+            item.content.extracted_text ?? '',
+          ]),
+        ],
+        proposal,
+      });
       const ledger = applyProposal({ parent, prepared, proposal });
       const run = parseModelRunAudit({
         ...baseWithRaw,

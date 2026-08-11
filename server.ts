@@ -21,7 +21,7 @@ async function start() {
 
   const server = app.listen(port, () => {
     console.log(`Explainable Trust listening on http://localhost:${port}`);
-    console.log('Inference defaults to replay; set GEMINI_API_KEY and choose live mode for Gemini.');
+    console.log('Intake runs Live automatically with gemini-3.6-flash; GEMINI_API_KEY stays server-side.');
   });
 
   function shutdown() {

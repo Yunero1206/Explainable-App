@@ -24,8 +24,8 @@ export interface ModelRunAudit {
   proposed_revision_id: RevisionId;
   committed_revision_id: RevisionId | null;
   provider: 'google-gemini' | 'deterministic-replay';
-  model_id: 'gemini-3.5-flash';
-  prompt_version: 'explainable-trust-proposal-v1' | 'explainable-trust-analysis-v2';
+  model_id: 'gemini-3.5-flash' | 'gemini-3.6-flash';
+  prompt_version: 'explainable-trust-proposal-v1' | 'explainable-trust-analysis-v2' | 'explainable-trust-analysis-v3';
   started_at: StructuralInstant;
   finished_at: StructuralInstant;
   status: ModelRunStatus;
@@ -41,8 +41,14 @@ export const ModelRunAuditSchema = z.object({
   proposed_revision_id: RevisionIdSchema,
   committed_revision_id: RevisionIdSchema.nullable(),
   provider: z.enum(['google-gemini', 'deterministic-replay']),
-  model_id: z.literal('gemini-3.5-flash'),
-  prompt_version: z.enum(['explainable-trust-proposal-v1', 'explainable-trust-analysis-v2']),
+  // Keep historical model/prompt IDs readable so upgrading Live does not
+  // invalidate model-run audits already stored in IndexedDB.
+  model_id: z.enum(['gemini-3.5-flash', 'gemini-3.6-flash']),
+  prompt_version: z.enum([
+    'explainable-trust-proposal-v1',
+    'explainable-trust-analysis-v2',
+    'explainable-trust-analysis-v3',
+  ]),
   started_at: StructuralInstantSchema,
   finished_at: StructuralInstantSchema,
   status: z.enum(['accepted', 'rejected', 'provider_error']),

@@ -136,7 +136,7 @@ export function ExportModal({ caseData, onClose }: { caseData: PresentationCaseD
         </section>
 
         <section>
-          <h2 className="text-base font-bold uppercase tracking-wide mb-3">Gaps / Actions</h2>
+          <h2 className="text-base font-bold uppercase tracking-wide mb-3">Gaps</h2>
           <div className="space-y-4">
             {exportPayload.gaps_and_actions.map((gap) => (
               <div key={gap.keys.gap} className="border border-slate-300 rounded-lg p-3 break-inside-avoid">

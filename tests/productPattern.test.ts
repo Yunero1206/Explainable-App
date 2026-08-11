@@ -15,6 +15,7 @@ import {
   parseStructuralInstant,
 } from '../src/ledger/schema';
 import { buildCaseViewExport } from '../src/presentation/exportCase';
+import { caseReferenceFromId } from '../src/presentation/caseReferences';
 import { deriveChatMessages, projectLedger } from '../src/presentation/projectLedger';
 import { parseProviderProposal } from '../src/provider/proposalSchema';
 
@@ -187,7 +188,7 @@ function greenPackFixture() {
     metadata: { case_id: ledger.id, display_title: ledger.title, display_case_number: ledger.case_number, is_archived: false },
     locale: 'en',
   });
-  return { parent, prepared, ledger, projected };
+  return { parent, prepared, proposal, ledger, projected };
 }
 
 describe('restored product analysis pattern', () => {
@@ -204,7 +205,7 @@ describe('restored product analysis pattern', () => {
     expect(projected.events[3].effect).not.toContain('40 to 240');
 
     expect(projected.gaps[0].related_event_ids).toEqual(['EV05', 'EV06']);
-    expect(projected.actions.find((action) => action.id === 'A01')).toMatchObject({
+    expect(projected.gaps.flatMap((gap) => gap.actions).find((action) => action.id === 'A01')).toMatchObject({
       title: 'Quarantine the remaining cups',
       target_gap_ids: ['G01'],
       related_event_ids: ['EV05', 'EV06'],
@@ -234,13 +235,54 @@ describe('restored product analysis pattern', () => {
 
   it('gives Gemini the original analysis loop and removes the evidence-only action restriction', () => {
     const { parent, prepared } = greenPackFixture();
-    const prompt = createProposalPrompt({ ledger: parent, prepared, message: GREENPACK_NARRATIVE, locale: 'en', attachments: [] });
+    const prompt = createProposalPrompt({ ledger: parent, prepared, message: GREENPACK_NARRATIVE, attachments: [] });
+    const promptPayload = JSON.parse(prompt) as { rules: string[]; locale?: string };
 
+    expect(promptPayload.rules[0]).toContain('LANGUAGE IS SOURCE-OWNED, NOT UI-OWNED');
+    expect(promptPayload.locale).toBeUndefined();
     expect(prompt).toContain('source content -> material event -> independent finding');
     expect(prompt).toContain('Preserve every independent material occurrence as its own timeline event');
     expect(prompt).toContain('The same source may relate to multiple distinct claims or gaps');
     expect(prompt).toContain('protect people or assets while uncertainty remains, or recover and resolve the case');
     expect(prompt).toContain('explanation.user_goal');
+    expect(prompt).toContain('Every open gap must own at least one pending or in-progress action');
     expect(prompt).not.toContain('Suggested actions may only acquire or verify evidence');
+  });
+
+  it('uses the intake language for chat content even when the UI locale is English', () => {
+    const { ledger } = greenPackFixture();
+    const vietnameseLedger = structuredClone(ledger);
+    const vietnameseStatement = PreservedNonBlankTextSchema.parse('Tui cần quyết định có nên dừng bán lô ly này không vì khách đã phản ánh có mùi lạ và ly bị mềm.');
+    const statementPart = vietnameseLedger.intake_ledger[0].parts.find((part) => part.kind === 'statement');
+    if (statementPart?.kind === 'statement') statementPart.raw_text = vietnameseStatement;
+    vietnameseLedger.statements[0].text = vietnameseStatement;
+    vietnameseLedger.revisions[0].explanation = SemanticTextSchema.parse('Lô ly đã phát sinh phản ánh về mùi và độ mềm, trong khi phạm vi lỗi vẫn chưa rõ.');
+    vietnameseLedger.revisions[0].objective = SemanticTextSchema.parse('Quyết định có dừng bán và yêu cầu xử lý lô hàng hay không.');
+
+    const assistant = deriveChatMessages(vietnameseLedger, [], 'CASE-001', 'en')
+      .find((message) => message.role === 'assistant');
+    expect(assistant?.text).toContain('Tóm tắt: Lô ly đã phát sinh phản ánh');
+    expect(assistant?.text).toContain('Bạn muốn: Quyết định có dừng bán');
+    expect(assistant?.text).not.toContain('Summary:');
+  });
+
+  it('rejects an open gap without an action and recognizes every navigable key family', () => {
+    const { parent, prepared, proposal } = greenPackFixture();
+    const proposalWithoutActions = {
+      ...proposal,
+      operations: proposal.operations.filter((operation) => operation.operation_type !== 'add_action'),
+    };
+    expect(() => applyProposal({ parent, prepared, proposal: proposalWithoutActions })).toThrow(
+      /Every open gap requires a pending or in-progress action/
+    );
+
+    expect(['U01', 'E01', 'EV01', 'C01', 'G01', 'A01'].map(caseReferenceFromId)).toEqual([
+      { kind: 'statement', id: 'U01' },
+      { kind: 'evidence', id: 'E01' },
+      { kind: 'event', id: 'EV01' },
+      { kind: 'finding', id: 'C01' },
+      { kind: 'gap', id: 'G01' },
+      { kind: 'action', id: 'A01' },
+    ]);
   });
 });

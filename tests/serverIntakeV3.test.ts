@@ -45,7 +45,7 @@ describe('Ledger V3 intake boundary', () => {
     expect(result.run).toMatchObject({
       status: 'accepted',
       provider: 'deterministic-replay',
-      model_id: 'gemini-3.5-flash',
+      model_id: 'gemini-3.6-flash',
       committed_revision_id: 'R01',
     });
   });
@@ -106,6 +106,73 @@ describe('Ledger V3 intake boundary', () => {
     expect(result.error.message).toContain('invalid disposition_source combination');
     expect(result.error.message).not.toContain('invalid_union');
     expect(result.error.message.length).toBeLessThan(500);
+  });
+
+  it('rejects translated case content and preserves the accepted parent', async () => {
+    const parent = emptyLedger();
+    const before = JSON.stringify(parent);
+    const rawResponse = JSON.stringify({
+      explanation: {
+        text: 'The supplier delivery remains disputed and needs more evidence before a decision.',
+        user_goal: 'Decide whether to stop sales and request a refund.',
+      },
+      operations: [
+        {
+          operation_type: 'add_claim', local_ref: 'new_claim_1',
+          proposition: 'The delivered products were reported as defective.', actor: 'The customer',
+          action: 'reported', target: 'defective products', domain_time: 'After delivery',
+          assessment: 'Reported', reasoning: 'The current statement reports the defect.',
+          scope: 'The current delivery.', limits: ['No independent test has been accepted.'],
+          source_basis_ids: ['U01'], reason: 'Keep the report bounded to the source.',
+        },
+        {
+          operation_type: 'add_event', local_ref: 'new_event_1', domain_time: 'After delivery',
+          actor: 'The customer', action: 'reported', target: 'defective products',
+          effect: 'The delivery decision became disputed.', assessment: 'Reported',
+          finding_refs: ['new_claim_1'], source_basis_ids: ['U01'], reason: 'Record the material occurrence.',
+        },
+        {
+          operation_type: 'add_gap', local_ref: 'new_gap_1',
+          question: 'Which units are defective under controlled test conditions?',
+          relevance: 'The answer changes whether the remaining stock can be sold.',
+          resolving_evidence: 'A controlled lot test.', acquisition_guidance: 'Test retained units by lot.',
+          collection_boundary: 'Use only records for the disputed delivery.',
+          target_claim_refs: ['new_claim_1'], source_basis_ids: ['U01'], reason: 'The defect scope is unresolved.',
+        },
+        {
+          operation_type: 'add_action', local_ref: 'new_action_1', title: 'Quarantine the remaining stock',
+          description: 'Pause sales while a controlled test determines the affected scope.', priority: 'high',
+          target_gap_refs: ['new_gap_1'], source_basis_ids: ['U01'], reason: 'Prevent additional exposure.',
+        },
+        {
+          operation_type: 'disposition_source', relationship_type: 'supports_claim', source_id: 'U01',
+          target_ref: 'new_claim_1', reason: 'The statement reports the alleged defect.',
+        },
+        {
+          operation_type: 'disposition_source', relationship_type: 'raises_gap', source_id: 'U01',
+          target_ref: 'new_gap_1', reason: 'The statement leaves the defect scope unresolved.',
+        },
+      ],
+    });
+    const runIntake = createIntakeService({
+      now: clock(),
+      provider: async () => ({ provider: 'google-gemini', raw_response_text: rawResponse }),
+    });
+
+    const result = parseIntakeResponse(await runIntake({
+      prior_ledger: parent,
+      client_request_id: 'request-language-preservation',
+      message: 'Tui cần quyết định có nên dừng bán lô hàng này không vì khách đã phản ánh sản phẩm bị lỗi, nhưng bên cung cấp vẫn chưa gửi bằng chứng kiểm định và tui chưa biết chính xác lô nào bị ảnh hưởng.',
+      locale: 'en',
+      inference_mode: 'live',
+    }));
+
+    expect(result.success).toBe(false);
+    expect(JSON.stringify(parent)).toBe(before);
+    if (result.success === true) return;
+    expect(result.run.status).toBe('rejected');
+    expect(result.error.message).toContain('Content language mismatch');
+    expect(result.error.message).toContain('UI language cannot translate source-owned content');
   });
 
   it('accepts an attachment only after hashing and inspecting it', async () => {

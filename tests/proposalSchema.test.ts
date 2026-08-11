@@ -9,8 +9,8 @@ describe('Proposal Schema and Model Config', () => {
   describe('Exact model configuration', () => {
     it('exports the exact model configuration', () => {
       expect(INFERENCE_MODEL.provider).toBe('google-gemini');
-      expect(INFERENCE_MODEL.modelId).toBe('gemini-3.5-flash');
-      expect(INFERENCE_MODEL.promptVersion).toBe('explainable-trust-analysis-v2');
+      expect(INFERENCE_MODEL.modelId).toBe('gemini-3.6-flash');
+      expect(INFERENCE_MODEL.promptVersion).toBe('explainable-trust-analysis-v3');
     });
   });
 

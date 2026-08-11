@@ -8,6 +8,7 @@ import type {
   PresentationCaseData,
   UserStatement,
 } from '../types.js';
+import { detectContentLanguage, type DetectedContentLanguage } from '../provider/languagePolicy.js';
 
 function receivedAt(ledger: LedgerV3Case, intakeId: string): string {
   return ledger.intake_ledger.find((intake) => intake.id === intakeId)?.received_at ?? ledger.created_at;
@@ -155,7 +156,7 @@ export function projectLedger(input: {
     assessment: event.assessment,
   }));
 
-  const gaps = (head?.gaps ?? []).map((gap) => {
+  const projectedGaps = (head?.gaps ?? []).map((gap) => {
     const targetClaimIds = [...gap.target_claim_ids];
     const relatedEvents = events.filter((event) =>
       event.finding_ids.some((findingId) => targetClaimIds.includes(findingId as never))
@@ -186,7 +187,7 @@ export function projectLedger(input: {
   });
 
   const actions = (head?.actions ?? []).map((action) => {
-    const targetGaps = gaps.filter((gap) => action.target_gap_ids.includes(gap.id as never));
+    const targetGaps = projectedGaps.filter((gap) => action.target_gap_ids.includes(gap.id as never));
     return {
       id: action.id,
       title: action.title,
@@ -201,6 +202,11 @@ export function projectLedger(input: {
     };
   });
 
+  const gaps = projectedGaps.map((gap) => ({
+    ...gap,
+    actions: actions.filter((action) => action.target_gap_ids.includes(gap.id)),
+  }));
+
   return {
     id: ledger.id,
     case_number: metadata.display_case_number,
@@ -212,7 +218,6 @@ export function projectLedger(input: {
     events,
     claims,
     gaps,
-    actions,
     summary: head === null ? undefined : {
       ...head.summary,
       unresolved_questions_count: head.gaps.filter((gap) => gap.status === 'open').length,
@@ -242,13 +247,44 @@ export function deriveChatMessages(
   ledger: LedgerV3Case,
   blobs: PersistedBlob[],
   caseNumber: string = ledger.case_number,
-  locale: string = 'en'
+  _uiLocale: string = 'en'
 ): ChatMessage[] {
   const messages: ChatMessage[] = [];
   const evidenceById = new Map(ledger.evidence.map((item) => [item.id, item]));
   const blobByRef = new Map(blobs.map((blob) => [blob.blob_ref, blob.data_url]));
 
-  const acceptedUpdateMessage = (revision: Revision): string => {
+  const labelsFor = (sourceText: string) => {
+    const language: DetectedContentLanguage = detectContentLanguage(sourceText)?.language ?? 'en';
+    return {
+      vi: {
+        summary: 'Tóm tắt', goal: 'Bạn muốn', recorded: 'Đã ghi vào', timeline: 'Timeline', evidence: 'Evidence',
+        noEvidence: 'không có evidence mới; nguồn tường thuật', noChange: 'không thay đổi',
+      },
+      en: {
+        summary: 'Summary', goal: 'You want', recorded: 'Recorded in', timeline: 'Timeline', evidence: 'Evidence',
+        noEvidence: 'no new evidence; narrative source', noChange: 'no change',
+      },
+      es: {
+        summary: 'Resumen', goal: 'Quieres', recorded: 'Registrado en', timeline: 'Cronología', evidence: 'Evidencia',
+        noEvidence: 'sin evidencia nueva; fuente narrativa', noChange: 'sin cambios',
+      },
+      fr: {
+        summary: 'Résumé', goal: 'Vous voulez', recorded: 'Enregistré dans', timeline: 'Chronologie', evidence: 'Preuves',
+        noEvidence: 'aucune nouvelle preuve; source narrative', noChange: 'aucun changement',
+      },
+      'zh-CN': {
+        summary: '摘要', goal: '你的目标', recorded: '已记录至', timeline: '时间线', evidence: '证据',
+        noEvidence: '无新增证据；叙述来源', noChange: '无变化',
+      },
+      ja: {
+        summary: '要約', goal: '目的', recorded: '記録先', timeline: 'タイムライン', evidence: 'エビデンス',
+        noEvidence: '新しいエビデンスなし・記述ソース', noChange: '変更なし',
+      },
+    }[language];
+  };
+
+  const acceptedUpdateMessage = (revision: Revision, sourceText: string): string => {
+    const labels = labelsFor(sourceText);
     const eventIds = revision.delta.entries
       .filter((entry) => entry.entity_type === 'event')
       .map((entry) => entry.entity_id);
@@ -263,24 +299,15 @@ export function deriveChatMessages(
           const item = evidenceById.get(id as never);
           return `[${id}]${item === undefined ? '' : ` ${item.label}`}`;
         }).join('; ')
-      : locale === 'vi'
-        ? `không có evidence mới; nguồn tường thuật ${statementIds.map((id) => `[${id}]`).join(' ') || '—'}`
-        : `no new evidence; narrative source ${statementIds.map((id) => `[${id}]`).join(' ') || '—'}`;
+      : `${labels.noEvidence} ${statementIds.map((id) => `[${id}]`).join(' ') || '—'}`;
     const timelineSummary = eventIds.length > 0
       ? eventIds.map((id) => `[${id}]`).join(' ')
-      : locale === 'vi' ? 'không thay đổi' : 'no change';
+      : labels.noChange;
 
-    if (locale === 'vi') {
-      return [
-        `Tóm tắt: ${revision.explanation}`,
-        `Bạn muốn: ${revision.objective}`,
-        `Đã ghi vào ${caseNumber} · Timeline (${eventIds.length}): ${timelineSummary} · Evidence (${evidenceIds.length}): ${evidenceSummary}`,
-      ].join('\n');
-    }
     return [
-      `Summary: ${revision.explanation}`,
-      `You want: ${revision.objective}`,
-      `Recorded in ${caseNumber} · Timeline (${eventIds.length}): ${timelineSummary} · Evidence (${evidenceIds.length}): ${evidenceSummary}`,
+      `${labels.summary}: ${revision.explanation}`,
+      `${labels.goal}: ${revision.objective}`,
+      `${labels.recorded} ${caseNumber} · ${labels.timeline} (${eventIds.length}): ${timelineSummary} · ${labels.evidence} (${evidenceIds.length}): ${evidenceSummary}`,
     ].join('\n');
   };
 
@@ -312,13 +339,19 @@ export function deriveChatMessages(
         role: 'user',
         text: statementTexts.length > 0 ? statementTexts.join('\n\n') : `Submitted files: ${fileLabels.join(', ')}`,
         attachments,
+        source_ids: intake.parts.map((part) => part.kind === 'statement' ? part.statement_id : part.evidence_id),
         timestamp: new Date(intake.received_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       });
     }
+    const revisionSourceText = revision.triggering_intake_ids
+      .flatMap((intakeId) => ledger.intake_ledger.find((item) => item.id === intakeId)?.parts ?? [])
+      .filter((part) => part.kind === 'statement')
+      .map((part) => part.raw_text)
+      .join('\n\n');
     messages.push({
       id: `revision-${revision.id}`,
       role: 'assistant',
-      text: acceptedUpdateMessage(revision),
+      text: acceptedUpdateMessage(revision, revisionSourceText),
       timestamp: new Date(revision.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       revision_id: revision.id,
     });

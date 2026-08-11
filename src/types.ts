@@ -5,6 +5,13 @@ export type AcquisitionMethod = 'user_upload' | 'pasted_text' | 'file_drop' | 'm
 export type InputForm = 'screenshot' | 'image' | 'email_text' | 'pdf' | 'receipt' | 'chat_transcript' | 'document' | 'other';
 export type AssessmentState = 'Reported' | 'Corroborated' | 'Contested' | 'Established within current record' | 'Mutually acknowledged';
 
+export type CaseReferenceKind = 'statement' | 'evidence' | 'event' | 'finding' | 'gap' | 'action';
+
+export interface CaseReference {
+  kind: CaseReferenceKind;
+  id: string;
+}
+
 export interface UserStatement {
   id: string;
   text: string;
@@ -92,6 +99,7 @@ export interface EvidenceGap {
   status: 'open' | 'resolved' | 'superseded' | 'unavailable' | 'no_longer_material';
   resolution_reason?: string;
   resolution_evidence_ids?: string[];
+  actions: NextAction[];
 }
 
 export interface NextAction {
@@ -147,6 +155,7 @@ export interface ChatMessage {
   attachments?: AttachmentFile[];
   timestamp: string;
   revision_id?: string;
+  source_ids?: string[];
   isAnalyzing?: boolean;
   error?: string;
 }
@@ -162,7 +171,6 @@ export interface PresentationCaseData {
   events: CaseEvent[];
   claims: Claim[];
   gaps: EvidenceGap[];
-  actions: NextAction[];
   summary?: AnalysisSummary;
   is_archived: boolean;
   locale: string;

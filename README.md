@@ -1,6 +1,6 @@
 # Explainable Trust
 
-Explainable Trust turns a messy user report and attached files into a traceable case ledger. It is a working local-first product: the default replay mode needs no API key, while live mode calls Gemini only from the server.
+Explainable Trust turns a messy user report and attached files into a traceable case ledger. It is a working local-first product: case data stays in the browser, while Live analysis calls Gemini only from the server.
 
 ## What works
 
@@ -11,7 +11,7 @@ Explainable Trust turns a messy user report and attached files into a traceable 
 - Claims, events, evidence inspections, gaps, next actions, revision deltas, and model-run audit.
 - Rejected/provider-error runs preserve the last accepted ledger.
 - Atomic IndexedDB commits for the accepted ledger, model run, and attachment blobs.
-- Portable JSON export of the authoritative ledger plus its run audit.
+- Synchronized JSON/Print export of the case Timeline and its gap-owned actions.
 
 ## Run locally
 
@@ -22,9 +22,7 @@ npm ci
 npm run dev
 ```
 
-Open `http://localhost:3000`. Replay is selected by default and works without credentials.
-
-For live inference, copy `.env.example` to `.env`, add `GEMINI_API_KEY`, start the app, then choose **Live** in the left sidebar. The model is deliberately pinned to `gemini-3.5-flash`; there is no alias, fallback, router, or client override.
+Copy `.env.example` to `.env`, add `GEMINI_API_KEY`, then open `http://localhost:3000`. Intake runs Live automatically. The model is deliberately pinned to `gemini-3.6-flash`; there is no alias, fallback, router, or client override.
 
 ## Production and verification
 

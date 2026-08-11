@@ -10,12 +10,15 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
-import { AttachmentFile, ChatMessage } from '../types.js';
+import type { AttachmentFile, CaseReference, ChatMessage } from '../types.js';
+import { CASE_REFERENCE_SPLIT_PATTERN, caseReferenceFromId } from '../presentation/caseReferences.js';
+import { CaseKeyButton } from './CaseKeyButton.js';
 
 interface CaseIntakeChatProps {
   messages: ChatMessage[];
   onSendMessage: (text: string, attachments: AttachmentFile[]) => Promise<void>;
-  onSelectEvidence?: (evidenceId: string) => void;
+  onSelectReference?: (reference: CaseReference) => void;
+  focusedReference?: CaseReference | null;
   isLoading?: boolean;
   isAnalyzing?: boolean;
   onLoadSample?: (sampleId: string) => void;
@@ -25,7 +28,8 @@ interface CaseIntakeChatProps {
 export const CaseIntakeChat: React.FC<CaseIntakeChatProps> = ({
   messages,
   onSendMessage,
-  onSelectEvidence,
+  onSelectReference,
+  focusedReference = null,
   isLoading: isLoadingProp = false,
   isAnalyzing: isAnalyzingProp = false,
   onLoadSample,
@@ -36,6 +40,7 @@ export const CaseIntakeChat: React.FC<CaseIntakeChatProps> = ({
   const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [expandedSubmissions, setExpandedSubmissions] = useState<Record<string, boolean>>({});
+  const [highlightedStatementId, setHighlightedStatementId] = useState<string | null>(null);
 
   useEffect(() => {
     if (insertedInputText) {
@@ -54,27 +59,25 @@ export const CaseIntakeChat: React.FC<CaseIntakeChatProps> = ({
     setExpandedSubmissions((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  // Helper to render assistant text with interactive evidence chips
+  // Render every canonical key as the same navigable reference used by the
+  // Record and Gaps surfaces.
   const renderTextWithChips = (text: string) => {
     if (!text) return null;
 
-    const parts = text.split(/(\[See evidence · E\d+\]|\[E\d+\]|\bE\d{2}\b)/g);
+    const parts = text.split(CASE_REFERENCE_SPLIT_PATTERN);
 
     return (
       <span className="leading-relaxed">
         {parts.map((part, i) => {
-          const match = part.match(/E\d{2}/);
-          if (match && onSelectEvidence) {
-            const eId = match[0];
+          const reference = caseReferenceFromId(part);
+          if (reference && onSelectReference) {
             return (
-              <button
+              <CaseKeyButton
                 key={i}
-                type="button"
-                onClick={() => onSelectEvidence(eId)}
-                className="inline-flex items-center gap-1 mx-0.5 px-1.5 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-[11px] font-mono font-medium rounded border border-slate-300 transition-colors cursor-pointer"
-              >
-                <span>See evidence · {eId}</span>
-              </button>
+                reference={reference}
+                onSelect={onSelectReference}
+                active={focusedReference?.kind === reference.kind && focusedReference.id === reference.id}
+              />
             );
           }
           return part;
@@ -87,6 +90,22 @@ export const CaseIntakeChat: React.FC<CaseIntakeChatProps> = ({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
+
+  useEffect(() => {
+    if (focusedReference?.kind !== 'statement') {
+      setHighlightedStatementId(null);
+      return;
+    }
+    const message = messages.find((item) => item.source_ids?.includes(focusedReference.id));
+    if (message === undefined) return;
+    setExpandedSubmissions((current) => ({ ...current, [message.id]: true }));
+    setHighlightedStatementId(focusedReference.id);
+    const timer = window.setTimeout(() => {
+      const target = document.querySelector<HTMLElement>(`[data-chat-message-id="${message.id}"]`);
+      target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [focusedReference, messages]);
 
   // Adjust textarea height
   useEffect(() => {
@@ -276,7 +295,7 @@ export const CaseIntakeChat: React.FC<CaseIntakeChatProps> = ({
                     Try a follow-up update
                   </p>
                   <p className="text-slate-500 line-clamp-2">
-                    Replay can transition an earlier gap and action
+                    A follow-up can resolve an earlier gap and update its action
                   </p>
                 </div>
               </div>
@@ -291,11 +310,27 @@ export const CaseIntakeChat: React.FC<CaseIntakeChatProps> = ({
             return (
               <div
                 key={msg.id}
-                className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} space-y-1.5 w-full`}
+                data-chat-message-id={msg.id}
+                className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} space-y-1.5 w-full scroll-m-8`}
               >
                 {/* User Message: 2-line collapsed preview by default */}
                 {isUser ? (
-                  <div className="w-full max-w-2xl bg-slate-900 text-slate-100 rounded-2xl px-4 py-3 shadow-2xs space-y-2 border border-slate-800">
+                  <div className={`w-full max-w-2xl bg-slate-900 text-slate-100 rounded-2xl px-4 py-3 shadow-2xs space-y-2 border transition-all ${msg.source_ids?.includes(highlightedStatementId ?? '') ? 'border-sky-300 ring-2 ring-sky-400 ring-offset-2' : 'border-slate-800'}`}>
+                    {msg.source_ids && msg.source_ids.length > 0 && onSelectReference && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {msg.source_ids.map((id) => {
+                          const reference = caseReferenceFromId(id);
+                          return reference === null ? null : (
+                            <CaseKeyButton
+                              key={`${reference.kind}:${reference.id}`}
+                              reference={reference}
+                              onSelect={onSelectReference}
+                              active={focusedReference?.kind === reference.kind && focusedReference.id === reference.id}
+                            />
+                          );
+                        })}
+                      </div>
+                    )}
                     <div className="flex items-start justify-between gap-3">
                       <div
                         className="flex-1 cursor-pointer select-text"
