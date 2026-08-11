@@ -96,7 +96,7 @@ export interface UpdateEventOperation {
   target?: SemanticText;
   effect?: SemanticText;
   assessment?: AssessmentState;
-  source_basis_ids?: SourceId[];
+  source_basis_ids: SourceId[];
   reason: SemanticText;
 }
 
@@ -128,7 +128,7 @@ export interface UpdateClaimOperation {
   reasoning?: SemanticText;
   scope?: SemanticText;
   limits?: SemanticText[];
-  source_basis_ids?: SourceId[];
+  source_basis_ids: SourceId[];
   reason: SemanticText;
 }
 
@@ -154,7 +154,7 @@ export interface UpdateGapOperation {
   acquisition_guidance?: SemanticText;
   collection_boundary?: SemanticText;
   target_claim_refs?: ReferenceOrId<ClaimId, ClaimLocalRef>[];
-  source_basis_ids?: SourceId[];
+  source_basis_ids: SourceId[];
   reason: SemanticText;
 }
 
@@ -184,7 +184,7 @@ export interface UpdateActionOperation {
   description?: SemanticText;
   priority?: Priority;
   target_gap_refs?: ReferenceOrId<GapId, GapLocalRef>[];
-  source_basis_ids?: SourceId[];
+  source_basis_ids: SourceId[];
   reason: SemanticText;
 }
 

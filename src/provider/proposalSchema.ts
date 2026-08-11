@@ -94,10 +94,10 @@ const UpdateEventOperationSchema = z.object({
   target: SemanticTextSchema.optional(),
   effect: SemanticTextSchema.optional(),
   assessment: AssessmentStateSchema.optional(),
-  source_basis_ids: z.array(SourceIdSchema).min(1).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items').optional(),
+  source_basis_ids: z.array(SourceIdSchema).min(1).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items'),
   reason: SemanticTextSchema,
 }).strict().superRefine((val, ctx) => {
-  if (val.domain_time === undefined && val.actor === undefined && val.action === undefined && val.target === undefined && val.effect === undefined && val.assessment === undefined && val.source_basis_ids === undefined) {
+  if (val.domain_time === undefined && val.actor === undefined && val.action === undefined && val.target === undefined && val.effect === undefined && val.assessment === undefined) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Update operation must contain at least one actual mutable-field change.' });
   }
 });
@@ -130,10 +130,10 @@ const UpdateClaimOperationSchema = z.object({
   reasoning: SemanticTextSchema.optional(),
   scope: SemanticTextSchema.optional(),
   limits: z.array(SemanticTextSchema).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items').optional(),
-  source_basis_ids: z.array(SourceIdSchema).min(1).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items').optional(),
+  source_basis_ids: z.array(SourceIdSchema).min(1).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items'),
   reason: SemanticTextSchema,
 }).strict().superRefine((val, ctx) => {
-  if (val.proposition === undefined && val.actor === undefined && val.action === undefined && val.target === undefined && val.domain_time === undefined && val.assessment === undefined && val.reasoning === undefined && val.scope === undefined && val.limits === undefined && val.source_basis_ids === undefined) {
+  if (val.proposition === undefined && val.actor === undefined && val.action === undefined && val.target === undefined && val.domain_time === undefined && val.assessment === undefined && val.reasoning === undefined && val.scope === undefined && val.limits === undefined) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Update operation must contain at least one actual mutable-field change.' });
   }
 });
@@ -160,10 +160,10 @@ const UpdateGapOperationSchema = z.object({
   acquisition_guidance: SemanticTextSchema.optional(),
   collection_boundary: SemanticTextSchema.optional(),
   target_claim_refs: z.array(z.union([ClaimIdSchema, ClaimLocalRefSchema])).min(1).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items').optional(),
-  source_basis_ids: z.array(SourceIdSchema).min(1).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items').optional(),
+  source_basis_ids: z.array(SourceIdSchema).min(1).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items'),
   reason: SemanticTextSchema,
 }).strict().superRefine((val, ctx) => {
-  if (val.question === undefined && val.relevance === undefined && val.resolving_evidence === undefined && val.acquisition_guidance === undefined && val.collection_boundary === undefined && val.target_claim_refs === undefined && val.source_basis_ids === undefined) {
+  if (val.question === undefined && val.relevance === undefined && val.resolving_evidence === undefined && val.acquisition_guidance === undefined && val.collection_boundary === undefined && val.target_claim_refs === undefined) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Update operation must contain at least one actual mutable-field change.' });
   }
 });
@@ -194,10 +194,10 @@ const UpdateActionOperationSchema = z.object({
   description: SemanticTextSchema.optional(),
   priority: PrioritySchema.optional(),
   target_gap_refs: z.array(z.union([GapIdSchema, GapLocalRefSchema])).min(1).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items').optional(),
-  source_basis_ids: z.array(SourceIdSchema).min(1).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items').optional(),
+  source_basis_ids: z.array(SourceIdSchema).min(1).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items'),
   reason: SemanticTextSchema,
 }).strict().superRefine((val, ctx) => {
-  if (val.title === undefined && val.description === undefined && val.priority === undefined && val.target_gap_refs === undefined && val.source_basis_ids === undefined) {
+  if (val.title === undefined && val.description === undefined && val.priority === undefined && val.target_gap_refs === undefined) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Update operation must contain at least one actual mutable-field change.' });
   }
 });
@@ -317,12 +317,18 @@ export function parseProviderProposal(raw: unknown, ctx: ProposalValidationConte
 
     if (op.operation_type === 'update_event') {
       if (!ctx.existingEventIds.has(op.target_id)) throw new Error(`Target event not found: ${op.target_id}`);
+      const keys = Object.keys(op).filter(k => k !== 'operation_type' && k !== 'target_id' && k !== 'source_basis_ids' && k !== 'reason');
+      if (keys.length === 0) throw new Error(`Update event must contain at least one mutation`);
     }
     if (op.operation_type === 'update_claim') {
       if (!ctx.existingClaimIds.has(op.target_id)) throw new Error(`Target claim not found: ${op.target_id}`);
+      const keys = Object.keys(op).filter(k => k !== 'operation_type' && k !== 'target_id' && k !== 'source_basis_ids' && k !== 'reason');
+      if (keys.length === 0) throw new Error(`Update claim must contain at least one mutation`);
     }
     if (op.operation_type === 'update_gap') {
       if (!ctx.existingGapIds.has(op.target_id)) throw new Error(`Target gap not found: ${op.target_id}`);
+      const keys = Object.keys(op).filter(k => k !== 'operation_type' && k !== 'target_id' && k !== 'source_basis_ids' && k !== 'reason');
+      if (keys.length === 0) throw new Error(`Update gap must contain at least one mutation`);
       if (op.target_claim_refs) {
         for (const ref of op.target_claim_refs) {
           if (ref.startsWith('new_')) {
@@ -335,6 +341,8 @@ export function parseProviderProposal(raw: unknown, ctx: ProposalValidationConte
     }
     if (op.operation_type === 'update_action') {
       if (!ctx.existingActionIds.has(op.target_id)) throw new Error(`Target action not found: ${op.target_id}`);
+      const keys = Object.keys(op).filter(k => k !== 'operation_type' && k !== 'target_id' && k !== 'source_basis_ids' && k !== 'reason');
+      if (keys.length === 0) throw new Error(`Update action must contain at least one mutation`);
       if (op.target_gap_refs) {
         for (const ref of op.target_gap_refs) {
           if (ref.startsWith('new_')) {
