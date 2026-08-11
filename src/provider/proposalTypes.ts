@@ -6,6 +6,7 @@ import type {
   ActionId,
   SourceId,
   StatementId,
+  EvidenceId,
   DomainTimeText,
   SemanticText,
   AssessmentState,
@@ -61,9 +62,11 @@ export type DispositionOperation =
   | DispositionCorrectsStatement
   | DispositionNotYetClassified;
 
-export interface InspectSourceOperation {
+export interface EvidenceInspection {
   operation_type: 'inspect_source';
-  source_id: SourceId; // evidence ID only in reality, but for schema union let's just say SourceId
+  evidence_id: EvidenceId;
+  source_attribution: SemanticText;
+  case_object_match: SemanticText;
   match_status: 'matched' | 'mismatched' | 'unclear' | 'not_assessed';
   completeness_context: SemanticText;
   integrity_signals: SemanticText;
@@ -93,6 +96,7 @@ export interface UpdateEventOperation {
   target?: SemanticText;
   effect?: SemanticText;
   assessment?: AssessmentState;
+  source_basis_ids?: SourceId[];
   reason: SemanticText;
 }
 
@@ -108,6 +112,7 @@ export interface AddClaimOperation {
   reasoning: SemanticText;
   scope: SemanticText;
   limits: SemanticText[];
+  source_basis_ids: SourceId[];
   reason: SemanticText;
 }
 
@@ -123,6 +128,7 @@ export interface UpdateClaimOperation {
   reasoning?: SemanticText;
   scope?: SemanticText;
   limits?: SemanticText[];
+  source_basis_ids?: SourceId[];
   reason: SemanticText;
 }
 
@@ -148,6 +154,7 @@ export interface UpdateGapOperation {
   acquisition_guidance?: SemanticText;
   collection_boundary?: SemanticText;
   target_claim_refs?: ReferenceOrId<ClaimId, ClaimLocalRef>[];
+  source_basis_ids?: SourceId[];
   reason: SemanticText;
 }
 
@@ -177,6 +184,7 @@ export interface UpdateActionOperation {
   description?: SemanticText;
   priority?: Priority;
   target_gap_refs?: ReferenceOrId<GapId, GapLocalRef>[];
+  source_basis_ids?: SourceId[];
   reason: SemanticText;
 }
 
@@ -190,7 +198,7 @@ export interface TransitionActionOperation {
 
 export type ProposalOperation =
   | DispositionOperation
-  | InspectSourceOperation
+  | EvidenceInspection
   | AddEventOperation
   | UpdateEventOperation
   | AddClaimOperation

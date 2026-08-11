@@ -10,6 +10,9 @@ import {
   ActionIdSchema,
   DomainTimeTextSchema,
   SemanticTextSchema,
+  PrioritySchema,
+  AssessmentStateSchema,
+  EvidenceMatchStatusSchema,
 } from '../ledger/schema';
 
 // Local references for new entities by family
@@ -22,7 +25,7 @@ const SourceIdSchema = z.union([StatementIdSchema, EvidenceIdSchema]);
 
 const AssistantExplanationSchema = z.object({
   text: SemanticTextSchema,
-});
+}).strict();
 
 // Disposition variants
 const DispositionSupportsClaimSchema = z.object({
@@ -57,24 +60,17 @@ const DispositionNotYetClassifiedSchema = z.object({
   reason: SemanticTextSchema,
 }).strict();
 
-const DispositionOperationSchema = z.discriminatedUnion('relationship_type', [
-  DispositionSupportsClaimSchema,
-  DispositionRaisesGapSchema,
-  DispositionCorrectsStatementSchema,
-  DispositionNotYetClassifiedSchema,
-]);
-
-const InspectSourceOperationSchema = z.object({
+const EvidenceInspectionSchema = z.object({
   operation_type: z.literal('inspect_source'),
-  source_id: EvidenceIdSchema, // "inspection using a statement rather than evidence" should fail.
-  match_status: z.enum(['matched', 'mismatched', 'unclear', 'not_assessed']),
+  evidence_id: EvidenceIdSchema,
+  source_attribution: SemanticTextSchema,
+  case_object_match: SemanticTextSchema,
+  match_status: EvidenceMatchStatusSchema,
   completeness_context: SemanticTextSchema,
   integrity_signals: SemanticTextSchema,
-  limitations: z.array(SemanticTextSchema),
+  limitations: z.array(SemanticTextSchema).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items'),
   reason: SemanticTextSchema,
 }).strict();
-
-const AssessmentStateEnum = z.enum(['Reported', 'Corroborated', 'Contested', 'Established within current record', 'Mutually acknowledged']);
 
 const AddEventOperationSchema = z.object({
   operation_type: z.literal('add_event'),
@@ -84,8 +80,8 @@ const AddEventOperationSchema = z.object({
   action: SemanticTextSchema,
   target: SemanticTextSchema,
   effect: SemanticTextSchema,
-  assessment: AssessmentStateEnum,
-  source_basis_ids: z.array(SourceIdSchema).min(1),
+  assessment: AssessmentStateSchema,
+  source_basis_ids: z.array(SourceIdSchema).min(1).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items'),
   reason: SemanticTextSchema,
 }).strict();
 
@@ -97,10 +93,11 @@ const UpdateEventOperationSchema = z.object({
   action: SemanticTextSchema.optional(),
   target: SemanticTextSchema.optional(),
   effect: SemanticTextSchema.optional(),
-  assessment: AssessmentStateEnum.optional(),
+  assessment: AssessmentStateSchema.optional(),
+  source_basis_ids: z.array(SourceIdSchema).min(1).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items').optional(),
   reason: SemanticTextSchema,
 }).strict().superRefine((val, ctx) => {
-  if (val.domain_time === undefined && val.actor === undefined && val.action === undefined && val.target === undefined && val.effect === undefined && val.assessment === undefined) {
+  if (val.domain_time === undefined && val.actor === undefined && val.action === undefined && val.target === undefined && val.effect === undefined && val.assessment === undefined && val.source_basis_ids === undefined) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Update operation must contain at least one actual mutable-field change.' });
   }
 });
@@ -113,10 +110,11 @@ const AddClaimOperationSchema = z.object({
   action: SemanticTextSchema,
   target: SemanticTextSchema,
   domain_time: DomainTimeTextSchema,
-  assessment: AssessmentStateEnum,
+  assessment: AssessmentStateSchema,
   reasoning: SemanticTextSchema,
   scope: SemanticTextSchema,
-  limits: z.array(SemanticTextSchema),
+  limits: z.array(SemanticTextSchema).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items'),
+  source_basis_ids: z.array(SourceIdSchema).min(1).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items'),
   reason: SemanticTextSchema,
 }).strict();
 
@@ -128,13 +126,14 @@ const UpdateClaimOperationSchema = z.object({
   action: SemanticTextSchema.optional(),
   target: SemanticTextSchema.optional(),
   domain_time: DomainTimeTextSchema.optional(),
-  assessment: AssessmentStateEnum.optional(),
+  assessment: AssessmentStateSchema.optional(),
   reasoning: SemanticTextSchema.optional(),
   scope: SemanticTextSchema.optional(),
-  limits: z.array(SemanticTextSchema).optional(),
+  limits: z.array(SemanticTextSchema).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items').optional(),
+  source_basis_ids: z.array(SourceIdSchema).min(1).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items').optional(),
   reason: SemanticTextSchema,
 }).strict().superRefine((val, ctx) => {
-  if (val.proposition === undefined && val.actor === undefined && val.action === undefined && val.target === undefined && val.domain_time === undefined && val.assessment === undefined && val.reasoning === undefined && val.scope === undefined && val.limits === undefined) {
+  if (val.proposition === undefined && val.actor === undefined && val.action === undefined && val.target === undefined && val.domain_time === undefined && val.assessment === undefined && val.reasoning === undefined && val.scope === undefined && val.limits === undefined && val.source_basis_ids === undefined) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Update operation must contain at least one actual mutable-field change.' });
   }
 });
@@ -147,8 +146,8 @@ const AddGapOperationSchema = z.object({
   resolving_evidence: SemanticTextSchema,
   acquisition_guidance: SemanticTextSchema,
   collection_boundary: SemanticTextSchema,
-  target_claim_refs: z.array(z.union([ClaimIdSchema, ClaimLocalRefSchema])).min(1),
-  source_basis_ids: z.array(SourceIdSchema).min(1),
+  target_claim_refs: z.array(z.union([ClaimIdSchema, ClaimLocalRefSchema])).min(1).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items'),
+  source_basis_ids: z.array(SourceIdSchema).min(1).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items'),
   reason: SemanticTextSchema,
 }).strict();
 
@@ -160,10 +159,11 @@ const UpdateGapOperationSchema = z.object({
   resolving_evidence: SemanticTextSchema.optional(),
   acquisition_guidance: SemanticTextSchema.optional(),
   collection_boundary: SemanticTextSchema.optional(),
-  target_claim_refs: z.array(z.union([ClaimIdSchema, ClaimLocalRefSchema])).min(1).optional(),
+  target_claim_refs: z.array(z.union([ClaimIdSchema, ClaimLocalRefSchema])).min(1).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items').optional(),
+  source_basis_ids: z.array(SourceIdSchema).min(1).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items').optional(),
   reason: SemanticTextSchema,
 }).strict().superRefine((val, ctx) => {
-  if (val.question === undefined && val.relevance === undefined && val.resolving_evidence === undefined && val.acquisition_guidance === undefined && val.collection_boundary === undefined && val.target_claim_refs === undefined) {
+  if (val.question === undefined && val.relevance === undefined && val.resolving_evidence === undefined && val.acquisition_guidance === undefined && val.collection_boundary === undefined && val.target_claim_refs === undefined && val.source_basis_ids === undefined) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Update operation must contain at least one actual mutable-field change.' });
   }
 });
@@ -172,20 +172,18 @@ const TransitionGapOperationSchema = z.object({
   operation_type: z.literal('transition_gap'),
   target_ref: GapIdSchema, // canonical only
   resulting_status: z.enum(['resolved', 'superseded', 'unavailable', 'no_longer_material']),
-  source_basis_ids: z.array(SourceIdSchema).min(1),
+  source_basis_ids: z.array(SourceIdSchema).min(1).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items'),
   reason: SemanticTextSchema,
 }).strict();
-
-const PriorityEnum = z.enum(['high', 'medium', 'low']);
 
 const AddActionOperationSchema = z.object({
   operation_type: z.literal('add_action'),
   local_ref: ActionLocalRefSchema,
   title: SemanticTextSchema,
   description: SemanticTextSchema,
-  priority: PriorityEnum,
-  target_gap_refs: z.array(z.union([GapIdSchema, GapLocalRefSchema])).min(1),
-  source_basis_ids: z.array(SourceIdSchema).min(1),
+  priority: PrioritySchema,
+  target_gap_refs: z.array(z.union([GapIdSchema, GapLocalRefSchema])).min(1).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items'),
+  source_basis_ids: z.array(SourceIdSchema).min(1).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items'),
   reason: SemanticTextSchema,
 }).strict();
 
@@ -194,11 +192,12 @@ const UpdateActionOperationSchema = z.object({
   target_id: ActionIdSchema,
   title: SemanticTextSchema.optional(),
   description: SemanticTextSchema.optional(),
-  priority: PriorityEnum.optional(),
-  target_gap_refs: z.array(z.union([GapIdSchema, GapLocalRefSchema])).min(1).optional(),
+  priority: PrioritySchema.optional(),
+  target_gap_refs: z.array(z.union([GapIdSchema, GapLocalRefSchema])).min(1).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items').optional(),
+  source_basis_ids: z.array(SourceIdSchema).min(1).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items').optional(),
   reason: SemanticTextSchema,
 }).strict().superRefine((val, ctx) => {
-  if (val.title === undefined && val.description === undefined && val.priority === undefined && val.target_gap_refs === undefined) {
+  if (val.title === undefined && val.description === undefined && val.priority === undefined && val.target_gap_refs === undefined && val.source_basis_ids === undefined) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Update operation must contain at least one actual mutable-field change.' });
   }
 });
@@ -207,7 +206,7 @@ const TransitionActionOperationSchema = z.object({
   operation_type: z.literal('transition_action'),
   target_ref: ActionIdSchema, // canonical only
   resulting_status: z.enum(['in_progress', 'completed', 'cancelled']),
-  source_basis_ids: z.array(SourceIdSchema).min(1),
+  source_basis_ids: z.array(SourceIdSchema).min(1).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items'),
   reason: SemanticTextSchema,
 }).strict();
 
@@ -216,7 +215,7 @@ export const ProposalOperationSchema = z.union([
   DispositionRaisesGapSchema,
   DispositionCorrectsStatementSchema,
   DispositionNotYetClassifiedSchema,
-  InspectSourceOperationSchema,
+  EvidenceInspectionSchema,
   AddEventOperationSchema,
   UpdateEventOperationSchema,
   AddClaimOperationSchema,
@@ -275,11 +274,13 @@ export function parseProviderProposal(raw: unknown, ctx: ProposalValidationConte
     // Check source bases for duplicates and availability
     if ('source_basis_ids' in op) {
       const srcIds = (op as { source_basis_ids: T.SourceId[] }).source_basis_ids;
-      const seen = new Set<string>();
-      for (const src of srcIds) {
-        if (!ctx.availableSourceIds.has(src)) throw new Error(`Unavailable source basis: ${src}`);
-        if (seen.has(src)) throw new Error(`Duplicate source basis: ${src}`);
-        seen.add(src);
+      if (srcIds) {
+        const seen = new Set<string>();
+        for (const src of srcIds) {
+          if (!ctx.availableSourceIds.has(src)) throw new Error(`Unavailable source basis: ${src}`);
+          if (seen.has(src)) throw new Error(`Duplicate source basis: ${src}`);
+          seen.add(src);
+        }
       }
     }
 
@@ -309,8 +310,8 @@ export function parseProviderProposal(raw: unknown, ctx: ProposalValidationConte
     }
 
     if (op.operation_type === 'inspect_source') {
-      if (!ctx.availableSourceIds.has(op.source_id)) {
-        throw new Error(`Cannot inspect unavailable source: ${op.source_id}`);
+      if (!ctx.availableSourceIds.has(op.evidence_id)) {
+        throw new Error(`Cannot inspect unavailable source: ${op.evidence_id}`);
       }
     }
 
@@ -372,6 +373,22 @@ export function parseProviderProposal(raw: unknown, ctx: ProposalValidationConte
     }
   }
 
+  // Reject the same source being assigned to more than one of supports_claim, qualifies_claim and conflicts_with_claim for the same claim within one proposal
+  const claimSourceDispositions = new Map<string, Set<string>>();
+  for (const op of parsed.operations) {
+    if (op.operation_type === 'disposition_source') {
+      if (op.relationship_type === 'supports_claim' || op.relationship_type === 'qualifies_claim' || op.relationship_type === 'conflicts_with_claim') {
+        const claimRef = op.target_ref;
+        if (!claimSourceDispositions.has(claimRef)) claimSourceDispositions.set(claimRef, new Set());
+        const sourceSet = claimSourceDispositions.get(claimRef)!;
+        if (sourceSet.has(op.source_id)) {
+          throw new Error(`Duplicate source basis: ${op.source_id} used multiple times for claim ${claimRef} in dispositions`);
+        }
+        sourceSet.add(op.source_id);
+      }
+    }
+  }
+
   // Every new claim must have at least one valid source disposition targeting it.
   for (const ref of declaredLocalRefs) {
     if (ref.startsWith('new_claim_') && !targetedNewClaims.has(ref)) {
@@ -379,6 +396,53 @@ export function parseProviderProposal(raw: unknown, ctx: ProposalValidationConte
     }
   }
 
-  // @ts-expect-error Zod inference in non-strict mode makes required transformed fields optional
-  return parsed;
+  // Map explicitly without TS suppression or broad optionality.
+  const typedOperations: P.ProposalOperation[] = [];
+  for (const op of parsed.operations) {
+    if (op.operation_type === 'disposition_source') {
+      if (op.relationship_type === 'supports_claim') {
+        typedOperations.push({ operation_type: 'disposition_source', relationship_type: 'supports_claim', source_id: op.source_id, target_ref: op.target_ref, reason: op.reason });
+      } else if (op.relationship_type === 'qualifies_claim') {
+        typedOperations.push({ operation_type: 'disposition_source', relationship_type: 'qualifies_claim', source_id: op.source_id, target_ref: op.target_ref, reason: op.reason });
+      } else if (op.relationship_type === 'conflicts_with_claim') {
+        typedOperations.push({ operation_type: 'disposition_source', relationship_type: 'conflicts_with_claim', source_id: op.source_id, target_ref: op.target_ref, reason: op.reason });
+      } else if (op.relationship_type === 'raises_gap') {
+        typedOperations.push({ operation_type: 'disposition_source', relationship_type: 'raises_gap', source_id: op.source_id, target_ref: op.target_ref, reason: op.reason });
+      } else if (op.relationship_type === 'corrects_statement') {
+        typedOperations.push({ operation_type: 'disposition_source', relationship_type: 'corrects_statement', source_id: op.source_id, target_ref: op.target_ref, reason: op.reason });
+      } else if (op.relationship_type === 'not_yet_classified') {
+        typedOperations.push({ operation_type: 'disposition_source', relationship_type: 'not_yet_classified', source_id: op.source_id, target_ref: op.target_ref, reason: op.reason });
+      }
+    } else if (op.operation_type === 'inspect_source') {
+      typedOperations.push({ operation_type: 'inspect_source', evidence_id: op.evidence_id, source_attribution: op.source_attribution, case_object_match: op.case_object_match, match_status: op.match_status, completeness_context: op.completeness_context, integrity_signals: op.integrity_signals, limitations: op.limitations, reason: op.reason });
+    } else if (op.operation_type === 'add_event') {
+      typedOperations.push({ operation_type: 'add_event', local_ref: op.local_ref, domain_time: op.domain_time, actor: op.actor, action: op.action, target: op.target, effect: op.effect, assessment: op.assessment, source_basis_ids: op.source_basis_ids, reason: op.reason });
+    } else if (op.operation_type === 'update_event') {
+      typedOperations.push({ operation_type: 'update_event', target_id: op.target_id, domain_time: op.domain_time, actor: op.actor, action: op.action, target: op.target, effect: op.effect, assessment: op.assessment, source_basis_ids: op.source_basis_ids, reason: op.reason });
+    } else if (op.operation_type === 'add_claim') {
+      typedOperations.push({ operation_type: 'add_claim', local_ref: op.local_ref, proposition: op.proposition, actor: op.actor, action: op.action, target: op.target, domain_time: op.domain_time, assessment: op.assessment, reasoning: op.reasoning, scope: op.scope, limits: op.limits, source_basis_ids: op.source_basis_ids, reason: op.reason });
+    } else if (op.operation_type === 'update_claim') {
+      typedOperations.push({ operation_type: 'update_claim', target_id: op.target_id, proposition: op.proposition, actor: op.actor, action: op.action, target: op.target, domain_time: op.domain_time, assessment: op.assessment, reasoning: op.reasoning, scope: op.scope, limits: op.limits, source_basis_ids: op.source_basis_ids, reason: op.reason });
+    } else if (op.operation_type === 'add_gap') {
+      typedOperations.push({ operation_type: 'add_gap', local_ref: op.local_ref, question: op.question, relevance: op.relevance, resolving_evidence: op.resolving_evidence, acquisition_guidance: op.acquisition_guidance, collection_boundary: op.collection_boundary, target_claim_refs: op.target_claim_refs, source_basis_ids: op.source_basis_ids, reason: op.reason });
+    } else if (op.operation_type === 'update_gap') {
+      typedOperations.push({ operation_type: 'update_gap', target_id: op.target_id, question: op.question, relevance: op.relevance, resolving_evidence: op.resolving_evidence, acquisition_guidance: op.acquisition_guidance, collection_boundary: op.collection_boundary, target_claim_refs: op.target_claim_refs, source_basis_ids: op.source_basis_ids, reason: op.reason });
+    } else if (op.operation_type === 'transition_gap') {
+      typedOperations.push({ operation_type: 'transition_gap', target_ref: op.target_ref, resulting_status: op.resulting_status, source_basis_ids: op.source_basis_ids, reason: op.reason });
+    } else if (op.operation_type === 'add_action') {
+      typedOperations.push({ operation_type: 'add_action', local_ref: op.local_ref, title: op.title, description: op.description, priority: op.priority, target_gap_refs: op.target_gap_refs, source_basis_ids: op.source_basis_ids, reason: op.reason });
+    } else if (op.operation_type === 'update_action') {
+      typedOperations.push({ operation_type: 'update_action', target_id: op.target_id, title: op.title, description: op.description, priority: op.priority, target_gap_refs: op.target_gap_refs, source_basis_ids: op.source_basis_ids, reason: op.reason });
+    } else if (op.operation_type === 'transition_action') {
+      typedOperations.push({ operation_type: 'transition_action', target_ref: op.target_ref, resulting_status: op.resulting_status, source_basis_ids: op.source_basis_ids, reason: op.reason });
+    }
+  }
+
+  const proposal: P.ProviderProposal = {
+    explanation: { text: parsed.explanation.text },
+    operations: typedOperations,
+  };
+
+  return proposal;
 }
+
