@@ -6,7 +6,7 @@ Repository: `Yunero1206/Explainable-App`
 
 Branch intent: `main` → `origin/main`
 
-Audited HEAD: `0118bd2`
+Audited HEAD: `9c606f7`
 Current phase: **Phase 1A-R Architecture Reset — active and unaccepted**
 
 Persistence/Reload: **pending and inactive**
