@@ -77,14 +77,17 @@ The test iterates the expected manifest, matches each branch by its complete dis
   - CURRENT_STATE commit: `3714e203ee2e78dfa937186f76a2b908a72da0ea`.
   - Connector writes were one-file atomic commits; neither checkpoint commit changed production or tests.
 
-- **F1 — PENDING FINAL REMOTE READ**
-  - Final verification will read the remote head and exact commit/file scope after this ledger checkpoint is persisted.
+- **F1 — DONE — VERIFIED**
+  - Remote head after the ledger checkpoint was `885fa0c92ae79f5f81e628d3d8bffcc80a2f9ff1`.
+  - Commit scopes were verified exactly: test commit → `tests/proposalSchema.test.ts`; ACTIVE_WORK commit → `project-context/ACTIVE_WORK.md`; CURRENT_STATE commit → `project-context/CURRENT_STATE.md`; ledger checkpoint → `project-context/AR-S2_FINAL_EXECUTION.md`.
+  - Remote blob SHAs matched the written contents: test `2bd34e9834b4140a73c551753ae0998409bc6088`; ACTIVE_WORK `d53a1dcd2d279de6eeee02fe3dbd3362a26b710d`; CURRENT_STATE `d7dc3d3c054348f10173b0a9fdee115711f07552`; ledger checkpoint `7579403004b759a392479d8c16c7dee9a65c6853`.
+  - No uncommitted remote state exists in the GitHub Contents API. The final commit containing this F1 record is necessarily identified by GitHub history rather than self-embedded in its own contents.
 
 ## 5. Context handoff
 
-- Completed: B0, V1, V2, V3, V4, D1, D2.
-- Pending: F1 final remote read only.
-- Current item: F1.
+- Completed: B0, V1, V2, V3, V4, D1, D2, F1.
+- Pending: none within AR-S2 final verification.
+- Current item: none; stop boundary reached.
 - Code state: frozen production plus final test-only conformance commit.
 - Control state: AR-S2 complete and verified; AR-S3 queued and inactive.
-- Exact next action: verify remote head and ledger/checkpoint file contents; do not execute AR-S3.
+- Exact next action: wait for explicit user continuation; do not execute AR-S3.
