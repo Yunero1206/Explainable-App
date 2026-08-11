@@ -9,9 +9,9 @@
 - Persistence/Reload: pending, inactive
 - V0 status: not accepted
 - Active micro-slice: AR-S2
-- Active status: COMPLETE — AWAITING USER CONTINUE
-- Last verified implementation SHA: 55da3ad363989c922bc960e6cdba3697eb2bcfba
-- Final test-conformance SHA: 7ce888abda51f7b5686407519eeef96889e1a694
+- Active status: COMPLETE — VERIFIED; AWAITING USER CONTINUE
+- Last verified implementation SHA: 761feb0c0b83f26633b73189f77ea4973c1c922c
+- Final test-conformance SHA: 9de4f9708a5b02bb54b9a40797c62cb713a573ac
 
 ## AR-S2 — Proposal schema and model config
 
@@ -83,20 +83,23 @@ No Gemini SDK call, no ID allocation, no ledger mutation, no App/server endpoint
 
 ### AR-S2: V0 Assistant explanation and untyped proposal envelope
 
-**Status:** COMPLETE — AWAITING USER CONTINUE
+**Status:** COMPLETE — VERIFIED; AWAITING USER CONTINUE
 
 **Implementation Record:**
 * Original Implementation SHA: `55da3ad60b6470bc560a1b5f08fb63d706e55817` (parent: `c018f2c30972e6a5471cf3a357bac8381bc7d936`)
 * Prior Correction 1 SHA: `7d1150093c90a33e4cafd4117278de1bca919027` (parent: `62777dddcb3c54dcd733d1f193fcbdc2700aac40`)
 * Prior Correction 2 SHA: `2a2b60063a95c7dc801638e24876ebdd9b9f6a5f` (parent: `677fc050541a76da296ca0d025cead6c91658048`)
 * New Correction SHA: `761feb0c0b83f26633b73189f77ea4973c1c922c` (parent: `a564fae3b03fd2a2c1f63c7787011560e2d52176`)
-* Verification/Test-Conformance SHA: `6fb3ebf136c14bdcdf9827cf5e1ee27292bd4038` (parent: `4ebbb1cd5a0b8c9a23335a5b4f03e02f454175ea`)
+* Incomplete Verification/Test-Conformance SHA: `6fb3ebf136c14bdcdf9827cf5e1ee27292bd4038` (parent: `4ebbb1cd5a0b8c9a23335a5b4f03e02f454175ea`)
+* Final Verification/Test-Conformance SHA: `9de4f9708a5b02bb54b9a40797c62cb713a573ac` (parent: `ee5dde09e5d85614b70acc6ab25936b1be73f480`)
 * Modified Files:
   - `tests/proposalSchema.test.ts`
+* Structural verification: Exact manifest coverage for all 15 JSON Schema branches; complete discriminant signatures; exactly one match per branch; no duplicate, missing, or unmatched branches; exact order-independent required-field and disposition-enum sets; `additionalProperties === false`; non-empty properties.
 * Gate Results:
   - `npm test -- tests/proposalSchema.test.ts`: Passed (57/57 focused tests passed, exit code 0)
-  - `npm test`: Passed (515/515 global tests passed, exit code 0)
+  - `npm test`: Passed (564/564 global tests passed, exit code 0)
   - `npm run lint`: Passed (exit code 0)
+  - `npm run build`: Passed (exit code 0)
   - `git diff --check`: Passed (exit code 0)
   - `rg -n "\bas any\b|as unknown as|z\.any\(\)|z\.ZodTypeAny|@ts-expect-error" src/provider tests/proposalSchema.test.ts`: Passed (0 results, exit code 1)
   - `rg -n "gemini-3\.6-flash|gemini-.*latest|flash-lite" src/provider server/inference/modelConfig.ts .env.example`: Passed (0 results, exit code 1)
