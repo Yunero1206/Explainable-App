@@ -8,80 +8,92 @@
 - Phase status: active, unaccepted
 - Persistence/Reload: pending, inactive
 - V0 status: not accepted
-- Active micro-slice: `AR-S0`
-- Active status: `COMPLETE — AWAITING USER CONTINUE`
-- Last verified implementation SHA: `1e40e3dc2363d0c7a9afd80a7f52ab1e5010e1c2`
-- Last checkpoint SHA: none
-- Queued next micro-slice: `AR-S1`
+- Active micro-slice: `AR-S1`
+- Active status: `READY FOR HANDSHAKE`
+- Last verified implementation SHA: none
+- Last checkpoint SHA: `ac60c26dfa56a27bc5ab3f77c198685567e297fa`
 
-## AR-S0 — Control-plane reset
+## AR-S1 — Ledger V3 contract
 
-### Objective
+### Outcome
 
-Install the architecture-reset project truth and checkpoint mechanism without changing application code.
+Add the strict, lossless Ledger V3 domain contract and neutral test builders. Do not wire it into server or UI code yet.
 
-### In scope
+### Allowed changes
 
-- replace `project-context/PROJECT_CONTRACT.md`;
-- replace `project-context/CURRENT_STATE.md`;
-- add `project-context/ARCHITECTURE_TARGET.md`;
-- add this `project-context/ACTIVE_WORK.md`;
-- replace `.agents/rules/explainable-trust-operating-contract.md`;
-- add `.agents/workflows/execute-active-work.md`;
-- add the immutable planning cards under `project-context/slice-cards/`;
-- delete `project-context/CURRENT_SLICE.md`;
-- delete `.agents/workflows/execute-v0-slice.md`;
-- replace `INSTALL_FIRST.md` with a concise root `README.md`, then delete `INSTALL_FIRST.md`.
+- `src/ledger/types.ts` — add
+- `src/ledger/schema.ts` — add
+- `src/ledger/factory.ts` — add
+- `src/ledger/index.ts` — add
+- `tests/fixtures/ledgerV3.ts` — add
+- `tests/ledgerV3Schema.test.ts` — add
+- `project-context/ACTIVE_WORK.md` — checkpoint only
+- `project-context/CURRENT_STATE.md` — verified facts only
 
-### Explicitly out of scope
+Any additional production file requires a new plan and user approval.
 
-- every application, server, test, fixture, package and lockfile change;
-- Gemini model code change;
-- Ledger V3 implementation;
-- persistence or demo work.
+### Contract requirements
 
-### Allowed files
+- Schema version is exactly `3.0.0`.
+- A case stores immutable identity, title, created time and ordered revisions.
+- Intake and source records preserve user statements, evidence metadata/content references and provenance before inference.
+- A revision stores parent link, source IDs, entity snapshots, explicit deltas, assistant explanation and accepted model-run ID.
+- Evidence preserves claim/source/content/original time/inspection details and provenance.
+- Events preserve time text, actor, action, target, effect, source support and assessment.
+- Claims preserve actor/action/target/time/scope/limits, evidence support and assessment.
+- Gaps preserve question, status, target references and lifecycle metadata.
+- Actions preserve description, target reference, status and lifecycle metadata.
+- IDs are branded by family in TypeScript and checked by strict runtime schemas.
+- Timestamps are strict ISO instants; natural-language dates are domain strings, never coerced to instants.
+- Unknown keys, invalid enums, broken parent chains, duplicate IDs and dangling references fail closed.
+- Binary data is represented only by blob metadata/reference.
 
-- `.agents/rules/explainable-trust-operating-contract.md`
-- `.agents/workflows/execute-active-work.md`
-- `.agents/workflows/execute-v0-slice.md` deletion only
-- `project-context/PROJECT_CONTRACT.md`
-- `project-context/CURRENT_STATE.md`
-- `project-context/ARCHITECTURE_TARGET.md`
-- `project-context/ACTIVE_WORK.md`
-- `project-context/slice-cards/AR-S0_CONTROL_PLANE_RESET.md`
-- `project-context/slice-cards/AR-S1_LEDGER_V3_CONTRACT.md`
-- `project-context/slice-cards/AR-S2_PROPOSAL_SCHEMA_MODEL_CONFIG.md`
-- `project-context/slice-cards/AR-S3_APPLY_PROPOSAL.md`
-- `project-context/slice-cards/AR-S4_SERVER_BOUNDARY.md`
-- `project-context/slice-cards/AR-S5_CLIENT_PROJECTION_CHAT.md`
-- `project-context/slice-cards/AR-S6_PERSISTENCE.md`
-- `project-context/slice-cards/AR-S7_REPLAY_DEMO.md`
-- `project-context/slice-cards/AR-S8_REMOVE_V2_RUNTIME.md`
-- `project-context/slice-cards/AR-S9_REPO_AUDIT.md`
-- `project-context/CURRENT_SLICE.md` deletion only
-- `README.md`
-- `INSTALL_FIRST.md` deletion only
+### Positive tests
+
+- Empty case factory validates.
+- One complete revision with evidence/claim/gap/action and delta validates.
+- All rich explanation fields survive parse/serialize/parse unchanged.
+- Domain text such as `next Friday` is retained as text where the contract allows it.
+
+### Counterexamples
+
+- Unknown property at any nested boundary.
+- Placeholder insertion such as `Unknown`, empty actor/action or invented source text.
+- Duplicate canonical ID or wrong ID family.
+- Child revision with a missing/wrong parent.
+- Entity reference to a nonexistent entity.
+- Blob content/base64 embedded in canonical JSON.
+- Invalid ISO instant accepted through `Date.parse` coercion.
 
 ### Gates
 
-- `git branch --show-current`
-- `git rev-parse HEAD`
-- `git status --short`
-- `git diff --check`
-- verify the superseded cursor/workflow files are absent and the new cursor/workflow files exist
-- verify no application/source/test/package file changed
+```bash
+npm test -- tests/ledgerV3Schema.test.ts
+npm run typecheck
+git diff --check
+```
 
-### Completion sequence
+If the repository does not support that exact focused-test syntax, use its existing Vitest syntax and record the exact command.
 
-1. Commit and push the control-plane implementation.
-2. Record its full SHA, exact parent and gate results below.
-3. Change active status to `COMPLETE — AWAITING USER CONTINUE`.
-4. Set `Queued next micro-slice` to `AR-S1` without activating it.
-5. Commit and push this checkpoint update.
-6. Stop.
+### Non-goals
 
-## Work log
+No V2 migration, provider schema, Gemini call, proposal application, UI wiring, persistence or deletion.
+
+## AR-S1 Work log
+
+### Completed
+
+- None.
+
+### Gate results
+
+- Not run.
+
+### Dirty files / WIP
+
+- None recorded.
+
+## AR-S0 Work log
 
 ### Completed
 
