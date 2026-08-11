@@ -11,7 +11,7 @@
 - Active micro-slice: none
 - Active status: COMPLETED
 - Last verified implementation SHA: b160454
-- Last checkpoint SHA: pending
+- Last checkpoint SHA: 8849795
 
 ## AR-S1 — Ledger V3 contract
 
