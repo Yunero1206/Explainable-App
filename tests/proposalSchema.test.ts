@@ -1,6 +1,6 @@
 import { describe, it, expect, expectTypeOf } from 'vitest';
-import { z } from 'zod';
 import { INFERENCE_MODEL } from '../server/inference/modelConfig';
+import { createProviderResponseJsonSchema } from '../server/proposalProvider';
 import { parseProviderProposal, type ProposalValidationContext, ProviderProposalSchema, ProposalOperationSchema } from '../src/provider/proposalSchema';
 import type { ProviderProposal } from '../src/provider/proposalTypes';
 import type { ClaimId, SourceId, EventId, GapId, ActionId, StatementId, EvidenceId } from '../src/ledger/types';
@@ -30,7 +30,7 @@ describe('Proposal Schema and Model Config', () => {
 
   describe('JSON Schema conversion', () => {
     it('proves Zod 4 JSON Schema structural properties and all 15 branches', () => {
-      const schema = z.toJSONSchema(ProviderProposalSchema, { io: 'input' });
+      const schema = createProviderResponseJsonSchema();
       expect(schema.type).toBe('object');
       expect(schema.additionalProperties).toBe(false);
 

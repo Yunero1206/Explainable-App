@@ -227,6 +227,13 @@ function inlinePart(attachment: ProviderAttachment): { inlineData: { mimeType: s
   return { inlineData: { mimeType: attachment.mime_type, data } };
 }
 
+export function createProviderResponseJsonSchema() {
+  // The local-ref schemas use transforms only to apply TypeScript brands.
+  // Gemini needs the pre-transform input shape, which is fully representable
+  // as JSON Schema; Zod's default output mode rejects those transforms.
+  return z.toJSONSchema(ProviderProposalSchema, { io: 'input' });
+}
+
 export const runProposalProvider: ProposalProvider = async (mode, input) => {
   if (mode === 'replay') {
     const proposal = replayProposal(input);
@@ -259,7 +266,7 @@ export const runProposalProvider: ProposalProvider = async (mode, input) => {
     config: {
       systemInstruction: 'You are the proposal engine for an explainable evidence ledger. Follow the JSON schema and epistemic rules exactly.',
       responseMimeType: 'application/json',
-      responseJsonSchema: z.toJSONSchema(ProviderProposalSchema),
+      responseJsonSchema: createProviderResponseJsonSchema(),
       temperature: 0,
     },
   });
