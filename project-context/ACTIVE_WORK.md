@@ -5,13 +5,13 @@
 - Workstream: `AR` — Proposal Boundary + Ledger V3
 - Repository: `Yunero1206/Explainable-App`
 - Starting base SHA: `f6eacf784ddc07d89823d013445042c4239e63ad`
-- Phase status: active, unaccepted
+- Phase status: complete
 - Persistence/Reload: pending, inactive
 - V0 status: not accepted
-- Active micro-slice: `AR-S1`
-- Active status: `READY FOR HANDSHAKE`
-- Last verified implementation SHA: none
-- Last checkpoint SHA: `ac60c26dfa56a27bc5ab3f77c198685567e297fa`
+- Active micro-slice: none
+- Active status: COMPLETED
+- Last verified implementation SHA: b160454
+- Last checkpoint SHA: pending
 
 ## AR-S1 — Ledger V3 contract
 
@@ -83,11 +83,16 @@ No V2 migration, provider schema, Gemini call, proposal application, UI wiring, 
 
 ### Completed
 
-- None.
+- Implemented strict Ledger V3 domain contract in `src/ledger` (types, schema, factory, index).
+- Implemented neutral test builders in `tests/fixtures/ledgerV3.ts`.
+- Validated P01-P10 and N01-N38 test matrix in `tests/ledgerV3Schema.test.ts`.
+- Committed implementation (SHA `b160454`, parent `ac60c26dfa56a27bc5ab3f77c198685567e297fa`).
 
 ### Gate results
 
-- Not run.
+- `cmd.exe /c "npm test -- tests/ledgerV3Schema.test.ts"`: Passed (18/18 tests, 0 failed).
+- `cmd.exe /c "npm run lint"` (`tsc --noEmit`): Passed (0 errors).
+- `git diff --check`: Passed.
 
 ### Dirty files / WIP
 
@@ -121,7 +126,7 @@ No V2 migration, provider schema, Gemini call, proposal application, UI wiring, 
 
 | ID | Objective | Status |
 |---|---|---|
-| AR-S1 | Add strict Ledger V3 types/schema and neutral fixtures, not wired to runtime | queued |
+| AR-S1 | Add strict Ledger V3 types/schema and neutral fixtures, not wired to runtime | completed |
 | AR-S2 | Add explicit provider proposal schema and central `gemini-3.5-flash` config | queued |
 | AR-S3 | Add deterministic ID allocation, proposal application, deltas and ledger validation | queued |
 | AR-S4 | Wire typed Gemini/replay providers and V3 server intake boundary with model-run envelope | queued |

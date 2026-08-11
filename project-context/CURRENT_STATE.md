@@ -6,7 +6,7 @@ Repository: `Yunero1206/Explainable-App`
 
 Branch intent: `main` → `origin/main`
 
-Audited HEAD: `1e40e3dc2363d0c7a9afd80a7f52ab1e5010e1c2`
+Audited HEAD: `b160454`
 
 Current phase: **Phase 1A-R Architecture Reset — active and unaccepted**
 
@@ -25,6 +25,7 @@ The implementation candidate is rejected. Green compile/build reports do not clo
 
 ## Verified source facts at HEAD
 
+- Ledger V3 strict domain contracts, schema, and tests are implemented and pass validation.
 - Reconstruction and translation hard-code `gemini-3.6-flash` separately.
 - Provider output is a complete snapshot with provider-supplied IDs.
 - V2 transition code infers changes by comparing provider arrays with the parent.
