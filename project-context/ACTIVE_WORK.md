@@ -10,8 +10,8 @@
 - V0 status: not accepted
 - Active micro-slice: none
 - Active status: COMPLETED
-- Last verified implementation SHA: a442aaf
-- Last checkpoint SHA: 4f4b968
+- Last verified implementation SHA: 0118bd2
+- Last checkpoint SHA: pending
 
 ## AR-S1 — Ledger V3 contract
 
@@ -88,13 +88,19 @@ No V2 migration, provider schema, Gemini call, proposal application, UI wiring, 
 - Included all 20+ admission invariants directly in `parseLedgerV3`.
 - Implemented fully-typed neutral test builders in `tests/fixtures/ledgerV3.ts`.
 - Validated complete P01-P10 and N01-N38 test matrix exactly against the approved Ledger V3 Schema Decision Record in `tests/ledgerV3Schema.test.ts`.
-- Committed corrective implementation (SHA `a442aaf`, parent `92a7f55`).
+- Committed first corrective implementation (SHA `a442aaf`, parent `92a7f55`).
+- Executed second bounded corrective pass for remaining required missing tests.
+- Added explicit negative matrix tests (N39) for ID duplications, wrong-family validation, ID patterns, and temporal constraints.
+- Updated P10 tests to fully cover `intake_ledger` requirement constraints without false positives.
+- Committed full corrective implementation:
+  - Implementation SHA: `0118bd207becbcdd4bf79f6fb6b1d3ec84b68a0e`
+  - Parent SHA: `ec6188d34343a9906e7ddf55aeaf8e5b45b05876`
+  - Changed files: `tests/ledgerV3Schema.test.ts` (306 insertions, 28 deletions)
 
 ### Gate results
 
-- `cmd.exe /c "npm test -- tests/ledgerV3Schema.test.ts 2>&1"`: Passed (248/248 tests, 0 failed).
-- `cmd.exe /c "npm test 2>&1"`: Passed (376/376 tests, 0 failed).
-- `cmd.exe /c "npm run lint"` (`tsc --noEmit`): Passed (0 errors).
+- `cmd.exe /c "npm test 2>&1"`: Passed (390/390 tests, 0 failed).
+- `cmd.exe /c "npm run lint 2>&1"` (`tsc --noEmit`): Passed (0 errors).
 - `git diff --check`: Passed.
 
 ### Dirty files / WIP
