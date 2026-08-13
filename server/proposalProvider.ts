@@ -247,6 +247,7 @@ export function createProposalPrompt(input: ProposalProviderInput): string {
       'Use reasoning.turn_intent to record the classified intent and reasoning.answer_status to distinguish recorded, supported, conditional, or blocked answers. For a complex decision, create a short ordered chain of fact, public_rule, assumption, derivation, scenario, and conclusion steps. Every derivation, scenario, and conclusion names its earlier step dependencies in depends_on. Facts cite source IDs; public_rule steps cite only admitted authoritative web evidence; assumptions point to explicit Gaps; conclusions must not outrun their cited steps.',
       'This is a delta proposal: carry accepted entities by leaving them unchanged; add or update only where the new intake materially changes the case.',
     ],
+    output_contract: createProviderResponseJsonSchema(),
     case_identity: {
       id: input.ledger.id,
       case_number: input.ledger.case_number,
@@ -305,6 +306,63 @@ export function createProviderResponseJsonSchema() {
   return normalized;
 }
 
+/**
+ * Keep the provider-enforced generation shape deliberately shallow. The full
+ * operation contract is supplied in the prompt and remains enforced by Zod
+ * plus semantic validation before any revision can be committed. Sending the
+ * complete 15-branch union as response_format exceeds Gemini's practical
+ * structured-output complexity boundary and is rejected before inference.
+ */
+export function createProviderGenerationJsonSchema() {
+  return {
+    type: 'object',
+    properties: {
+      explanation: {
+        type: 'object',
+        properties: {
+          answer: { type: 'string' },
+          text: { type: 'string' },
+          user_goal: { type: 'string' },
+        },
+        required: ['answer', 'text', 'user_goal'],
+        additionalProperties: false,
+      },
+      reasoning: {
+        type: 'object',
+        properties: {
+          turn_intent: { type: 'string', enum: ['record', 'correct', 'research', 'decide', 'explain'] },
+          answer_status: { type: 'string', enum: ['recorded', 'supported', 'conditional', 'blocked'] },
+          steps: { type: 'array', items: { type: 'object', additionalProperties: true } },
+        },
+        required: ['turn_intent', 'answer_status', 'steps'],
+        additionalProperties: false,
+      },
+      operations: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            operation_type: {
+              type: 'string',
+              enum: [
+                'disposition_source', 'inspect_source',
+                'add_event', 'update_event',
+                'add_claim', 'update_claim',
+                'add_gap', 'update_gap', 'transition_gap',
+                'add_action', 'update_action', 'transition_action',
+              ],
+            },
+          },
+          required: ['operation_type'],
+          additionalProperties: true,
+        },
+      },
+    },
+    required: ['explanation', 'reasoning', 'operations'],
+    additionalProperties: false,
+  } as const;
+}
+
 export const runProposalProvider: ProposalProvider = async (mode, input) => {
   if (mode === 'replay') {
     const proposal = replayProposal(input);
@@ -335,7 +393,7 @@ export const runProposalProvider: ProposalProvider = async (mode, input) => {
     model: INFERENCE_MODEL.modelId,
     parts,
     systemInstruction: 'You are the Epistemic Case Analyzer for Explainable Trust. Source language is authoritative: never translate case content because of interface settings. Reconstruct a complete, traceable decision record without claiming more than the supplied sources support.',
-    responseJsonSchema: createProviderResponseJsonSchema(),
+    responseJsonSchema: createProviderGenerationJsonSchema(),
     stage: 'proposal_generation',
   });
   return {

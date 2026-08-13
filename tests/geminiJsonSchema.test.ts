@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { sanitizeGeminiResponseJsonSchema } from '../server/inference/geminiJsonSchema';
-import { createProviderResponseJsonSchema } from '../server/proposalProvider';
+import {
+  createProviderGenerationJsonSchema,
+  createProviderResponseJsonSchema,
+} from '../server/proposalProvider';
 
 const unsupported = new Set(['$schema', 'pattern', 'minLength', 'maxLength', 'const']);
 
@@ -41,5 +44,17 @@ describe('Gemini response JSON Schema sanitizer', () => {
     expect(schema.properties).toBeDefined();
     expect(JSON.stringify(schema)).toContain('operation_type');
     expect(JSON.stringify(schema)).toContain('reasoning');
+  });
+
+  it('uses a shallow provider envelope while retaining the full server contract separately', () => {
+    const generation = createProviderGenerationJsonSchema();
+    const generationText = JSON.stringify(generation);
+    const validationText = JSON.stringify(createProviderResponseJsonSchema());
+
+    expect(generationText.length).toBeLessThan(2_000);
+    expect(generationText).not.toContain('anyOf');
+    expect(generationText).toContain('operation_type');
+    expect(validationText).toContain('anyOf');
+    expect(validationText.length).toBeGreaterThan(generationText.length * 4);
   });
 });
