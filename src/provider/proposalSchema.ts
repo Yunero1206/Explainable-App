@@ -259,6 +259,20 @@ const TransitionActionOperationSchema = z.object({
   reason: SemanticTextSchema,
 }).strict();
 
+const OperationSchemaByType = {
+  inspect_source: EvidenceInspectionSchema,
+  add_event: AddEventOperationSchema,
+  update_event: UpdateEventOperationSchema,
+  add_claim: AddClaimOperationSchema,
+  update_claim: UpdateClaimOperationSchema,
+  add_gap: AddGapOperationSchema,
+  update_gap: UpdateGapOperationSchema,
+  transition_gap: TransitionGapOperationSchema,
+  add_action: AddActionOperationSchema,
+  update_action: UpdateActionOperationSchema,
+  transition_action: TransitionActionOperationSchema,
+} as const;
+
 export const ProposalOperationSchema = z.union([
   DispositionSupportsClaimSchema,
   DispositionRaisesGapSchema,
@@ -336,6 +350,29 @@ function structuralValidationMessage(raw: unknown, error: z.ZodError): string {
       const record = operation as Record<string, unknown>;
       if (record.operation_type === 'disposition_source') {
         return `Proposal structural validation failed at operations[${operationIndex}]: invalid disposition_source combination (relationship_type=${compactJsonValue(record.relationship_type)}; target_ref=${compactJsonValue(record.target_ref)}). Use a claim relation with a claim ref, raises_gap with a gap ref, corrects_statement with a statement ID, or not_yet_classified with null.`;
+      }
+      const operationType = typeof record.operation_type === 'string'
+        ? record.operation_type as keyof typeof OperationSchemaByType
+        : undefined;
+      const operationSchema = operationType === undefined ? undefined : OperationSchemaByType[operationType];
+      if (operationSchema !== undefined) {
+        const branchResult = operationSchema.safeParse(record);
+        if (!branchResult.success) {
+          const missingFields = branchResult.error.issues.flatMap((issue) => {
+            if (issue.code !== 'invalid_type' || issue.path.length !== 1) return [];
+            const field = String(issue.path[0]);
+            return field in record ? [] : [field];
+          });
+          if (missingFields.length > 0) {
+            return `Proposal structural validation failed at operations[${operationIndex}]: operation_type=${compactJsonValue(record.operation_type)} is missing required fields: ${[...new Set(missingFields)].join(', ')}.`;
+          }
+          const unknownFields = branchResult.error.issues.flatMap((issue) =>
+            issue.code === 'unrecognized_keys' ? issue.keys : []
+          );
+          if (unknownFields.length > 0) {
+            return `Proposal structural validation failed at operations[${operationIndex}]: operation_type=${compactJsonValue(record.operation_type)} contains unknown fields: ${[...new Set(unknownFields)].join(', ')}.`;
+          }
+        }
       }
       return `Proposal structural validation failed at operations[${operationIndex}]: operation_type=${compactJsonValue(record.operation_type)} does not match the required fields for that operation.`;
     }

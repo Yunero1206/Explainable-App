@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../server/app.js';
 import { createIntakeService } from '../server/intakeService.js';
+import { createProviderGenerationJsonSchema } from '../server/proposalProvider.js';
 import { createEmptyLedgerCase } from '../src/ledger/factory.js';
 import {
   parseCaseId,
@@ -106,6 +107,93 @@ describe('Ledger V3 intake boundary', () => {
     expect(result.error.message).toContain('invalid disposition_source combination');
     expect(result.error.message).not.toContain('invalid_union');
     expect(result.error.message.length).toBeLessThan(500);
+  });
+
+  it('accepts the typed Gemini generation wire and preserves the exact raw response in audit', async () => {
+    const operations = createProviderGenerationJsonSchema().properties.operations;
+    const emptyBuckets = Object.fromEntries(operations.required.map((operationType) => [operationType, []]));
+    const wireProposal = {
+      explanation: {
+        answer: 'The current record supports only that the user reported a damaged delivery.',
+        text: 'Recorded the report without treating it as independently verified.',
+        user_goal: 'Preserve the delivery issue and understand what the current record supports.',
+      },
+      reasoning: {
+        turn_intent: 'record',
+        answer_status: 'recorded',
+        steps: [{
+          id: 'S01', kind: 'fact', text: 'The user reported that the delivery arrived damaged.',
+          depends_on: [], source_basis_ids: ['U01'], claim_refs: ['new_claim_1'], gap_refs: [],
+        }],
+      },
+      operations: {
+        ...emptyBuckets,
+        add_claim: [{
+          operation_type: 'add_claim', local_ref: 'new_claim_1',
+          proposition: 'The user reported that the delivery arrived damaged.', actor: 'The user',
+          action: 'reported', target: 'a damaged delivery', domain_time: 'At the current intake',
+          assessment: 'Reported', reasoning: 'The proposition is bounded to the user statement.',
+          scope: 'The current submitted statement.', limits: ['No independent inspection has been accepted.'],
+          source_basis_ids: ['U01'], reason: 'Preserve the report without promoting it to objective fact.',
+        }],
+        disposition_source: [{
+          operation_type: 'disposition_source', relationship_type: 'supports_claim', source_id: 'U01',
+          target_ref: 'new_claim_1', reason: 'The statement directly supports this reported proposition.',
+        }],
+      },
+    };
+    const rawResponse = JSON.stringify(wireProposal);
+    const runIntake = createIntakeService({
+      now: clock(),
+      provider: async () => ({ provider: 'google-gemini', raw_response_text: rawResponse }),
+    });
+
+    const result = parseIntakeResponse(await runIntake({
+      prior_ledger: emptyLedger(),
+      client_request_id: 'request-typed-generation-wire',
+      message: 'My delivery arrived damaged.',
+      inference_mode: 'live',
+    }));
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.run.raw_response_text).toBe(rawResponse);
+    expect(result.ledger.revisions[0]?.claims[0]?.proposition).toBe('The user reported that the delivery arrived damaged.');
+    expect(result.ledger.relationships[0]).toMatchObject({
+      relationship_type: 'supports_claim', source_id: 'U01', target_id: 'C01',
+    });
+  });
+
+  it('rejects an incomplete add_claim from the typed wire and preserves the accepted parent', async () => {
+    const parent = emptyLedger();
+    const before = JSON.stringify(parent);
+    const operations = createProviderGenerationJsonSchema().properties.operations;
+    const emptyBuckets = Object.fromEntries(operations.required.map((operationType) => [operationType, []]));
+    const rawResponse = JSON.stringify({
+      explanation: { answer: 'Recorded.', text: 'Recorded.', user_goal: 'Record the issue.' },
+      reasoning: { turn_intent: 'record', answer_status: 'recorded', steps: [] },
+      operations: {
+        ...emptyBuckets,
+        add_claim: [{ operation_type: 'add_claim', local_ref: 'new_claim_1' }],
+      },
+    });
+    const runIntake = createIntakeService({
+      now: clock(),
+      provider: async () => ({ provider: 'google-gemini', raw_response_text: rawResponse }),
+    });
+
+    const result = parseIntakeResponse(await runIntake({
+      prior_ledger: parent,
+      client_request_id: 'request-incomplete-add-claim-wire',
+      message: 'Record this issue.',
+      inference_mode: 'live',
+    }));
+
+    expect(result.success).toBe(false);
+    expect(JSON.stringify(parent)).toBe(before);
+    if (result.success === true) return;
+    expect(result.error.message).toContain('operation_type="add_claim" is missing required fields:');
+    expect(result.run.raw_response_text).toBe(rawResponse);
   });
 
   it('rejects translated case content and preserves the accepted parent', async () => {

@@ -247,7 +247,8 @@ export function createProposalPrompt(input: ProposalProviderInput): string {
       'Use reasoning.turn_intent to record the classified intent and reasoning.answer_status to distinguish recorded, supported, conditional, or blocked answers. For a complex decision, create a short ordered chain of fact, public_rule, assumption, derivation, scenario, and conclusion steps. Every derivation, scenario, and conclusion names its earlier step dependencies in depends_on. Facts cite source IDs; public_rule steps cite only admitted authoritative web evidence; assumptions point to explicit Gaps; conclusions must not outrun their cited steps.',
       'This is a delta proposal: carry accepted entities by leaving them unchanged; add or update only where the new intake materially changes the case.',
     ],
-    output_contract: createProviderResponseJsonSchema(),
+    generation_wire_instruction: 'Return operations as an object keyed by operation type. Every declared operation-type bucket is required; use an empty array when that type is not needed. Put each operation in exactly one matching bucket and include its matching operation_type field. The server flattens the buckets deterministically before canonical validation.',
+    output_contract: createProviderGenerationJsonSchema(),
     case_identity: {
       id: input.ledger.id,
       case_number: input.ledger.case_number,
@@ -306,14 +307,182 @@ export function createProviderResponseJsonSchema() {
   return normalized;
 }
 
+const OPERATION_BUCKET_ORDER = [
+  'add_claim',
+  'update_claim',
+  'add_event',
+  'update_event',
+  'add_gap',
+  'update_gap',
+  'add_action',
+  'update_action',
+  'transition_gap',
+  'transition_action',
+  'inspect_source',
+  'disposition_source',
+] as const;
+
+type OperationBucket = typeof OPERATION_BUCKET_ORDER[number];
+
+function operationObjectSchema(
+  operationType: OperationBucket,
+  properties: Record<string, unknown>,
+  required: string[],
+) {
+  return {
+    type: 'object',
+    properties: {
+      operation_type: { type: 'string', enum: [operationType] },
+      ...properties,
+    },
+    required: ['operation_type', ...required],
+    additionalProperties: false,
+  };
+}
+
 /**
- * Keep the provider-enforced generation shape deliberately shallow. The full
- * operation contract is supplied in the prompt and remains enforced by Zod
- * plus semantic validation before any revision can be committed. Sending the
- * complete 15-branch union as response_format exceeds Gemini's practical
- * structured-output complexity boundary and is rejected before inference.
+ * Keep the provider-enforced generation shape free of operation unions. The
+ * former flat item schema required only operation_type, so Gemini could emit an
+ * add_claim that passed provider generation but was structurally incomplete at
+ * the canonical boundary. Per-type arrays make each operation's required fields
+ * provider-enforced without restoring the 15-branch union that Gemini rejects
+ * before inference.
  */
 export function createProviderGenerationJsonSchema() {
+  const stringValue = { type: 'string' } as const;
+  const stringArray = { type: 'array', items: stringValue } as const;
+  const assessment = {
+    type: 'string',
+    enum: ['Reported', 'Corroborated', 'Contested', 'Established within current record', 'Mutually acknowledged'],
+  } as const;
+  const priority = { type: 'string', enum: ['high', 'medium', 'low'] } as const;
+
+  const operationItems: Record<OperationBucket, ReturnType<typeof operationObjectSchema>> = {
+    add_claim: operationObjectSchema('add_claim', {
+      local_ref: stringValue,
+      proposition: stringValue,
+      actor: stringValue,
+      action: stringValue,
+      target: stringValue,
+      domain_time: stringValue,
+      assessment,
+      reasoning: stringValue,
+      scope: stringValue,
+      limits: stringArray,
+      source_basis_ids: stringArray,
+      reason: stringValue,
+    }, ['local_ref', 'proposition', 'actor', 'action', 'target', 'domain_time', 'assessment', 'reasoning', 'scope', 'limits', 'source_basis_ids', 'reason']),
+    update_claim: operationObjectSchema('update_claim', {
+      target_id: stringValue,
+      proposition: stringValue,
+      actor: stringValue,
+      action: stringValue,
+      target: stringValue,
+      domain_time: stringValue,
+      assessment,
+      reasoning: stringValue,
+      scope: stringValue,
+      limits: stringArray,
+      source_basis_ids: stringArray,
+      reason: stringValue,
+    }, ['target_id', 'source_basis_ids', 'reason']),
+    add_event: operationObjectSchema('add_event', {
+      local_ref: stringValue,
+      domain_time: stringValue,
+      actor: stringValue,
+      action: stringValue,
+      target: stringValue,
+      effect: stringValue,
+      assessment,
+      finding_refs: stringArray,
+      source_basis_ids: stringArray,
+      reason: stringValue,
+    }, ['local_ref', 'domain_time', 'actor', 'action', 'target', 'effect', 'assessment', 'finding_refs', 'source_basis_ids', 'reason']),
+    update_event: operationObjectSchema('update_event', {
+      target_id: stringValue,
+      domain_time: stringValue,
+      actor: stringValue,
+      action: stringValue,
+      target: stringValue,
+      effect: stringValue,
+      assessment,
+      finding_refs: stringArray,
+      source_basis_ids: stringArray,
+      reason: stringValue,
+    }, ['target_id', 'source_basis_ids', 'reason']),
+    add_gap: operationObjectSchema('add_gap', {
+      local_ref: stringValue,
+      question: stringValue,
+      relevance: stringValue,
+      resolving_evidence: stringValue,
+      acquisition_guidance: stringValue,
+      collection_boundary: stringValue,
+      target_claim_refs: stringArray,
+      source_basis_ids: stringArray,
+      reason: stringValue,
+    }, ['local_ref', 'question', 'relevance', 'resolving_evidence', 'acquisition_guidance', 'collection_boundary', 'target_claim_refs', 'source_basis_ids', 'reason']),
+    update_gap: operationObjectSchema('update_gap', {
+      target_id: stringValue,
+      question: stringValue,
+      relevance: stringValue,
+      resolving_evidence: stringValue,
+      acquisition_guidance: stringValue,
+      collection_boundary: stringValue,
+      target_claim_refs: stringArray,
+      source_basis_ids: stringArray,
+      reason: stringValue,
+    }, ['target_id', 'source_basis_ids', 'reason']),
+    add_action: operationObjectSchema('add_action', {
+      local_ref: stringValue,
+      title: stringValue,
+      description: stringValue,
+      priority,
+      target_gap_refs: stringArray,
+      source_basis_ids: stringArray,
+      reason: stringValue,
+    }, ['local_ref', 'title', 'description', 'priority', 'target_gap_refs', 'source_basis_ids', 'reason']),
+    update_action: operationObjectSchema('update_action', {
+      target_id: stringValue,
+      title: stringValue,
+      description: stringValue,
+      priority,
+      target_gap_refs: stringArray,
+      source_basis_ids: stringArray,
+      reason: stringValue,
+    }, ['target_id', 'source_basis_ids', 'reason']),
+    transition_gap: operationObjectSchema('transition_gap', {
+      target_ref: stringValue,
+      resulting_status: { type: 'string', enum: ['resolved', 'superseded', 'unavailable', 'no_longer_material'] },
+      source_basis_ids: stringArray,
+      reason: stringValue,
+    }, ['target_ref', 'resulting_status', 'source_basis_ids', 'reason']),
+    transition_action: operationObjectSchema('transition_action', {
+      target_ref: stringValue,
+      resulting_status: { type: 'string', enum: ['in_progress', 'completed', 'cancelled'] },
+      source_basis_ids: stringArray,
+      reason: stringValue,
+    }, ['target_ref', 'resulting_status', 'source_basis_ids', 'reason']),
+    inspect_source: operationObjectSchema('inspect_source', {
+      evidence_id: stringValue,
+      source_attribution: stringValue,
+      case_object_match: stringValue,
+      match_status: { type: 'string', enum: ['matched', 'mismatched', 'unclear', 'not_assessed'] },
+      completeness_context: stringValue,
+      integrity_signals: stringValue,
+      limitations: stringArray,
+      reason: stringValue,
+    }, ['evidence_id', 'source_attribution', 'case_object_match', 'match_status', 'completeness_context', 'integrity_signals', 'limitations', 'reason']),
+    disposition_source: operationObjectSchema('disposition_source', {
+      relationship_type: {
+        type: 'string',
+        enum: ['supports_claim', 'qualifies_claim', 'conflicts_with_claim', 'raises_gap', 'corrects_statement', 'not_yet_classified'],
+      },
+      source_id: stringValue,
+      target_ref: { type: ['string', 'null'] },
+      reason: stringValue,
+    }, ['relationship_type', 'source_id', 'target_ref', 'reason']),
+  };
+
   return {
     type: 'object',
     properties: {
@@ -354,74 +523,60 @@ export function createProviderGenerationJsonSchema() {
         additionalProperties: false,
       },
       operations: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: {
-            operation_type: {
-              type: 'string',
-              enum: [
-                'disposition_source', 'inspect_source',
-                'add_event', 'update_event',
-                'add_claim', 'update_claim',
-                'add_gap', 'update_gap', 'transition_gap',
-                'add_action', 'update_action', 'transition_action',
-              ],
-            },
-            relationship_type: {
-              type: 'string',
-              enum: ['supports_claim', 'qualifies_claim', 'conflicts_with_claim', 'raises_gap', 'corrects_statement', 'not_yet_classified'],
-            },
-            source_id: { type: 'string' },
-            target_ref: { type: ['string', 'null'] },
-            reason: { type: 'string' },
-            evidence_id: { type: 'string' },
-            source_attribution: { type: 'string' },
-            case_object_match: { type: 'string' },
-            match_status: { type: 'string', enum: ['matched', 'mismatched', 'unclear', 'not_assessed'] },
-            completeness_context: { type: 'string' },
-            integrity_signals: { type: 'string' },
-            limitations: { type: 'array', items: { type: 'string' } },
-            local_ref: { type: 'string' },
-            target_id: { type: 'string' },
-            domain_time: { type: 'string' },
-            actor: { type: 'string' },
-            action: { type: 'string' },
-            target: { type: 'string' },
-            effect: { type: 'string' },
-            assessment: {
-              type: 'string',
-              enum: ['Reported', 'Corroborated', 'Contested', 'Established within current record', 'Mutually acknowledged'],
-            },
-            finding_refs: { type: 'array', items: { type: 'string' } },
-            source_basis_ids: { type: 'array', items: { type: 'string' } },
-            proposition: { type: 'string' },
-            reasoning: { type: 'string' },
-            scope: { type: 'string' },
-            limits: { type: 'array', items: { type: 'string' } },
-            question: { type: 'string' },
-            relevance: { type: 'string' },
-            resolving_evidence: { type: 'string' },
-            acquisition_guidance: { type: 'string' },
-            collection_boundary: { type: 'string' },
-            target_claim_refs: { type: 'array', items: { type: 'string' } },
-            resulting_status: {
-              type: 'string',
-              enum: ['resolved', 'superseded', 'unavailable', 'no_longer_material', 'in_progress', 'completed', 'cancelled'],
-            },
-            title: { type: 'string' },
-            description: { type: 'string' },
-            priority: { type: 'string', enum: ['high', 'medium', 'low'] },
-            target_gap_refs: { type: 'array', items: { type: 'string' } },
-          },
-          required: ['operation_type'],
-          additionalProperties: false,
-        },
+        type: 'object',
+        properties: Object.fromEntries(OPERATION_BUCKET_ORDER.map((operationType) => [
+          operationType,
+          { type: 'array', items: operationItems[operationType] },
+        ])),
+        required: [...OPERATION_BUCKET_ORDER],
+        additionalProperties: false,
       },
     },
     required: ['explanation', 'reasoning', 'operations'],
     additionalProperties: false,
   } as const;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Decode only the provider wire envelope. This does not add, drop, or repair
+ * operation fields: every item must already declare the operation_type that
+ * matches its bucket, and the canonical Zod boundary validates the flattened
+ * result immediately afterwards. Canonical array proposals remain supported
+ * for deterministic replay and injected test providers.
+ */
+export function decodeProviderGenerationProposal(raw: unknown): unknown {
+  if (!isRecord(raw) || Array.isArray(raw.operations)) return raw;
+  if (!isRecord(raw.operations)) {
+    throw new Error('Proposal generation envelope invalid: operations must be a canonical array or a by-type object.');
+  }
+
+  const buckets = raw.operations;
+  const expected = new Set<string>(OPERATION_BUCKET_ORDER);
+  const unknownBuckets = Object.keys(buckets).filter((key) => !expected.has(key));
+  const missingBuckets = OPERATION_BUCKET_ORDER.filter((key) => !(key in buckets));
+  if (unknownBuckets.length > 0 || missingBuckets.length > 0) {
+    throw new Error(`Proposal generation envelope invalid: missing buckets [${missingBuckets.join(', ')}]; unknown buckets [${unknownBuckets.join(', ')}].`);
+  }
+
+  const operations: unknown[] = [];
+  for (const operationType of OPERATION_BUCKET_ORDER) {
+    const bucket = buckets[operationType];
+    if (!Array.isArray(bucket)) {
+      throw new Error(`Proposal generation envelope invalid: operations.${operationType} must be an array.`);
+    }
+    for (const operation of bucket) {
+      if (!isRecord(operation) || operation.operation_type !== operationType) {
+        throw new Error(`Proposal generation envelope invalid: operations.${operationType} contains a mismatched operation_type.`);
+      }
+      operations.push(operation);
+    }
+  }
+
+  return { ...raw, operations };
 }
 
 export const runProposalProvider: ProposalProvider = async (mode, input) => {

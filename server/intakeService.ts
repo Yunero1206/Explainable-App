@@ -30,6 +30,7 @@ import {
 } from '../src/runtime/modelRun.js';
 import { INFERENCE_MODEL } from './inference/modelConfig.js';
 import {
+  decodeProviderGenerationProposal,
   runProposalProvider,
   type InferenceMode,
   type ProposalProvider,
@@ -355,7 +356,8 @@ export function createIntakeService(dependencies: IntakeServiceDependencies = {}
 
     const baseWithRaw = { ...runBase, provider: result.provider, raw_response_text: result.raw_response_text };
     try {
-      const parsedProposal = parseProviderProposal(cleanJson(result.raw_response_text), validationContext(parent, prepared));
+      const providerOutput = decodeProviderGenerationProposal(cleanJson(result.raw_response_text));
+      const parsedProposal = parseProviderProposal(providerOutput, validationContext(parent, prepared));
       const languageWarning = assertProposalPreservesSourceLanguage({
         sourceTexts: [
           message,
