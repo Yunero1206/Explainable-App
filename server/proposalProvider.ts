@@ -8,6 +8,7 @@ import { detectSourceLanguageLabel } from '../src/provider/languagePolicy.js';
 import type { AuthoritativeRetrievalResult } from '../src/retrieval/types.js';
 import { INFERENCE_MODEL } from './inference/modelConfig.js';
 import { sanitizeGeminiResponseJsonSchema } from './inference/geminiJsonSchema.js';
+import { runGeminiStructuredInteraction } from './inference/geminiStructuredInteraction.js';
 
 export type InferenceMode = 'replay' | 'live';
 
@@ -330,21 +331,15 @@ export const runProposalProvider: ProposalProvider = async (mode, input) => {
   }
 
   const ai = new GoogleGenAI({ apiKey });
-  const response = await ai.models.generateContent({
+  const rawResponseText = await runGeminiStructuredInteraction(ai, {
     model: INFERENCE_MODEL.modelId,
-    contents: [{ role: 'user', parts }],
-    config: {
-      systemInstruction: 'You are the Epistemic Case Analyzer for Explainable Trust. Source language is authoritative: never translate case content because of interface settings. Reconstruct a complete, traceable decision record without claiming more than the supplied sources support.',
-      responseMimeType: 'application/json',
-      responseJsonSchema: createProviderResponseJsonSchema(),
-      temperature: 0,
-    },
+    parts,
+    systemInstruction: 'You are the Epistemic Case Analyzer for Explainable Trust. Source language is authoritative: never translate case content because of interface settings. Reconstruct a complete, traceable decision record without claiming more than the supplied sources support.',
+    responseJsonSchema: createProviderResponseJsonSchema(),
+    stage: 'proposal_generation',
   });
-  if (typeof response.text !== 'string' || response.text.trim().length === 0) {
-    throw new Error('Gemini returned an empty proposal.');
-  }
   return {
     provider: 'google-gemini',
-    raw_response_text: response.text,
+    raw_response_text: rawResponseText,
   };
 };
