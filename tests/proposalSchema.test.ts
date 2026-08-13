@@ -381,6 +381,17 @@ describe('Proposal Schema and Model Config', () => {
   });
 
   describe('Strict rejections and bounds', () => {
+    it('names missing add_claim fields instead of returning an opaque union mismatch', () => {
+      const raw = {
+        explanation: exp,
+        operations: [{ operation_type: 'add_claim', local_ref: 'new_claim_1' }],
+      };
+
+      expect(() => parseProviderProposal(raw, ctx)).toThrow(
+        'operation_type="add_claim" is missing required fields: proposition, actor, action, target, domain_time, reasoning, scope, limits, source_basis_ids, reason',
+      );
+    });
+
     it('summarizes an invalid disposition without dumping the Zod union tree', () => {
       const raw = {
         explanation: exp,
