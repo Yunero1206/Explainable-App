@@ -7,6 +7,7 @@ import type { ProviderProposal } from '../src/provider/proposalTypes.js';
 import { detectSourceLanguageLabel } from '../src/provider/languagePolicy.js';
 import type { AuthoritativeRetrievalResult } from '../src/retrieval/types.js';
 import { INFERENCE_MODEL } from './inference/modelConfig.js';
+import { sanitizeGeminiResponseJsonSchema } from './inference/geminiJsonSchema.js';
 
 export type InferenceMode = 'replay' | 'live';
 
@@ -275,26 +276,6 @@ export function createProposalPrompt(input: ProposalProviderInput): string {
   }, null, 2);
 }
 
-function replaceUnsupportedJsonSchemaConsts(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map(replaceUnsupportedJsonSchemaConsts);
-  }
-  if (typeof value !== 'object' || value === null) {
-    return value;
-  }
-
-  const normalized: Record<string, unknown> = {};
-  for (const [key, child] of Object.entries(value)) {
-    if (key !== 'const') {
-      normalized[key] = replaceUnsupportedJsonSchemaConsts(child);
-    }
-  }
-  if (Object.prototype.hasOwnProperty.call(value, 'const')) {
-    normalized.enum = [(value as Record<string, unknown>).const];
-  }
-  return normalized;
-}
-
 function inlinePart(attachment: ProviderAttachment): { inlineData: { mimeType: string; data: string } } | null {
   if (!attachment.mime_type.startsWith('image/') && attachment.mime_type !== 'application/pdf') {
     return null;
@@ -311,7 +292,7 @@ export function createProviderResponseJsonSchema() {
   // Gemini JSON Schema subset supports enum but not const, so literal
   // discriminants must be represented as one-value enums before transmission.
   const schema = z.toJSONSchema(ProviderProposalSchema, { io: 'input' });
-  const normalized = replaceUnsupportedJsonSchemaConsts(schema) as typeof schema;
+  const normalized = sanitizeGeminiResponseJsonSchema(schema) as typeof schema;
   const rootRequired = Array.isArray(normalized.required) ? normalized.required as string[] : [];
   normalized.required = [...new Set([...rootRequired, 'reasoning'])];
   const rootProperties = normalized.properties as Record<string, Record<string, unknown>> | undefined;

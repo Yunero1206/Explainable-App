@@ -19,6 +19,7 @@ import {
   urlMatchesOfficialDomains,
 } from '../src/retrieval/sourcePolicy.js';
 import { INFERENCE_MODEL } from './inference/modelConfig.js';
+import { sanitizeGeminiResponseJsonSchema } from './inference/geminiJsonSchema.js';
 
 const MAX_REQUESTS = 6;
 const MAX_RESULTS_PER_REQUEST = 5;
@@ -71,17 +72,7 @@ export type AuthoritativeRetriever = (
 ) => Promise<AuthoritativeRetrievalResult>;
 
 function geminiJsonSchema(schema: z.ZodType): unknown {
-  const stripUnsupported = (value: unknown): unknown => {
-    if (Array.isArray(value)) return value.map(stripUnsupported);
-    if (typeof value !== 'object' || value === null) return value;
-    const result: Record<string, unknown> = {};
-    for (const [key, child] of Object.entries(value)) {
-      if (key === 'pattern' || key === 'minLength' || key === 'maxLength') continue;
-      result[key] = stripUnsupported(child);
-    }
-    return result;
-  };
-  return stripUnsupported(z.toJSONSchema(schema, { io: 'input' }));
+  return sanitizeGeminiResponseJsonSchema(z.toJSONSchema(schema, { io: 'input' }));
 }
 
 function cleanJson(text: string): unknown {
