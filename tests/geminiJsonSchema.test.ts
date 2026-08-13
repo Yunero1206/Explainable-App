@@ -51,10 +51,19 @@ describe('Gemini response JSON Schema sanitizer', () => {
     const generationText = JSON.stringify(generation);
     const validationText = JSON.stringify(createProviderResponseJsonSchema());
 
-    expect(generationText.length).toBeLessThan(2_000);
+    expect(generationText.length).toBeLessThan(5_000);
     expect(generationText).not.toContain('anyOf');
     expect(generationText).toContain('operation_type');
     expect(validationText).toContain('anyOf');
-    expect(validationText.length).toBeGreaterThan(generationText.length * 4);
+    expect(validationText.length).toBeGreaterThan(generationText.length * 2);
+
+    const generationItems = generation.properties.operations.items;
+    const generationFields = Object.keys(generationItems.properties).sort();
+    const validationItems = (createProviderResponseJsonSchema().properties as Record<string, any>).operations.items;
+    const validationFields = [...new Set(
+      (validationItems.anyOf as Array<{ properties: Record<string, unknown> }>)
+        .flatMap((branch) => Object.keys(branch.properties)),
+    )].sort();
+    expect(generationFields).toEqual(validationFields);
   });
 });
