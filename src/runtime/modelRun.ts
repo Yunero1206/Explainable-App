@@ -18,6 +18,7 @@ import type {
 import type { AuthorityKind, RetrievalStatus } from '../retrieval/types';
 
 export type ModelRunStatus = 'accepted' | 'rejected' | 'provider_error';
+export type ModelRunMode = 'analysis_only' | 'web_assisted';
 
 export interface ModelRunAudit {
   id: ModelRunId;
@@ -26,15 +27,23 @@ export interface ModelRunAudit {
   parent_revision_id: RevisionId | null;
   proposed_revision_id: RevisionId;
   committed_revision_id: RevisionId | null;
+  run_mode: ModelRunMode;
   provider: 'google-gemini' | 'deterministic-replay';
   model_id: 'gemini-3.5-flash' | 'gemini-3.6-flash';
-  prompt_version: 'explainable-trust-proposal-v1' | 'explainable-trust-analysis-v2' | 'explainable-trust-analysis-v3' | 'explainable-trust-analysis-v4';
+  prompt_version: 'explainable-trust-proposal-v1' | 'explainable-trust-analysis-v2' | 'explainable-trust-analysis-v3' | 'explainable-trust-analysis-v4' | 'explainable-trust-analysis-v5';
   started_at: StructuralInstant;
   finished_at: StructuralInstant;
   status: ModelRunStatus;
   raw_response_text: string | null;
   validation_errors: string[];
+  validation_warnings: string[];
+  reconciliation_trace?: {
+    converted_adds_to_updates: number;
+    canonical_refs_retargeted: number;
+  };
   retrieval_trace?: {
+    provider: 'none' | 'tavily';
+    product: 'none' | 'search';
     status: RetrievalStatus;
     requests: Array<{
       request_id: string;
@@ -42,6 +51,7 @@ export interface ModelRunAudit {
       search_query: string;
       authority_entity: string;
       authority_kind: AuthorityKind;
+      official_domains: string[];
       case_specific_exclusion: string;
     }>;
     executed_queries: string[];
@@ -49,11 +59,15 @@ export interface ModelRunAudit {
     rejected_candidates: Array<{
       reason_code: string;
     }>;
+    provider_request_ids: string[];
+    credits_used: number | null;
     failure_reason: string | null;
   };
 }
 
 const RetrievalTraceSchema = z.object({
+  provider: z.enum(['none', 'tavily']).default('none'),
+  product: z.enum(['none', 'search']).default('none'),
   status: z.enum(['not_requested', 'no_public_need', 'completed', 'no_authoritative_source', 'blocked', 'provider_error']),
   requests: z.array(z.object({
     request_id: z.string().regex(/^RQ[0-9]{2}$/),
@@ -61,6 +75,7 @@ const RetrievalTraceSchema = z.object({
     search_query: z.string(),
     authority_entity: z.string(),
     authority_kind: z.enum(['first_party_official', 'public_authority']),
+    official_domains: z.array(z.string()).default([]),
     case_specific_exclusion: z.string(),
   }).strict()),
   executed_queries: z.array(z.string()),
@@ -68,6 +83,8 @@ const RetrievalTraceSchema = z.object({
   rejected_candidates: z.array(z.object({
     reason_code: z.string(),
   }).strict()),
+  provider_request_ids: z.array(z.string()).default([]),
+  credits_used: z.number().nonnegative().nullable().default(null),
   failure_reason: z.string().nullable(),
 }).strict();
 
@@ -78,6 +95,7 @@ export const ModelRunAuditSchema = z.object({
   parent_revision_id: RevisionIdSchema.nullable(),
   proposed_revision_id: RevisionIdSchema,
   committed_revision_id: RevisionIdSchema.nullable(),
+  run_mode: z.enum(['analysis_only', 'web_assisted']).default('analysis_only'),
   provider: z.enum(['google-gemini', 'deterministic-replay']),
   // Keep historical model/prompt IDs readable so upgrading Live does not
   // invalidate model-run audits already stored in IndexedDB.
@@ -87,12 +105,18 @@ export const ModelRunAuditSchema = z.object({
     'explainable-trust-analysis-v2',
     'explainable-trust-analysis-v3',
     'explainable-trust-analysis-v4',
+    'explainable-trust-analysis-v5',
   ]),
   started_at: StructuralInstantSchema,
   finished_at: StructuralInstantSchema,
   status: z.enum(['accepted', 'rejected', 'provider_error']),
   raw_response_text: z.string().nullable(),
   validation_errors: z.array(z.string()),
+  validation_warnings: z.array(z.string()).default([]),
+  reconciliation_trace: z.object({
+    converted_adds_to_updates: z.number().int().nonnegative(),
+    canonical_refs_retargeted: z.number().int().nonnegative(),
+  }).strict().optional(),
   retrieval_trace: RetrievalTraceSchema.optional(),
 }).strict().superRefine((value, context) => {
   if (value.status === 'accepted' && value.committed_revision_id !== value.proposed_revision_id) {
@@ -104,6 +128,16 @@ export const ModelRunAuditSchema = z.object({
 });
 
 export function parseModelRunAudit(raw: unknown): ModelRunAudit {
+  if (typeof raw === 'object' && raw !== null && !Object.prototype.hasOwnProperty.call(raw, 'run_mode')) {
+    const record = raw as Record<string, unknown>;
+    const retrieval = typeof record.retrieval_trace === 'object' && record.retrieval_trace !== null
+      ? record.retrieval_trace as Record<string, unknown>
+      : null;
+    const inferredMode: ModelRunMode = retrieval !== null && retrieval.status !== 'not_requested'
+      ? 'web_assisted'
+      : 'analysis_only';
+    return ModelRunAuditSchema.parse({ ...record, run_mode: inferredMode }) as ModelRunAudit;
+  }
   return ModelRunAuditSchema.parse(raw) as ModelRunAudit;
 }
 

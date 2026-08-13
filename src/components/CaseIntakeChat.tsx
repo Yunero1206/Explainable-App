@@ -11,6 +11,7 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import type { AttachmentFile, CaseReference, ChatMessage } from '../types.js';
+import type { ModelRunMode } from '../runtime/modelRun.js';
 import { CASE_REFERENCE_SPLIT_PATTERN, caseReferenceFromId } from '../presentation/caseReferences.js';
 import { CaseKeyButton } from './CaseKeyButton.js';
 import { useLanguage } from '../contexts/LanguageContext.js';
@@ -24,6 +25,8 @@ interface CaseIntakeChatProps {
   isAnalyzing?: boolean;
   onLoadSample?: (sampleId: string) => void;
   insertedInputText?: string;
+  runMode?: ModelRunMode;
+  onRunModeChange?: (mode: ModelRunMode) => void;
 }
 
 export const CaseIntakeChat: React.FC<CaseIntakeChatProps> = ({
@@ -35,6 +38,8 @@ export const CaseIntakeChat: React.FC<CaseIntakeChatProps> = ({
   isAnalyzing: isAnalyzingProp = false,
   onLoadSample,
   insertedInputText,
+  runMode = 'analysis_only',
+  onRunModeChange,
 }) => {
   const { t } = useLanguage();
   const isLoading = isLoadingProp || isAnalyzingProp;
@@ -434,6 +439,37 @@ export const CaseIntakeChat: React.FC<CaseIntakeChatProps> = ({
       {/* Sticky Composer at Bottom */}
       <div className="border-t border-slate-200 bg-white/90 backdrop-blur-md p-3 sm:p-4">
         <div className="max-w-3xl mx-auto space-y-2">
+          <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1 w-fit" role="group" aria-label="Model run mode">
+            <button
+              type="button"
+              disabled={isLoading}
+              aria-pressed={runMode === 'analysis_only'}
+              onClick={() => onRunModeChange?.('analysis_only')}
+              className={`rounded-lg px-3 py-1.5 text-[11px] font-medium transition-colors ${
+                runMode === 'analysis_only'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+              title="Gemini analyzes the supplied record without public-web retrieval"
+            >
+              Analysis only
+            </button>
+            <button
+              type="button"
+              disabled={isLoading}
+              aria-pressed={runMode === 'web_assisted'}
+              onClick={() => onRunModeChange?.('web_assisted')}
+              className={`rounded-lg px-3 py-1.5 text-[11px] font-medium transition-colors ${
+                runMode === 'web_assisted'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+              title="Gemini reads your record first; Tavily receives only a sanitized public query"
+            >
+              Web-assisted
+            </button>
+          </div>
+
           {/* Attachment Chips Preview */}
           {attachments.length > 0 && (
             <div className="flex flex-wrap gap-2 pb-1">

@@ -16,6 +16,8 @@ export interface PublicRetrievalRequest {
   search_query: string;
   authority_entity: string;
   authority_kind: AuthorityKind;
+  /** Hostnames only. These are the only domains sent to the search provider. */
+  official_domains: string[];
   case_specific_exclusion: string;
 }
 
@@ -38,7 +40,7 @@ export interface RejectedWebCandidate {
     | 'authority_mismatch'
     | 'disallowed_host'
     | 'not_official_domain'
-    | 'not_grounded'
+    | 'not_returned_by_provider'
     | 'invalid_url'
     | 'invalid_excerpt'
     | 'duplicate_url';
@@ -51,20 +53,28 @@ export interface AdmittedWebSource extends RetrievedWebCandidate {
 
 export interface AuthoritativeRetrievalResult {
   status: RetrievalStatus;
+  provider: 'none' | 'tavily';
+  product: 'none' | 'search';
   requests: PublicRetrievalRequest[];
   executed_queries: string[];
   admitted_sources: AdmittedWebSource[];
   rejected_candidates: RejectedWebCandidate[];
+  provider_request_ids: string[];
+  credits_used: number | null;
   failure_reason: string | null;
 }
 
 export function emptyRetrievalResult(status: RetrievalStatus): AuthoritativeRetrievalResult {
   return {
     status,
+    provider: 'none',
+    product: 'none',
     requests: [],
     executed_queries: [],
     admitted_sources: [],
     rejected_candidates: [],
+    provider_request_ids: [],
+    credits_used: null,
     failure_reason: null,
   };
 }

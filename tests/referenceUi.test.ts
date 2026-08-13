@@ -60,8 +60,8 @@ describe('case reference UI', () => {
     expect(markup).not.toContain('>high · pending<');
   });
 
-  it('renders statement keys in chat and exposes only the configured Live model summary', () => {
-    const { ledger } = SAMPLE_CASES[0];
+  it('renders statement keys plus explicit analysis-only and web-assisted Model Run choices', () => {
+    const { ledger, run } = SAMPLE_CASES[0];
     const chatMarkup = renderToStaticMarkup(React.createElement(
       LanguageProvider,
       null,
@@ -73,12 +73,38 @@ describe('case reference UI', () => {
       })
     ));
     const modelMarkup = renderToStaticMarkup(React.createElement(ModelRunsSummary));
+    const traceMarkup = renderToStaticMarkup(React.createElement(ModelRunsSummary, {
+      selectedMode: 'web_assisted',
+      latestRun: {
+        ...run,
+        run_mode: 'web_assisted',
+        retrieval_trace: {
+          provider: 'tavily', product: 'search', status: 'completed',
+          requests: [{
+            request_id: 'RQ01', public_question: 'What public policy applies?',
+            search_query: 'PNJ public buyback policy', authority_entity: 'PNJ',
+            authority_kind: 'first_party_official', official_domains: ['pnj.com.vn'],
+            case_specific_exclusion: 'Does not establish a private transaction.',
+          }],
+          executed_queries: ['PNJ public buyback policy'], admitted_evidence_ids: [],
+          rejected_candidates: [{ reason_code: 'not_official_domain' }],
+          provider_request_ids: ['tavily-request-01'], credits_used: 1, failure_reason: null,
+        },
+      },
+    }));
 
     expect(chatMarkup).toContain('data-case-key="U01"');
     expect(modelMarkup).toContain('Model Runs');
     expect(modelMarkup).toContain('gemini-3.6-flash');
+    expect(modelMarkup).toContain('Analysis only');
+    expect(modelMarkup).toContain('Web-assisted');
+    expect(modelMarkup).toContain('Gemini + Tavily Search');
+    expect(chatMarkup).toContain('aria-label="Model run mode"');
+    expect(traceMarkup).toContain('Retrieval trace');
+    expect(traceMarkup).toContain('PNJ public buyback policy');
+    expect(traceMarkup).toContain('Rejected: 1');
+    expect(traceMarkup).toContain('tavily-request-01');
     expect(modelMarkup).not.toContain('Replay');
-    expect(modelMarkup).not.toContain('>Live<');
   });
 
   it('keeps the gap surface intent-first and renders record citations on each action', () => {

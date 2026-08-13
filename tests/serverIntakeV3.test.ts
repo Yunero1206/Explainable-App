@@ -197,6 +197,69 @@ describe('Ledger V3 intake boundary', () => {
     expect(result.ledger.relationships[0]?.relationship_type).toBe('not_yet_classified');
   });
 
+  it('uses explicit run modes instead of keyword-triggered retrieval', async () => {
+    const rawResponse = JSON.stringify({
+      explanation: {
+        answer: 'The submitted question was recorded without using the public web.',
+        text: 'The current intake does not establish a new case fact.',
+        user_goal: 'Analyze the supplied record.',
+      },
+      reasoning: {
+        turn_intent: 'explain',
+        answer_status: 'recorded',
+        steps: [{ id: 'S01', kind: 'fact', text: 'The user submitted this question.', depends_on: [], source_basis_ids: ['U01'], claim_refs: [], gap_refs: [] }],
+      },
+      operations: [{
+        operation_type: 'disposition_source', relationship_type: 'not_yet_classified',
+        source_id: 'U01', target_ref: null, reason: 'The question does not itself establish a case fact.',
+      }],
+    });
+    let retrievalCalls = 0;
+    const runIntake = createIntakeService({
+      now: clock(),
+      retriever: async () => {
+        retrievalCalls++;
+        return {
+          status: 'no_public_need', provider: 'none', product: 'none', requests: [],
+          executed_queries: [], admitted_sources: [], rejected_candidates: [],
+          provider_request_ids: [], credits_used: null, failure_reason: null,
+        };
+      },
+      provider: async (_mode, input) => {
+        expect(input.retrieval?.status).toBe(retrievalCalls === 0 ? 'not_requested' : 'no_public_need');
+        return { provider: 'google-gemini', raw_response_text: rawResponse };
+      },
+    });
+
+    const analysisOnly = await runIntake({
+      prior_ledger: emptyLedger(),
+      client_request_id: 'request-analysis-only',
+      message: 'Please search the web, but this run is analysis only.',
+      inference_mode: 'live',
+      run_mode: 'analysis_only',
+    });
+    expect(analysisOnly.success).toBe(true);
+    expect(retrievalCalls).toBe(0);
+    expect(analysisOnly.run).toMatchObject({
+      run_mode: 'analysis_only',
+      retrieval_trace: { status: 'not_requested', provider: 'none' },
+    });
+
+    const webAssisted = await runIntake({
+      prior_ledger: emptyLedger(),
+      client_request_id: 'request-web-assisted-no-keyword',
+      message: 'Analyze this submitted question.',
+      inference_mode: 'live',
+      run_mode: 'web_assisted',
+    });
+    expect(webAssisted.success).toBe(true);
+    expect(retrievalCalls).toBe(1);
+    expect(webAssisted.run).toMatchObject({
+      run_mode: 'web_assisted',
+      retrieval_trace: { status: 'no_public_need' },
+    });
+  });
+
   it('admits grounded authoritative web retrieval as a bounded server-owned evidence source', async () => {
     const rawResponse = JSON.stringify({
       explanation: {
@@ -239,12 +302,15 @@ describe('Ledger V3 intake boundary', () => {
       now: clock(),
       retriever: async () => ({
         status: 'completed',
+        provider: 'tavily',
+        product: 'search',
         requests: [{
           request_id: 'RQ01',
           public_question: 'PNJ công bố chính sách mua lại nào?',
           search_query: 'PNJ chính sách thu đổi mua lại vàng 18K Sa Đéc',
           authority_entity: 'PNJ',
           authority_kind: 'first_party_official',
+          official_domains: ['pnj.com.vn'],
           case_specific_exclusion: 'Không xác nhận điều kiện hoặc giá của chiếc nhẫn cụ thể.',
         }],
         executed_queries: ['PNJ chính sách thu đổi mua lại vàng 18K Sa Đéc'],
@@ -252,7 +318,7 @@ describe('Ledger V3 intake boundary', () => {
           request_id: 'RQ01',
           publisher: 'PNJ',
           page_title: 'Thông tin thu đổi, mua lại',
-          source_url: 'https://www.pnj.com.vn/blog/thong-tin-thu-doi-mua-lai/',
+          source_url: 'https://www.pnj.com.vn/chinh-sach/thong-tin-thu-doi-mua-lai/',
           source_excerpt: 'PNJ công bố danh sách cửa hàng tiếp nhận giao dịch mua lại cùng thời gian áp dụng.',
           published_or_updated_at: '22/07/2026',
           authority_entity: 'PNJ',
@@ -261,6 +327,8 @@ describe('Ledger V3 intake boundary', () => {
           search_query: 'PNJ chính sách thu đổi mua lại vàng 18K Sa Đéc',
         }],
         rejected_candidates: [],
+        provider_request_ids: ['tavily-request-01'],
+        credits_used: 1,
         failure_reason: null,
       }),
       provider: async (_mode, input) => {
@@ -275,6 +343,7 @@ describe('Ledger V3 intake boundary', () => {
       client_request_id: 'request-authoritative-web',
       message: 'Hãy tra cứu Internet từ nguồn chính thức của PNJ để làm rõ chính sách mua lại.',
       inference_mode: 'live',
+      run_mode: 'web_assisted',
     });
 
     expect(result.success).toBe(true);
@@ -286,7 +355,7 @@ describe('Ledger V3 intake boundary', () => {
       input_form: 'web_excerpt',
       web_provenance: {
         publisher: 'PNJ',
-        source_url: 'https://www.pnj.com.vn/blog/thong-tin-thu-doi-mua-lai/',
+        source_url: 'https://www.pnj.com.vn/chinh-sach/thong-tin-thu-doi-mua-lai/',
       },
     });
     expect(result.ledger.revisions[0]?.inspections[0]).toMatchObject({
@@ -299,8 +368,11 @@ describe('Ledger V3 intake boundary', () => {
     });
     expect(result.run.retrieval_trace).toMatchObject({
       status: 'completed',
+      provider: 'tavily',
       admitted_evidence_ids: ['E01'],
       executed_queries: ['PNJ chính sách thu đổi mua lại vàng 18K Sa Đéc'],
+      provider_request_ids: ['tavily-request-01'],
+      credits_used: 1,
     });
   });
 

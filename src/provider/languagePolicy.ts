@@ -90,6 +90,8 @@ const STRUCTURAL_KEYS = new Set([
   'operation_type', 'relationship_type', 'source_id', 'source_basis_ids', 'target_ref',
   'target_id', 'target_claim_refs', 'target_gap_refs', 'finding_refs', 'local_ref',
   'evidence_id', 'assessment', 'priority', 'resulting_status', 'match_status',
+  'id', 'kind', 'turn_intent', 'answer_status',
+  'depends_on',
 ]);
 
 function collectGeneratedText(value: unknown, key: string | null = null): string[] {
@@ -114,8 +116,8 @@ export function detectSourceLanguageLabel(text: string): string | null {
 
 /**
  * Checks whether the proposal language matches the source language.
- * Returns a warning string if there is a mismatch, or null if everything is fine.
- * Callers should log the warning rather than rejecting the proposal.
+ * Returns a rejection reason if there is a confident mismatch, or null when
+ * the source-language boundary is satisfied or cannot be determined safely.
  */
 export function assertProposalPreservesSourceLanguage(input: {
   sourceTexts: string[];

@@ -230,6 +230,8 @@ export interface Revision {
   objective: SemanticText;
   explanation: SemanticText;
   assistant_message: SemanticText;
+  /** Optional because ledgers accepted before analysis-v5 remain readable. */
+  reasoning?: RevisionReasoning;
   accepted_model_run_id: ModelRunId;
   triggering_intake_ids: IntakeId[];
   input_statement_ids: StatementId[];
@@ -241,6 +243,26 @@ export interface Revision {
   inspections: EvidenceInspection[];
   delta: RevisionDelta;
   summary: DeterministicSummary;
+}
+
+export type TurnIntent = 'record' | 'correct' | 'research' | 'decide' | 'explain';
+export type AnswerStatus = 'recorded' | 'supported' | 'conditional' | 'blocked';
+export type ReasoningStepKind = 'fact' | 'public_rule' | 'assumption' | 'derivation' | 'scenario' | 'conclusion';
+
+export interface RevisionReasoningStep {
+  id: string;
+  kind: ReasoningStepKind;
+  text: SemanticText;
+  depends_on: string[];
+  source_ids: SourceId[];
+  claim_ids: ClaimId[];
+  gap_ids: GapId[];
+}
+
+export interface RevisionReasoning {
+  turn_intent: TurnIntent;
+  answer_status: AnswerStatus;
+  steps: RevisionReasoningStep[];
 }
 
 export interface Event {

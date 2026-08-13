@@ -446,7 +446,7 @@ function applyValidatedProposal(input: ApplyProposalInput): LedgerV3Case {
         'The ledger preserves the admitted source excerpt and provenance, not a full webpage snapshot.'
       ),
       integrity_signals: SemanticTextSchema.parse(
-        'The source URL was returned by Google Search grounding and passed server-owned HTTPS, domain-authority, and source-class admission.'
+        'The direct source URL was returned by Tavily Search and passed server-owned HTTPS, planned-domain, authority, and source-class admission.'
       ),
       limitations: [
         SemanticTextSchema.parse('The excerpt supports only its stated authority scope and retrieval time.'),
@@ -735,7 +735,22 @@ function applyValidatedProposal(input: ApplyProposalInput): LedgerV3Case {
         created_at: prepared.created_at,
         objective: input.proposal.explanation.user_goal,
         explanation: input.proposal.explanation.text,
-        assistant_message: input.proposal.explanation.text,
+        assistant_message: input.proposal.explanation.answer ?? input.proposal.explanation.text,
+        ...(input.proposal.reasoning === undefined ? {} : {
+          reasoning: {
+            turn_intent: input.proposal.reasoning.turn_intent,
+            answer_status: input.proposal.reasoning.answer_status,
+            steps: input.proposal.reasoning.steps.map((step) => ({
+              id: step.id,
+              kind: step.kind,
+              text: step.text,
+              depends_on: [...step.depends_on],
+              source_ids: canonicalizeSources(step.source_basis_ids, canonicalSourceOrder),
+              claim_ids: step.claim_refs.map(resolveClaim),
+              gap_ids: step.gap_refs.map(resolveGap),
+            })),
+          },
+        }),
         accepted_model_run_id: prepared.model_run_id,
         triggering_intake_ids: [prepared.intake.id],
         input_statement_ids: statements.map((statement) => statement.id),

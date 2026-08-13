@@ -20,8 +20,14 @@ import type {
   SemanticText,
 } from '../src/ledger/types.js';
 import { parseProviderProposal } from '../src/provider/proposalSchema.js';
+import { reconcileProposal } from '../src/provider/reconcileProposal.js';
 import { assertProposalPreservesSourceLanguage } from '../src/provider/languagePolicy.js';
-import { parseModelRunAudit, type IntakeResponse, type ModelRunAudit } from '../src/runtime/modelRun.js';
+import {
+  parseModelRunAudit,
+  type IntakeResponse,
+  type ModelRunAudit,
+  type ModelRunMode,
+} from '../src/runtime/modelRun.js';
 import { INFERENCE_MODEL } from './inference/modelConfig.js';
 import {
   runProposalProvider,
@@ -50,6 +56,7 @@ export interface IntakePayload {
   attachments?: unknown[];
   locale?: string;
   inference_mode?: string;
+  run_mode?: string;
 }
 
 export interface IntakeServiceDependencies {
@@ -129,7 +136,7 @@ function validationContext(parent: LedgerV3Case, prepared: PreparedLedgerIntake)
     existingEventIds: new Set(head?.events.map((item) => item.id) ?? []),
     existingActionIds: new Set(head?.actions.map((item) => item.id) ?? []),
     serverOwnedEvidenceIds: new Set(
-      prepared.evidence
+      [...parent.evidence, ...prepared.evidence]
         .filter((item) => item.acquisition_method === 'authoritative_web_retrieval')
         .map((item) => item.id)
     ),
@@ -170,6 +177,11 @@ export function createIntakeService(dependencies: IntakeServiceDependencies = {}
     // Live is the product default. Replay remains an explicit server-side test
     // path so deterministic regression fixtures do not require credentials.
     const mode: InferenceMode = payload.inference_mode === 'replay' ? 'replay' : 'live';
+    const requestedRunMode = payload.run_mode ?? 'analysis_only';
+    if (requestedRunMode !== 'analysis_only' && requestedRunMode !== 'web_assisted') {
+      throw new Error('run_mode must be analysis_only or web_assisted.');
+    }
+    const runMode: ModelRunMode = mode === 'replay' ? 'analysis_only' : requestedRunMode;
 
     const allocator = createLedgerIdAllocator(parent);
     const revisionId = allocator.nextRevisionId();
@@ -237,9 +249,14 @@ export function createIntakeService(dependencies: IntakeServiceDependencies = {}
 
     const startedAt = StructuralInstantSchema.parse(now().toISOString());
     let retrieval = emptyRetrievalResult('not_requested');
-    if (mode === 'live') {
+    if (mode === 'live' && runMode === 'web_assisted') {
       try {
-        retrieval = await retriever({ ledger: parent, prepared, message });
+        retrieval = await retriever({
+          ledger: parent,
+          prepared,
+          message,
+          attachments: providerAttachments,
+        });
       } catch (error: unknown) {
         retrieval = {
           ...emptyRetrievalResult('provider_error'),
@@ -291,12 +308,16 @@ export function createIntakeService(dependencies: IntakeServiceDependencies = {}
       client_request_id: payload.client_request_id,
       parent_revision_id: parent.current_revision_id,
       proposed_revision_id: revisionId,
+      run_mode: runMode,
       provider: mode === 'live' ? 'google-gemini' : 'deterministic-replay',
       model_id: INFERENCE_MODEL.modelId,
       prompt_version: INFERENCE_MODEL.promptVersion,
       started_at: startedAt,
       raw_response_text: null,
+      validation_warnings: [],
       retrieval_trace: {
+        provider: retrieval.provider,
+        product: retrieval.product,
         status: retrieval.status,
         requests: retrieval.requests.map((request) => ({ ...request })),
         executed_queries: [...retrieval.executed_queries],
@@ -306,6 +327,8 @@ export function createIntakeService(dependencies: IntakeServiceDependencies = {}
         rejected_candidates: retrieval.rejected_candidates.map((candidate) => ({
           reason_code: candidate.reason_code,
         })),
+        provider_request_ids: [...retrieval.provider_request_ids],
+        credits_used: retrieval.credits_used,
         failure_reason: retrieval.failure_reason,
       },
     };
@@ -332,7 +355,7 @@ export function createIntakeService(dependencies: IntakeServiceDependencies = {}
 
     const baseWithRaw = { ...runBase, provider: result.provider, raw_response_text: result.raw_response_text };
     try {
-      const proposal = parseProviderProposal(cleanJson(result.raw_response_text), validationContext(parent, prepared));
+      const parsedProposal = parseProviderProposal(cleanJson(result.raw_response_text), validationContext(parent, prepared));
       const languageWarning = assertProposalPreservesSourceLanguage({
         sourceTexts: [
           message,
@@ -342,14 +365,20 @@ export function createIntakeService(dependencies: IntakeServiceDependencies = {}
               : [item.content.raw_text ?? '', item.content.extracted_text ?? '']),
           ]),
         ],
-        proposal,
+        proposal: parsedProposal,
       });
       if (languageWarning !== null) {
-        console.warn('[intakeService] Language mismatch warning (proposal accepted anyway):', languageWarning);
+        throw new Error(languageWarning);
       }
-      const ledger = applyProposal({ parent, prepared, proposal });
+      const reconciled = reconcileProposal({
+        ledger: parent,
+        message,
+        proposal: parsedProposal,
+      });
+      const ledger = applyProposal({ parent, prepared, proposal: reconciled.proposal });
       const run = parseModelRunAudit({
         ...baseWithRaw,
+        reconciliation_trace: reconciled.trace,
         finished_at: StructuralInstantSchema.parse(now().toISOString()),
         status: 'accepted',
         committed_revision_id: revisionId,

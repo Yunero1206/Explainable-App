@@ -1,23 +1,24 @@
 # Authoritative web retrieval contract
 
-Google Search is a retrieval mechanism, not a source. Gemini is an analyst, not an authority. Only a direct publisher with authority over the specific public claim can be admitted as evidence.
+Tavily Search is a retrieval mechanism, not a source. Gemini is an analyst, not an authority. Only a direct publisher with authority over the specific public claim can be admitted as evidence.
 
 ## Decision flow
 
-1. Process the current user statement and uploaded files first.
-2. Open the web-retrieval gate only when the current user message explicitly asks to search or look up the Internet/web.
-3. Plan only public information needs that materially block the user intent.
+1. The user explicitly selects **Analysis only** or **Web-assisted** for the Model Run. No keyword or regular expression silently changes modes.
+2. In Web-assisted mode, Gemini processes the current user statement and the actual uploaded text, PDF, and image contents before planning retrieval.
+3. Plan only public information needs that materially block the user intent. If none remain, record `no_public_need` and do not call Tavily.
 4. Route case-specific, private, transaction-specific, identity-specific, account-specific, and physical-object questions to a Gap and Action for direct confirmation or user upload. They are never web-search questions.
-5. Send Google Search only a server-validated public query and authority target. Never send the raw case, user files, person/contact details, or unique account/order/invoice/case identifiers to Search.
-6. Admit a result only when all of these are true:
-   - the URL was returned in Google Search grounding metadata;
-   - the URL is direct HTTPS and is not a search/redirect URL;
-   - the host is the named organization's first-party domain or a responsible public-authority domain;
+5. Send Tavily Search only a server-validated public query and official-domain filters. Never send the raw case, user files, person names, contact details, private document text, unique transaction details, or account/order/invoice/case identifiers to Tavily.
+6. The fixed Tavily request uses Basic Search with automatic parameters, generated answers, raw content, and images disabled. The Model Run records provider request IDs and reported credits.
+7. Admit a result only when all of these are true:
+   - the exact direct URL was returned by Tavily for this request;
+   - the URL is HTTPS and is not a search/redirect URL;
+   - the host matches a planned official domain and the named organization's first-party domain or a responsible public-authority domain;
    - the source class is not social, forum, media, blog, aggregator, search snippet, or AI answer;
    - the excerpt has a bounded authority scope for the exact public claim.
-7. Allocate the canonical `[E]` ID in application code, attach web provenance, and create a server-owned inspection. Gemini cannot allocate or inspect the web evidence.
-8. Let the proposal analyzer use the admitted `[E]` only within its authority scope. A public policy or published price cannot establish a private account state, a transaction outcome, a physical object's authenticity/value, case eligibility, or future completion.
-9. If no source passes admission, fail closed: keep the decision-relevant Gap and recommend direct official confirmation or upload. Never answer the current-policy question from model memory.
+8. Allocate the canonical `[E]` ID in application code, attach web provenance, and create a server-owned inspection. Gemini cannot allocate or inspect the web evidence.
+9. Let the proposal analyzer use the admitted `[E]` only within its authority scope. A public policy or published price cannot establish a private account state, a transaction outcome, a physical object's authenticity/value, case eligibility, or future completion.
+10. If no source passes admission, fail closed: keep the decision-relevant Gap and recommend direct official confirmation or upload. Never answer the current-policy question from model memory.
 
 ## Source routing
 
@@ -41,7 +42,7 @@ An admitted source uses:
 - no blob and no model-created inspection
 - `web_provenance` containing publisher, page title, direct URL, publication/update date when available, retrieval time, authority kind/entity/scope, and sanitized query
 
-The model-run audit records the retrieval status, planned and executed public queries, admitted evidence IDs, and rejection reason codes. Rejected result URLs are not persisted. Older ledgers and audits remain readable because the new provenance and trace fields are additive.
+The model-run audit records the selected mode, retrieval provider/product, status, planned and executed public queries, admitted evidence IDs, provider request IDs, reported credits, and rejection reason codes. Rejected result URLs are not persisted. The trace distinguishes `not_requested`, `no_public_need`, `completed`, `no_authoritative_source`, `blocked`, and `provider_error`. Older ledgers and audits remain readable because the new provenance and trace fields are additive.
 
 ## Citation behavior
 

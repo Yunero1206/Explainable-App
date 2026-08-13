@@ -265,26 +265,32 @@ export function deriveChatMessages(
       vi: {
         summary: 'Tóm tắt', goal: 'Bạn muốn', recorded: 'Đã ghi vào', timeline: 'Timeline', evidence: 'Evidence',
         noEvidence: 'không có evidence mới; nguồn tường thuật', noChange: 'không thay đổi',
+        reasoning: 'Lập luận', stepKinds: { fact: 'Dữ kiện', public_rule: 'Quy tắc công khai', assumption: 'Giả định', derivation: 'Suy luận', scenario: 'Kịch bản', conclusion: 'Kết luận' },
       },
       en: {
         summary: 'Summary', goal: 'You want', recorded: 'Recorded in', timeline: 'Timeline', evidence: 'Evidence',
         noEvidence: 'no new evidence; narrative source', noChange: 'no change',
+        reasoning: 'Reasoning', stepKinds: { fact: 'Fact', public_rule: 'Public rule', assumption: 'Assumption', derivation: 'Derivation', scenario: 'Scenario', conclusion: 'Conclusion' },
       },
       es: {
         summary: 'Resumen', goal: 'Quieres', recorded: 'Registrado en', timeline: 'Cronología', evidence: 'Evidencia',
         noEvidence: 'sin evidencia nueva; fuente narrativa', noChange: 'sin cambios',
+        reasoning: 'Razonamiento', stepKinds: { fact: 'Hecho', public_rule: 'Regla pública', assumption: 'Supuesto', derivation: 'Deducción', scenario: 'Escenario', conclusion: 'Conclusión' },
       },
       fr: {
         summary: 'Résumé', goal: 'Vous voulez', recorded: 'Enregistré dans', timeline: 'Chronologie', evidence: 'Preuves',
         noEvidence: 'aucune nouvelle preuve; source narrative', noChange: 'aucun changement',
+        reasoning: 'Raisonnement', stepKinds: { fact: 'Fait', public_rule: 'Règle publique', assumption: 'Hypothèse', derivation: 'Déduction', scenario: 'Scénario', conclusion: 'Conclusion' },
       },
       'zh-CN': {
         summary: '摘要', goal: '你的目标', recorded: '已记录至', timeline: '时间线', evidence: '证据',
         noEvidence: '无新增证据；叙述来源', noChange: '无变化',
+        reasoning: '推理', stepKinds: { fact: '事实', public_rule: '公开规则', assumption: '假设', derivation: '推导', scenario: '情景', conclusion: '结论' },
       },
       ja: {
         summary: '要約', goal: '目的', recorded: '記録先', timeline: 'タイムライン', evidence: 'エビデンス',
         noEvidence: '新しいエビデンスなし・記述ソース', noChange: '変更なし',
+        reasoning: '推論', stepKinds: { fact: '事実', public_rule: '公開ルール', assumption: '仮定', derivation: '導出', scenario: 'シナリオ', conclusion: '結論' },
       },
     }[language];
   };
@@ -309,10 +315,18 @@ export function deriveChatMessages(
     const timelineSummary = eventIds.length > 0
       ? eventIds.map((id) => `[${id}]`).join(' ')
       : labels.noChange;
+    const reasoningLines = revision.reasoning?.steps.map((step) => {
+      const references = unique([...step.source_ids, ...step.claim_ids, ...step.gap_ids]);
+      const suffix = references.length === 0 ? '' : ` ${references.map((id) => `[${id}]`).join(' ')}`;
+      const dependency = step.depends_on.length === 0 ? '' : ` ← ${step.depends_on.join(', ')}`;
+      return `${step.id} · ${labels.stepKinds[step.kind]}${dependency}: ${step.text}${suffix}`;
+    }) ?? [];
 
     return [
+      revision.assistant_message,
       `${labels.summary}: ${revision.explanation}`,
       `${labels.goal}: ${revision.objective}`,
+      ...(reasoningLines.length === 0 ? [] : [`${labels.reasoning}:`, ...reasoningLines]),
       `${labels.recorded} ${caseNumber} · ${labels.timeline} (${eventIds.length}): ${timelineSummary} · ${labels.evidence} (${evidenceIds.length}): ${evidenceSummary}`,
     ].join('\n');
   };

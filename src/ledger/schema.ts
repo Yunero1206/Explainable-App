@@ -766,6 +766,59 @@ export const DeterministicSummarySchema = z
   })
   .strict();
 
+export const RevisionReasoningStepSchema = z.object({
+  id: z.string().regex(/^S[0-9]{2}$/),
+  kind: z.enum(['fact', 'public_rule', 'assumption', 'derivation', 'scenario', 'conclusion']),
+  text: SemanticTextSchema,
+  depends_on: z.array(z.string().regex(/^S[0-9]{2}$/)).refine((arr) => new Set(arr).size === arr.length, {
+    message: 'Duplicate reasoning dependency IDs',
+  }),
+  source_ids: z.array(SourceIdSchema).refine((arr) => new Set(arr).size === arr.length, {
+    message: 'Duplicate reasoning source_ids',
+  }),
+  claim_ids: z.array(ClaimIdSchema).refine((arr) => new Set(arr).size === arr.length, {
+    message: 'Duplicate reasoning claim_ids',
+  }),
+  gap_ids: z.array(GapIdSchema).refine((arr) => new Set(arr).size === arr.length, {
+    message: 'Duplicate reasoning gap_ids',
+  }),
+}).strict().superRefine((value, context) => {
+  if ((value.kind === 'fact' || value.kind === 'public_rule') && value.source_ids.length === 0) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: `${value.kind} reasoning steps require a source` });
+  }
+  if (value.kind === 'assumption' && value.gap_ids.length === 0) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'Assumption reasoning steps require a Gap' });
+  }
+  if ((value.kind === 'derivation' || value.kind === 'scenario' || value.kind === 'conclusion') && value.depends_on.length === 0) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: `${value.kind} reasoning steps require a prior dependency` });
+  }
+});
+
+export const RevisionReasoningSchema = z.object({
+  turn_intent: z.enum(['record', 'correct', 'research', 'decide', 'explain']),
+  answer_status: z.enum(['recorded', 'supported', 'conditional', 'blocked']),
+  steps: z.array(RevisionReasoningStepSchema).max(24).refine(
+    (steps) => new Set(steps.map((step) => step.id)).size === steps.length,
+    { message: 'Duplicate reasoning step IDs' },
+  ),
+}).strict().superRefine((value, context) => {
+  const seen = new Set<string>();
+  for (const step of value.steps) {
+    for (const dependency of step.depends_on) {
+      if (!seen.has(dependency)) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: `Reasoning dependency must reference an earlier step: ${dependency}` });
+      }
+    }
+    seen.add(step.id);
+  }
+  if (
+    (value.answer_status === 'conditional' || value.answer_status === 'blocked') &&
+    !value.steps.some((step) => step.gap_ids.length > 0)
+  ) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'Conditional or blocked reasoning requires a Gap' });
+  }
+});
+
 export const RevisionSchema = z
   .object({
     id: RevisionIdSchema,
@@ -774,6 +827,7 @@ export const RevisionSchema = z
     objective: SemanticTextSchema,
     explanation: SemanticTextSchema,
     assistant_message: SemanticTextSchema,
+    reasoning: RevisionReasoningSchema.optional(),
     accepted_model_run_id: ModelRunIdSchema,
     triggering_intake_ids: z
       .array(IntakeIdSchema)
@@ -1143,6 +1197,35 @@ export function parseLedgerV3(raw: unknown): T.LedgerV3Case {
       ...r.input_evidence_ids,
     ]);
 
+    if (r.reasoning !== undefined) {
+      for (let stepIndex = 0; stepIndex < r.reasoning.steps.length; stepIndex++) {
+        const step = r.reasoning.steps[stepIndex];
+        const expectedStepId = `S${String(stepIndex + 1).padStart(2, '0')}`;
+        if (step.id !== expectedStepId) {
+          throw new Error(`Reasoning step IDs must be sequential in ${r.id}: expected ${expectedStepId}`);
+        }
+        for (const sourceId of step.source_ids) {
+          if (!availSources.has(sourceId)) throw new Error(`Reasoning source unavailable in ${r.id}: ${sourceId}`);
+          if (step.kind === 'public_rule') {
+            const source = c.evidence.find((item) => item.id === sourceId);
+            if (source?.acquisition_method !== 'authoritative_web_retrieval' || source.web_provenance === undefined) {
+              throw new Error(`Public-rule reasoning must cite admitted authoritative web evidence: ${sourceId}`);
+            }
+          }
+        }
+        for (const claimId of step.claim_ids) {
+          if (!r.claims.some((claim) => claim.id === claimId)) {
+            throw new Error(`Reasoning claim not in revision ${r.id}: ${claimId}`);
+          }
+        }
+        for (const gapId of step.gap_ids) {
+          if (!r.gaps.some((gap) => gap.id === gapId)) {
+            throw new Error(`Reasoning gap not in revision ${r.id}: ${gapId}`);
+          }
+        }
+      }
+    }
+
     // Relationship source availability, target existence, corrects_statement revision check
     for (const rel of c.relationships) {
       if (rel.created_in_revision_id === r.id) {
@@ -1292,37 +1375,33 @@ export function parseLedgerV3(raw: unknown): T.LedgerV3Case {
         );
     }
 
-    // Snapshot continuity — no omission or reorder of parent IDs, immutable fields
+    // Snapshot continuity — prior revisions are immutable historical objects,
+    // while the child snapshot may revise the semantics of a stable entity ID.
+    // Omission, reorder, and identity reassignment remain forbidden; every
+    // semantic change is still required to have a validated update delta.
     if (prevRev !== null) {
       const checkEntityContinuity = (
         prevArr: Array<{ id: string }>,
         currArr: Array<{ id: string }>,
         arrName: string,
-        getImmutable: (item: { id: string }) => Record<string, unknown>
       ) => {
         for (let i = 0; i < prevArr.length; i++) {
           if (i >= currArr.length || prevArr[i].id !== currArr[i].id)
             throw new Error(
               `Omission or reorder of parent ${arrName} entities at index ${i}`
             );
-          const prevImm = JSON.stringify(getImmutable(prevArr[i]));
-          const currImm = JSON.stringify(getImmutable(currArr[i]));
-          if (prevImm !== currImm)
-            throw new Error(
-              `Immutable fields changed in ${arrName} for id ${prevArr[i].id}`
-            );
         }
       };
-      checkEntityContinuity(prevRev.events, r.events, 'events',
-        (e) => { const ev = e as T.Event; return { domain_time: ev.domain_time, actor: ev.actor, action: ev.action, target: ev.target }; });
-      checkEntityContinuity(prevRev.claims, r.claims, 'claims',
-        (e) => { const cl = e as T.Claim; return { proposition: cl.proposition, actor: cl.actor, action: cl.action, target: cl.target, domain_time: cl.domain_time }; });
-      checkEntityContinuity(prevRev.gaps, r.gaps, 'gaps',
-        (e) => { const g = e as T.Gap; return { question: g.question, target_claim_ids: g.target_claim_ids }; });
-      checkEntityContinuity(prevRev.actions, r.actions, 'actions',
-        (e) => { const a = e as T.Action; return { title: a.title, target_gap_ids: a.target_gap_ids }; });
-      checkEntityContinuity(prevRev.inspections, r.inspections, 'inspections',
-        (e) => { const ins = e as T.EvidenceInspection; return { evidence_id: ins.evidence_id }; });
+      checkEntityContinuity(prevRev.events, r.events, 'events');
+      checkEntityContinuity(prevRev.claims, r.claims, 'claims');
+      checkEntityContinuity(prevRev.gaps, r.gaps, 'gaps');
+      checkEntityContinuity(prevRev.actions, r.actions, 'actions');
+      checkEntityContinuity(prevRev.inspections, r.inspections, 'inspections');
+      for (let i = 0; i < prevRev.inspections.length; i++) {
+        if (prevRev.inspections[i].evidence_id !== r.inspections[i].evidence_id) {
+          throw new Error(`Inspection identity changed for id ${prevRev.inspections[i].id}`);
+        }
+      }
     }
 
     // Event references

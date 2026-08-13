@@ -988,10 +988,10 @@ describe('N12: Parent chain violations', () => {
 });
 
 // ---------------------------------------------------------------------------
-// N13 – Stable IDs and immutable fields
+// N13 – Stable IDs and revisioned semantic fields
 // ---------------------------------------------------------------------------
 
-describe('N13: Stable IDs and immutable fields', () => {
+describe('N13: Stable IDs and revisioned semantic fields', () => {
   it('event omitted from child revision fails', () => {
     const o = plainTwoRevision();
     (o['revisions'] as Record<string, unknown>[])[1]['events'] = [];
@@ -1003,22 +1003,28 @@ describe('N13: Stable IDs and immutable fields', () => {
     expect(() => parseLedgerV3(o)).toThrow();
   });
 
-  it('event domain_time changed in child revision fails', () => {
+  it('allows a child revision to correct event domain_time under the same stable ID', () => {
     const o = plainTwoRevision();
     (((o['revisions'] as Record<string, unknown>[])[1]['events'] as Record<string, unknown>[])[0])['domain_time'] = '2030-01-01';
-    expect(() => parseLedgerV3(o)).toThrow();
+    const parsed = parseLedgerV3(o);
+    expect(parsed.revisions[0].events[0].domain_time).not.toBe('2030-01-01');
+    expect(parsed.revisions[1].events[0]).toMatchObject({ id: 'EV01', domain_time: '2030-01-01' });
   });
 
-  it('claim proposition changed in child revision fails', () => {
+  it('allows a child revision to correct a proposition under the same stable ID', () => {
     const o = plainTwoRevision();
     (((o['revisions'] as Record<string, unknown>[])[1]['claims'] as Record<string, unknown>[])[0])['proposition'] = 'Changed proposition';
-    expect(() => parseLedgerV3(o)).toThrow();
+    const parsed = parseLedgerV3(o);
+    expect(parsed.revisions[0].claims[0].proposition).not.toBe('Changed proposition');
+    expect(parsed.revisions[1].claims[0]).toMatchObject({ id: 'C01', proposition: 'Changed proposition' });
   });
 
-  it('gap question changed in child revision fails', () => {
+  it('allows a child revision to refine a Gap under the same stable ID', () => {
     const o = plainTwoRevision();
     (((o['revisions'] as Record<string, unknown>[])[1]['gaps'] as Record<string, unknown>[])[0])['question'] = 'Changed question?';
-    expect(() => parseLedgerV3(o)).toThrow();
+    const parsed = parseLedgerV3(o);
+    expect(parsed.revisions[0].gaps[0].question).not.toBe('Changed question?');
+    expect(parsed.revisions[1].gaps[0]).toMatchObject({ id: 'G01', question: 'Changed question?' });
   });
 });
 

@@ -8,7 +8,7 @@ import {
   parseStructuralInstant,
 } from './ledger/schema.js';
 import type { LedgerV3Case } from './ledger/types.js';
-import { parseIntakeResponse, type ModelRunAudit } from './runtime/modelRun.js';
+import { parseIntakeResponse, type ModelRunAudit, type ModelRunMode } from './runtime/modelRun.js';
 import {
   commitAcceptedIntake,
   deleteLedgerCase,
@@ -58,6 +58,7 @@ export default function App() {
   const [selectedReference, setSelectedReference] = useState<CaseReference | null>(null);
   const [isLeftMobileOpen, setIsLeftMobileOpen] = useState(false);
   const [isRightMobileOpen, setIsRightMobileOpen] = useState(false);
+  const [runMode, setRunMode] = useState<ModelRunMode>('analysis_only');
 
   React.useEffect(() => {
     let cancelled = false;
@@ -103,6 +104,11 @@ export default function App() {
 
   const currentLedger = ledgers.find((ledger) => ledger.id === currentCaseId) ?? null;
   const currentPresentationCase = presentationCases.find((item) => item.id === currentCaseId) ?? null;
+  const latestCurrentRun = currentCaseId === null
+    ? null
+    : runs
+        .filter((run) => run.case_id === currentCaseId)
+        .sort((left, right) => right.finished_at.localeCompare(left.finished_at))[0] ?? null;
   const currentMessages = currentLedger === null
     ? []
     : [
@@ -241,6 +247,7 @@ export default function App() {
           message: text,
           attachments,
           inference_mode: 'live',
+          run_mode: runMode,
         }),
       });
       const raw: unknown = await response.json();
@@ -329,7 +336,7 @@ export default function App() {
             isMobileOpen={isLeftMobileOpen}
             onCloseMobile={() => setIsLeftMobileOpen(false)}
             testModeNode={(
-              <ModelRunsSummary />
+              <ModelRunsSummary selectedMode={runMode} latestRun={latestCurrentRun} />
             )}
           />
 
@@ -341,6 +348,8 @@ export default function App() {
               onSelectReference={handleSelectReference}
               focusedReference={selectedReference}
               onLoadSample={() => void handleLoadSample()}
+              runMode={runMode}
+              onRunModeChange={setRunMode}
             />
           </main>
 

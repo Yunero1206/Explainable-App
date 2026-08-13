@@ -26,7 +26,53 @@ const SourceIdSchema = z.union([StatementIdSchema, EvidenceIdSchema]);
 const AssistantExplanationSchema = z.object({
   text: SemanticTextSchema,
   user_goal: SemanticTextSchema,
+  answer: SemanticTextSchema.optional(),
 }).strict();
+
+const ProposalReasoningStepSchema = z.object({
+  id: z.string().regex(/^S[0-9]{2}$/),
+  kind: z.enum(['fact', 'public_rule', 'assumption', 'derivation', 'scenario', 'conclusion']),
+  text: SemanticTextSchema,
+  depends_on: z.array(z.string().regex(/^S[0-9]{2}$/)).refine((arr) => new Set(arr).size === arr.length, 'Duplicate dependency IDs'),
+  source_basis_ids: z.array(SourceIdSchema).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items'),
+  claim_refs: z.array(z.union([ClaimIdSchema, ClaimLocalRefSchema])).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items'),
+  gap_refs: z.array(z.union([GapIdSchema, GapLocalRefSchema])).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items'),
+}).strict().superRefine((value, context) => {
+  if ((value.kind === 'fact' || value.kind === 'public_rule') && value.source_basis_ids.length === 0) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: `${value.kind} reasoning steps require at least one source.` });
+  }
+  if (value.kind === 'assumption' && value.gap_refs.length === 0) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'Assumption reasoning steps must point to an explicit Gap.' });
+  }
+  if ((value.kind === 'derivation' || value.kind === 'scenario' || value.kind === 'conclusion') && value.depends_on.length === 0) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: `${value.kind} reasoning steps require at least one prior dependency.` });
+  }
+});
+
+const ProposalReasoningSchema = z.object({
+  turn_intent: z.enum(['record', 'correct', 'research', 'decide', 'explain']),
+  answer_status: z.enum(['recorded', 'supported', 'conditional', 'blocked']),
+  steps: z.array(ProposalReasoningStepSchema).max(24).refine(
+    (steps) => new Set(steps.map((step) => step.id)).size === steps.length,
+    'Duplicate reasoning step IDs',
+  ),
+}).strict().superRefine((value, context) => {
+  const seen = new Set<string>();
+  for (const step of value.steps) {
+    for (const dependency of step.depends_on) {
+      if (!seen.has(dependency)) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: `Reasoning step ${step.id} dependency must reference an earlier step: ${dependency}` });
+      }
+    }
+    seen.add(step.id);
+  }
+  if (
+    (value.answer_status === 'conditional' || value.answer_status === 'blocked') &&
+    !value.steps.some((step) => step.gap_refs.length > 0)
+  ) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'Conditional or blocked answers must point to at least one Gap.' });
+  }
+});
 
 // Disposition variants
 const DispositionSupportsClaimSchema = z.object({
@@ -233,6 +279,7 @@ export const ProposalOperationSchema = z.union([
 
 export const ProviderProposalSchema = z.object({
   explanation: AssistantExplanationSchema,
+  reasoning: ProposalReasoningSchema.optional(),
   operations: z.array(ProposalOperationSchema),
 }).strict();
 
@@ -457,6 +504,37 @@ export function parseProviderProposal(raw: unknown, ctx: ProposalValidationConte
     }
   }
 
+  if (parsed.reasoning !== undefined) {
+    for (let index = 0; index < parsed.reasoning.steps.length; index++) {
+      const step = parsed.reasoning.steps[index];
+      if (step.id !== `S${String(index + 1).padStart(2, '0')}`) {
+        throw new Error(`Reasoning step IDs must be sequential: expected S${String(index + 1).padStart(2, '0')}, got ${step.id}`);
+      }
+      for (const sourceId of step.source_basis_ids) {
+        if (!ctx.availableSourceIds.has(sourceId)) {
+          throw new Error(`Reasoning step ${step.id} uses unavailable source: ${sourceId}`);
+        }
+        if (step.kind === 'public_rule' && !ctx.serverOwnedEvidenceIds?.has(sourceId as T.EvidenceId)) {
+          throw new Error(`Public-rule reasoning step ${step.id} must cite admitted authoritative web evidence.`);
+        }
+      }
+      for (const ref of step.claim_refs) {
+        if (ref.startsWith('new_')) {
+          if (!declaredLocalRefs.has(ref)) throw new Error(`Reasoning step ${step.id} uses an undeclared claim ref: ${ref}`);
+        } else if (!ctx.existingClaimIds.has(ref as T.ClaimId)) {
+          throw new Error(`Reasoning step ${step.id} uses an unknown claim: ${ref}`);
+        }
+      }
+      for (const ref of step.gap_refs) {
+        if (ref.startsWith('new_')) {
+          if (!declaredLocalRefs.has(ref)) throw new Error(`Reasoning step ${step.id} uses an undeclared gap ref: ${ref}`);
+        } else if (!ctx.existingGapIds.has(ref as T.GapId)) {
+          throw new Error(`Reasoning step ${step.id} uses an unknown gap: ${ref}`);
+        }
+      }
+    }
+  }
+
   // Reject the same source being assigned to more than one of supports_claim, qualifies_claim and conflicts_with_claim for the same claim within one proposal
   const claimSourceDispositions = new Map<string, Set<string>>();
   for (const op of parsed.operations) {
@@ -523,7 +601,26 @@ export function parseProviderProposal(raw: unknown, ctx: ProposalValidationConte
   }
 
   const proposal: P.ProviderProposal = {
-    explanation: { text: parsed.explanation.text, user_goal: parsed.explanation.user_goal },
+    explanation: {
+      text: parsed.explanation.text,
+      user_goal: parsed.explanation.user_goal,
+      ...(parsed.explanation.answer === undefined ? {} : { answer: parsed.explanation.answer }),
+    },
+    ...(parsed.reasoning === undefined ? {} : {
+      reasoning: {
+        turn_intent: parsed.reasoning.turn_intent,
+        answer_status: parsed.reasoning.answer_status,
+        steps: parsed.reasoning.steps.map((step) => ({
+          id: step.id,
+          kind: step.kind,
+          text: step.text,
+          depends_on: [...step.depends_on],
+          source_basis_ids: [...step.source_basis_ids],
+          claim_refs: [...step.claim_refs],
+          gap_refs: [...step.gap_refs],
+        })),
+      },
+    }),
     operations: typedOperations,
   };
 

@@ -27,6 +27,12 @@ const GENERIC_AUTHORITY_WORDS = new Set([
   'vietnam', 'viet', 'nam', 'limited', 'ltd', 'inc', 'co',
 ]);
 
+const PUBLIC_AUTHORITY_DOMAIN_ALLOWLIST = [
+  'chinhphu.vn',
+  'quochoi.vn',
+  'vbpl.vn',
+] as const;
+
 function normalizedWords(value: string): string[] {
   return value
     .normalize('NFD')
@@ -42,6 +48,24 @@ export function sameAuthority(left: string, right: string): boolean {
 
 function hostMatches(host: string, domain: string): boolean {
   return host === domain || host.endsWith('.' + domain);
+}
+
+export function normalizeOfficialDomain(value: string): string | null {
+  const candidate = value.trim().toLowerCase().replace(/^www\./, '').replace(/\.$/, '');
+  if (
+    candidate.length < 4 || candidate.length > 253 ||
+    candidate.includes('/') || candidate.includes(':') || candidate.includes('@') ||
+    !/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(candidate)
+  ) return null;
+  return candidate;
+}
+
+export function urlMatchesOfficialDomains(url: URL, officialDomains: readonly string[]): boolean {
+  const host = url.hostname.toLowerCase().replace(/^www\./, '');
+  return officialDomains.some((domain) => {
+    const normalized = normalizeOfficialDomain(domain);
+    return normalized !== null && hostMatches(host, normalized);
+  });
 }
 
 function isBlockedHost(host: string): boolean {
@@ -67,6 +91,7 @@ export function safeHttpsUrl(value: string): URL | null {
 export function isDisallowedWebUrl(url: URL): boolean {
   const host = url.hostname.toLowerCase();
   if (isBlockedHost(host)) return true;
+  if (/(^|\/)(?:blog|forum|community)(?:\/|$)/i.test(url.pathname)) return true;
   if (host === 'vertexaisearch.cloud.google.com' || host.endsWith('.vertexaisearch.cloud.google.com')) return true;
   if ((host === 'google.com' || host.endsWith('.google.com')) && url.pathname === '/search') return true;
   return false;
@@ -89,7 +114,8 @@ function isPublicAuthorityHost(host: string): boolean {
     host.endsWith('.gouv.fr') ||
     host.endsWith('.bund.de') ||
     host === 'europa.eu' || host.endsWith('.europa.eu') ||
-    host.endsWith('.int') || host === 'un.org' || host.endsWith('.un.org');
+    host.endsWith('.int') || host === 'un.org' || host.endsWith('.un.org') ||
+    PUBLIC_AUTHORITY_DOMAIN_ALLOWLIST.some((domain) => hostMatches(host, domain));
 }
 
 export function authorityMatchesUrl(

@@ -23,6 +23,24 @@ export type ReferenceOrId<IdType extends string, RefType extends string> = IdTyp
 export interface AssistantExplanation {
   text: SemanticText;
   user_goal: SemanticText;
+  /** Direct answer shown in chat; falls back to text for older providers. */
+  answer?: SemanticText;
+}
+
+export interface ProposalReasoningStep {
+  id: string;
+  kind: 'fact' | 'public_rule' | 'assumption' | 'derivation' | 'scenario' | 'conclusion';
+  text: SemanticText;
+  depends_on: string[];
+  source_basis_ids: SourceId[];
+  claim_refs: ReferenceOrId<ClaimId, ClaimLocalRef>[];
+  gap_refs: ReferenceOrId<GapId, GapLocalRef>[];
+}
+
+export interface ProposalReasoning {
+  turn_intent: 'record' | 'correct' | 'research' | 'decide' | 'explain';
+  answer_status: 'recorded' | 'supported' | 'conditional' | 'blocked';
+  steps: ProposalReasoningStep[];
 }
 
 export interface DispositionSupportsClaim {
@@ -215,5 +233,6 @@ export type ProposalOperation =
 
 export interface ProviderProposal {
   explanation: AssistantExplanation;
+  reasoning?: ProposalReasoning;
   operations: ProposalOperation[];
 }
