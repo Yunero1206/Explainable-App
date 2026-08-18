@@ -1,66 +1,110 @@
 # Explainable Trust
 
-Explainable Trust turns messy user reports and attached files into a traceable, evidence-backed case ledger. It is a working local-first product: case data stays in the browser (IndexedDB), while Model Runs call server-held analysis and retrieval providers.
+**Explainable Trust** turns complex, messy user reports and attached documents into a traceable, logically rigorous, and evidence-backed case ledger. Built on a local-first architecture, your case data and files stay private in your browser (IndexedDB), while deterministic model runs invoke server-held validation, reasoning graph orchestration, and authoritative retrieval boundaries.
 
-## What works
+---
 
-- **Local-First Workspace**: Three-pane case workspace with local case creation, rename, archive, import/export, and deletion.
-- **Multi-Format Intake**: Text and file intake supporting click-to-upload and drag-and-drop (PDFs, images, screenshots, text files).
-- **Cryptographic & Immutable Provenance**: Immutable raw statements, attachment metadata, SHA-256 fixity hashing, and locally preserved blobs.
-- **Deterministic Ledger V3**: Deterministic proposal application into a strictly validated Ledger V3 revision with stable-ID updates.
-- **Reasoning Graph & Provenance DAG**: Interactive graph visualization powered by React Flow (`@xyflow/react`) with top-to-bottom / left-to-right layouts, node filtering, full-screen view, and upstream/downstream dependency tracking.
-- **Source-Linked Reasoning Chain**: Direct answers plus a step-by-step reasoning chain with explicit prior-step dependencies (Fact, Public Rule, Assumption, Derivation, Scenario, Conclusion).
-- **App-Owned Reconciliation**: Semantic corrections map to stable-ID updates and fail closed on ambiguous target entities.
-- **Living Case Auditing**: Full tracking of claims, timeline events, evidence inspections, gaps, next actions, revision deltas, and model-run audit logs.
-- **Web-Assisted Privacy & Admission**: Bounded web search via Tavily Search with first-party/public-authority admission. Only sanitized public queries and official-domain filters are sent—never raw case details or private documents.
-- **Multi-Language Support**: Complete UI localization across 6 languages (English, Tiếng Việt, Español, Français, 简体中文, 日本語).
-- **Robust Persistence & Export**: Atomic IndexedDB commits (`ExplainableTrustV3`), full case JSON import/export, Markdown report generation, and synchronized print views.
+## ✨ Key Features & Capabilities
 
-## Run locally
+### 1. 🧠 Toulmin Argumentation Model (Anti-Bias & Logic Verification)
+* **Proposition & Evidentiary Strength Gauge**: Real-time counter of corroborating independent proofs (`+X`) vs contested claims (`-Y`).
+* **Grounding Data Breakdown**: Two-column division clearly distinguishing **Independent Hard Evidence `[E*]`** (cryptographically hashed documents, photos, logs) from **Subjective Statements `[U*]`** (self-reported claims requiring corroboration).
+* **Explicit Logical Warrant**: Transparent rationale establishing exactly *why* grounding evidence necessitates the conclusion without non-sequitur or logical leaps.
+* **Rebuttal Conditions & Blindspots**: Anticipates counter-arguments and specifies exact factual conditions that would refute the proposition—protecting users from confirmation bias.
+* **Statutory Rule Anchoring**: Cites relevant legal articles, decrees, and public regulatory authorities.
 
-Requirements: Node.js 20 or newer and npm.
+### 2. 🕸️ Interactive Reasoning Graph & DAG (`@xyflow/react`)
+* **ArbGraph & ArgRAG Relationship Edges**:
+  * 🟢 **Solid Green**: Corroborating / Supporting relationships.
+  * 🔴 **Dashed Red**: Conflicting / Rebuttal relationships.
+  * 🟡 **Dotted Amber**: Qualifying / Limiting conditions.
+  * 🟣 **Purple**: Missing Evidence Gaps (`[G*]`) & Next Actions (`[A*]`).
+* **Interactive Graph Controls**: Top-to-Bottom (TB) / Left-to-Right (LR) auto-layout, floating visual legend, zoom/pan/fit-to-view, and full-screen inspection modal.
+
+### 3. 📑 Forensic Provenance Dossier Export (W3C PROV-O Standard)
+* **Cryptographic Fixity Verification**: Exportable audit-ready dossiers with complete SHA-256 hash tables for all attached evidence.
+* **Statement-to-Evidence Corroboration Matrix**: Detailed breakdown mapping every factual occurrence to its source statements, corroborating files, and unresolved gaps.
+* **Multi-Format Export**: One-click Markdown copy/download and synchronized clean print view.
+
+### 4. 💬 Modern Ergonomic UX & Workspace
+* **ChatGPT-Grade Chat Interface**: Clean typography, crisp right-aligned user messages (`bg-blue-600`), and real-time revision delta badges.
+* **Spacious 3-Pane Workspace**: Collapsible case navigation sidebar, centered intake chat stream, and an expanded right-hand dossier panel (420px–560px) for timelines, claims, gaps, and graphs.
+* **Uniform Temporal Phrasing**: Automated date-first chronological formatting for all timeline events (`[Ngày/Buổi], lúc [Giờ:Phút]`).
+
+### 5. 🛡️ Data Privacy & Trust Boundaries
+* **Local-First Storage**: Authoritative storage remains on-device (`ExplainableTrustV3` in IndexedDB).
+* **Sanitized Authoritative Retrieval**: Opt-in public law and regulatory lookup via Tavily Search. Only server-sanitized queries and official domain filters are dispatched—**never** raw case text, personal identities, or private files.
+* **Strict Evidence Admission**: Automatically filters out untrusted social media, forums, and unverified AI answers from evidentiary record.
+* **Multi-Language Support**: Complete localization across 6 languages (English, Tiếng Việt, Español, Français, 简体中文, 日本語) while strictly preserving source-owned intake text verbatim.
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+* **Node.js**: v20 or newer
+* **npm**: v9 or newer
+
+### Installation & Setup
 
 ```bash
-# Install dependencies
+# 1. Clone the repository
+git clone https://github.com/Yunero1206/Explainable-App.git
+cd Explainable-App
+
+# 2. Install dependencies
 npm ci
 
-# Start local development server (Express + Vite)
+# 3. Configure environment variables
+cp .env.example .env
+```
+
+Edit `.env` to configure your API keys:
+```env
+# Required for Gemini Model Runs
+GEMINI_API_KEY=your_gemini_api_key_here
+
+# Optional model selection (defaults to gemini-2.5-flash)
+GEMINI_MODEL=gemini-2.5-flash
+
+# Optional for Web-assisted statutory retrieval
+TAVILY_API_KEY=your_tavily_api_key_here
+
+# Optional server port (defaults to 3000)
+PORT=3000
+```
+
+### Run Locally
+```bash
+# Start local development server (Express + Vite HMR)
 npm run dev
 ```
+Open **`http://localhost:3000`** in your browser.
 
-1. Copy `.env.example` to `.env`.
-2. Add your `GEMINI_API_KEY`.
-3. (Optional) Set `GEMINI_MODEL` (defaults to `gemini-3.5-flash-lite`, supports models such as `gemini-2.5-flash`, `gemini-2.0-flash`, `gemini-3.6-flash`, etc.).
-4. (Optional) Add `TAVILY_API_KEY` to enable Web-assisted runs.
-5. Open `http://localhost:3000` in your browser.
+---
 
-## NPM Scripts & Verification
+## 🧪 NPM Scripts & Verification
 
 | Command | Description |
-| --- | --- |
+| :--- | :--- |
 | `npm run dev` | Starts Express server with Vite in development mode |
-| `npm run lint` | Type-checks the TypeScript codebase (`tsc --noEmit`) |
-| `npm test` | Runs the full Vitest test suite |
-| `npm run eval` | Runs Promptfoo LLM evaluation tests |
+| `npm run lint` | Type-checks the entire TypeScript codebase (`tsc --noEmit`) |
+| `npm test` | Runs the full Vitest suite (19 test files, 462+ unit & integration tests) |
+| `npm run eval` | Runs Promptfoo LLM evaluation benchmarks |
 | `npm run eval:view` | Opens Promptfoo evaluation web UI viewer |
-| `npm run verify` | Runs linting, unit tests, and production build |
-| `npm run build` | Builds Vite frontend and esbuild server bundles |
-| `npm start` | Runs built production server (`dist/server.cjs`) |
+| `npm run verify` | Complete verification pipeline: linting, tests, and production build |
+| `npm run build` | Builds Vite frontend and esbuild server bundles (`dist/`) |
+| `npm start` | Runs production server (`dist/server.cjs`) |
 
-```bash
-# Run full verification suite
-npm run verify
+---
 
-# Start in production mode
-NODE_ENV=production npm start
-```
+## 🏗️ Architecture & Technical Reference
 
-Set `PORT` in `.env` or process environment to override the default port (`3000`).
+For architectural diagrams, linear ledger mutation schemas, deterministic replay invariants, and authoritative retrieval boundaries, see:
+* [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+* [docs/AUTHORITATIVE_RETRIEVAL.md](docs/AUTHORITATIVE_RETRIEVAL.md)
 
-## Data and Trust Boundary
+---
 
-- **Local Storage**: The authoritative browser database is `ExplainableTrustV3`. The app never deletes or overwrites prior V2 databases automatically. UI language changes presentation labels only; accepted source text and IDs remain untranslated to preserve audit integrity.
-- **Web-Assisted Privacy**: Web retrieval is opt-in per intake. Gemini inspects the user statement and inline evidence before planning public query needs. Tavily receives only a server-sanitized public query and official-domain filters—never raw case statements, private text, names, contacts, or account identifiers.
-- **Strict Evidence Admission**: A search result becomes an admissible `[E]` evidence source only when its direct URL and claim authority pass application admission rules. Social media posts, forums, AI snippets, and blogs are rejected as non-admissible.
-
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the runtime flow, module boundaries, and acceptance invariants.
+## 📄 License
+MIT License. Created with ❤️ for transparent, explainable, and accountable human-AI collaboration.
