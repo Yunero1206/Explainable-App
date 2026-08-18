@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Plus,
+  Upload,
   MoreHorizontal,
   X,
   Edit2,
@@ -11,9 +12,9 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
 } from 'lucide-react';
-import { PresentationCaseData } from '../types.js';
+import type { PresentationCaseData } from '../types.js';
 import { useLanguage } from '../contexts/LanguageContext';
-import { LOCALES, Locale } from '../lib/translations';
+import { LOCALES, type Locale } from '../lib/translations';
 
 interface LeftSidebarProps {
   cases: PresentationCaseData[];
@@ -23,6 +24,7 @@ interface LeftSidebarProps {
   onRenameCase: (caseId: string, newNumber: string, newTitle: string) => void;
   onArchiveCase: (caseId: string) => void;
   onDeleteCase: (caseId: string) => void;
+  onImportCase?: (jsonContent: string) => Promise<void>;
   isMobileOpen?: boolean;
   onCloseMobile?: () => void;
   testModeNode?: React.ReactNode;
@@ -36,6 +38,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   onRenameCase,
   onArchiveCase,
   onDeleteCase,
+  onImportCase,
   isMobileOpen = false,
   onCloseMobile,
   testModeNode,
@@ -46,6 +49,21 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   const [editingCase, setEditingCase] = useState<{ id: string; caseNumber: string; title: string } | null>(null);
   const [deletingCase, setDeletingCase] = useState<PresentationCaseData | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const content = reader.result as string;
+      if (onImportCase) {
+        await onImportCase(content);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
 
   // Archived cases remain visible so users can restore them.
   const activeCases = cases;
@@ -147,32 +165,62 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
         )}
       </div>
 
-      {/* New Case Button */}
+      {/* Hidden File Input for Importing Case */}
+      <input
+        type="file"
+        ref={importInputRef}
+        onChange={handleFileChange}
+        accept=".json,application/json"
+        className="hidden"
+      />
+
+      {/* New Case & Import Case Buttons */}
       <div className="p-2 shrink-0">
         {!isCollapsed ? (
-          <button
-            type="button"
-            onClick={() => {
-              onNewCase();
-              onCloseMobile?.();
-            }}
-            className="w-full py-2 px-3 bg-slate-900 hover:bg-slate-800 text-white font-medium rounded-lg border border-slate-900 transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
-          >
-            <Plus className="w-4 h-4 text-slate-200" />
-            <span>{t.newCase}</span>
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                onNewCase();
+                onCloseMobile?.();
+              }}
+              className="flex-1 py-2 px-3 bg-slate-900 hover:bg-slate-800 text-white font-medium rounded-lg border border-slate-900 transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
+            >
+              <Plus className="w-4 h-4 text-slate-200" />
+              <span>{t.newCase}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => importInputRef.current?.click()}
+              className="py-2 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg border border-slate-200 transition-colors flex items-center justify-center cursor-pointer shadow-2xs"
+              title={t.importCase}
+              aria-label={t.importCase}
+            >
+              <Upload className="w-4 h-4 text-slate-600" />
+            </button>
+          </div>
         ) : (
-          <button
-            type="button"
-            onClick={() => {
-              onNewCase();
-              onCloseMobile?.();
-            }}
-            className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white font-medium rounded-lg border border-slate-900 transition-colors flex items-center justify-center cursor-pointer shadow-2xs"
-            title={t.newCase}
-          >
-            <Plus className="w-4 h-4 text-slate-200" />
-          </button>
+          <div className="flex flex-col items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                onNewCase();
+                onCloseMobile?.();
+              }}
+              className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white font-medium rounded-lg border border-slate-900 transition-colors flex items-center justify-center cursor-pointer shadow-2xs"
+              title={t.newCase}
+            >
+              <Plus className="w-4 h-4 text-slate-200" />
+            </button>
+            <button
+              type="button"
+              onClick={() => importInputRef.current?.click()}
+              className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg border border-slate-200 transition-colors flex items-center justify-center cursor-pointer shadow-2xs"
+              title={t.importCase}
+            >
+              <Upload className="w-4 h-4 text-slate-600" />
+            </button>
+          </div>
         )}
       </div>
 

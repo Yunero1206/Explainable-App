@@ -54,6 +54,9 @@ export function detectContentLanguage(text: string): LanguageSignal | null {
   const normalized = text.normalize('NFC').toLocaleLowerCase();
   if (normalized.trim().length < 12) return null;
 
+  const alphabeticCount = (normalized.match(/\p{L}/gu) ?? []).length;
+  if (alphabeticCount < 8) return null;
+
   const scores: Record<DetectedContentLanguage, number> = {
     vi: wordScore(normalized, WORDS.vi)
       + countMatches(normalized, /[ăâđêôơưáàảãạấầẩẫậắằẳẵặéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ]/gu) * 2,

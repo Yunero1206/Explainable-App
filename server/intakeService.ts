@@ -41,6 +41,7 @@ import {
   type AuthoritativeRetriever,
 } from './authoritativeRetrieval.js';
 import { emptyRetrievalResult } from '../src/retrieval/types.js';
+import { cleanAndParseJson } from './inference/jsonUtils.js';
 
 export interface IntakeAttachmentPayload {
   name: string;
@@ -118,10 +119,6 @@ function inputForm(mimeType: string, filename: string): CanonicalEvidence['input
   return 'other';
 }
 
-function cleanJson(text: string): unknown {
-  const cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
-  return JSON.parse(cleaned);
-}
 
 function validationContext(parent: LedgerV3Case, prepared: PreparedLedgerIntake) {
   const head = parent.current_revision_id === null
@@ -356,7 +353,7 @@ export function createIntakeService(dependencies: IntakeServiceDependencies = {}
 
     const baseWithRaw = { ...runBase, provider: result.provider, raw_response_text: result.raw_response_text };
     try {
-      const providerOutput = decodeProviderGenerationProposal(cleanJson(result.raw_response_text));
+      const providerOutput = decodeProviderGenerationProposal(cleanAndParseJson(result.raw_response_text));
       const parsedProposal = parseProviderProposal(providerOutput, validationContext(parent, prepared));
       const languageWarning = assertProposalPreservesSourceLanguage({
         sourceTexts: [

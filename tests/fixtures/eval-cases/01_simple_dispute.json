@@ -1,0 +1,9 @@
+{
+  "description": "Simple dispute intake - user reports damaged delivery",
+  "statement": "Tôi đặt đồ ăn qua ứng dụng FoodApp lúc 12:30 hôm nay, khi nhận hàng thì hộp bị rách và thức ăn đổ hết ra ngoài.",
+  "expected": {
+    "claim_assessment": "Reported",
+    "must_have_gap": true,
+    "must_have_action": true
+  }
+}

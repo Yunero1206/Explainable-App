@@ -381,13 +381,47 @@ export function deriveChatMessages(
       .filter((part) => part.kind === 'statement')
       .map((part) => part.raw_text)
       .join('\n\n');
+    const labels = labelsFor(revisionSourceText);
+    const eventIds = revision.delta.entries
+      .filter((entry) => entry.entity_type === 'event')
+      .map((entry) => entry.entity_id);
+    const evidenceIds = revision.delta.entries
+      .filter((entry) => entry.entity_type === 'evidence')
+      .map((entry) => entry.entity_id);
+    const statementIds = revision.delta.entries
+      .filter((entry) => entry.entity_type === 'statement')
+      .map((entry) => entry.entity_id);
+
+    const structuredSteps = revision.reasoning?.steps.map((step) => ({
+      id: step.id,
+      kind: step.kind,
+      kindLabel: labels.stepKinds[step.kind],
+      text: step.text,
+      depends_on: [...step.depends_on],
+      source_ids: [...step.source_ids],
+      claim_ids: [...step.claim_ids],
+      gap_ids: [...step.gap_ids],
+    })) ?? [];
+
     messages.push({
       id: `revision-${revision.id}`,
       role: 'assistant',
       text: acceptedUpdateMessage(revision, revisionSourceText),
       timestamp: new Date(revision.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       revision_id: revision.id,
+      structured: {
+        assistant_message: revision.assistant_message,
+        summary: revision.explanation,
+        goal: revision.objective,
+        reasoning_steps: structuredSteps,
+        delta_summary: {
+          event_ids: eventIds,
+          evidence_ids: evidenceIds,
+          statement_ids: statementIds,
+        },
+      },
     });
   }
   return messages;
 }
+

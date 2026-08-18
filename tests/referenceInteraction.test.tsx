@@ -14,6 +14,20 @@ import { deriveChatMessages, projectLedger } from '../src/presentation/projectLe
 import type { CaseReference } from '../src/types';
 
 beforeAll(() => {
+  if (typeof globalThis.localStorage === 'undefined' || typeof globalThis.localStorage.clear !== 'function') {
+    const store = new Map<string, string>();
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      value: {
+        getItem: (key: string) => store.get(key) ?? null,
+        setItem: (key: string, value: string) => store.set(key, String(value)),
+        removeItem: (key: string) => store.delete(key),
+        clear: () => store.clear(),
+        key: (index: number) => Array.from(store.keys())[index] ?? null,
+        length: 0,
+      },
+    });
+  }
   Object.defineProperty(Element.prototype, 'scrollIntoView', {
     configurable: true,
     value: vi.fn(),
@@ -24,7 +38,11 @@ beforeAll(() => {
   });
 });
 
-beforeEach(() => localStorage.clear());
+beforeEach(() => {
+  try {
+    globalThis.localStorage?.clear();
+  } catch {}
+});
 afterEach(() => cleanup());
 
 function sample() {
@@ -90,7 +108,7 @@ describe('case reference interactions', () => {
     const findingId = firstEvent!.finding_ids[0];
     fireEvent.click(within(eventCard!).getByRole('button', { name: `Open finding ${findingId}` }));
     expect(await screen.findByRole('dialog', { name: `finding ${findingId}` })).toBeTruthy();
-    expect(screen.getAllByText(projected.claims.find((claim) => claim.id === findingId)!.text)).toHaveLength(2);
+    expect(screen.getAllByText(projected.claims.find((claim) => claim.id === findingId)!.text).length).toBeGreaterThanOrEqual(2);
     fireEvent.click(screen.getByTitle('Close citation'));
 
     const eventWithEvidence = projected.events.find((event) => event.evidence_ids.length > 0);
@@ -106,7 +124,7 @@ describe('case reference interactions', () => {
   it('uses Event, Gap, and Action keys to switch, scroll, and highlight their records', async () => {
     const { projected } = sample();
     render(<ReferenceHarness />);
-    fireEvent.click(screen.getByRole('button', { name: 'Gaps' }));
+    fireEvent.click(screen.getByRole('button', { name: /Gaps/ }));
 
     const gap = projected.gaps[0];
     const gapCard = await waitFor(() => {

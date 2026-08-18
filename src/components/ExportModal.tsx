@@ -1,5 +1,5 @@
-import React from 'react';
-import { FileCode, Printer, X } from 'lucide-react';
+import React, { useState } from 'react';
+import { FileCode, Printer, FileText, Check, X } from 'lucide-react';
 import { buildCaseViewExport } from '../presentation/exportCase.js';
 import type { PresentationCaseData } from '../types.js';
 import { useLanguage } from '../contexts/LanguageContext.js';
@@ -10,6 +10,7 @@ function keys(values: string[]): string {
 
 export function ExportModal({ caseData, onClose }: { caseData: PresentationCaseData; onClose: () => void }) {
   const { t } = useLanguage();
+  const [copiedMd, setCopiedMd] = useState(false);
   const exportPayload = buildCaseViewExport(caseData);
   const exportJson = JSON.stringify(exportPayload, null, 2);
 
@@ -22,6 +23,40 @@ export function ExportModal({ caseData, onClose }: { caseData: PresentationCaseD
     anchor.click();
     URL.revokeObjectURL(url);
     onClose();
+  };
+
+  const copyMarkdownReport = async () => {
+    const lines: string[] = [
+      `# Case Report: ${caseData.case_number} - ${caseData.title}`,
+      `**Objective / User Goal:** ${caseData.objective || 'N/A'}`,
+      `**Current Revision:** ${caseData.current_revision_id || 'N/A'}`,
+      '',
+      `## Summary Statistics`,
+      `- Total Evidence Items: ${caseData.evidence.length}`,
+      `- Timeline Events: ${caseData.events.length}`,
+      `- Findings / Claims: ${caseData.claims.length}`,
+      `- Open Gaps: ${caseData.gaps.filter((g) => g.status === 'open').length}`,
+      '',
+      `## Timeline Events`,
+      ...caseData.events.map((e) => `- **[${e.id}] ${e.time || '—'}:** ${e.actor} ${e.action} ${e.target}${e.effect ? ` — ${e.effect}` : ''} *(${e.assessment})*`),
+      '',
+      `## Key Findings & Claims`,
+      ...caseData.claims.map((c) => `- **[${c.id}]** ${c.text} *[${c.assessment}]*${c.reasoning ? `\n  - *Reasoning:* ${c.reasoning}` : ''}`),
+      '',
+      `## Open Gaps & Recommended Actions`,
+      ...caseData.gaps.map((g) => {
+        const actionLines = g.actions.map((a) => `    - **Action [${a.id}]:** ${a.title} (${a.priority}) — ${a.description}`).join('\n');
+        return `- **[${g.id}] ${g.what_is_unknown}**\n  - *Why it matters:* ${g.why_it_matters}${actionLines ? `\n${actionLines}` : ''}`;
+      }),
+    ];
+
+    try {
+      await navigator.clipboard.writeText(lines.join('\n'));
+      setCopiedMd(true);
+      setTimeout(() => setCopiedMd(false), 2000);
+    } catch (e) {
+      console.error('Failed to copy markdown report', e);
+    }
   };
 
   return (
@@ -50,36 +85,45 @@ export function ExportModal({ caseData, onClose }: { caseData: PresentationCaseD
           aria-modal="true"
           aria-label={t.exportCase}
           onMouseDown={(event) => event.stopPropagation()}
-          className="absolute top-14 right-4 w-72 bg-white border border-slate-200 rounded-xl shadow-2xl p-2"
+          className="absolute top-14 right-4 w-80 bg-white border border-slate-200 rounded-2xl shadow-2xl p-3 space-y-2"
         >
-          <div className="px-2 py-1.5 flex items-center justify-between gap-2">
+          <div className="px-1 py-1 flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
             <div>
               <p className="text-xs font-semibold text-slate-900">{t.exportCase}</p>
               <p className="text-[10px] font-mono text-slate-500">{caseData.case_number}</p>
             </div>
-            <button type="button" onClick={onClose} className="p-1 text-slate-400 hover:text-slate-800 rounded" title={t.closeExport}>
+            <button type="button" onClick={onClose} className="p-1 text-slate-400 hover:text-slate-800 rounded cursor-pointer" title={t.closeExport}>
               <X className="w-4 h-4" />
             </button>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 p-1">
+          <div className="grid grid-cols-3 gap-2 pt-1">
             <button
               type="button"
               onClick={downloadJson}
-              className="rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-50 p-3 text-left transition-colors"
+              className="rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 p-2.5 text-center transition-colors cursor-pointer flex flex-col items-center justify-center gap-1.5"
             >
-              <FileCode className="w-4 h-4 text-slate-700 mb-2" />
+              <FileCode className="w-4 h-4 text-slate-700" />
               <span className="block text-xs font-semibold text-slate-900">JSON</span>
-              <span className="block text-[10px] text-slate-500 mt-0.5">{t.timelineAndGaps}</span>
+              <span className="block text-[9px] text-slate-500">{t.timelineAndGaps}</span>
+            </button>
+            <button
+              type="button"
+              onClick={copyMarkdownReport}
+              className="rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 p-2.5 text-center transition-colors cursor-pointer flex flex-col items-center justify-center gap-1.5"
+            >
+              {copiedMd ? <Check className="w-4 h-4 text-emerald-600" /> : <FileText className="w-4 h-4 text-slate-700" />}
+              <span className="block text-xs font-semibold text-slate-900">{copiedMd ? t.copied : 'Markdown'}</span>
+              <span className="block text-[9px] text-slate-500">Report</span>
             </button>
             <button
               type="button"
               onClick={() => window.print()}
-              className="rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-50 p-3 text-left transition-colors"
+              className="rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 p-2.5 text-center transition-colors cursor-pointer flex flex-col items-center justify-center gap-1.5"
             >
-              <Printer className="w-4 h-4 text-slate-700 mb-2" />
+              <Printer className="w-4 h-4 text-slate-700" />
               <span className="block text-xs font-semibold text-slate-900">{t.print}</span>
-              <span className="block text-[10px] text-slate-500 mt-0.5">{t.sameCaseView}</span>
+              <span className="block text-[9px] text-slate-500">{t.sameCaseView}</span>
             </button>
           </div>
         </div>
@@ -98,68 +142,53 @@ export function ExportModal({ caseData, onClose }: { caseData: PresentationCaseD
             {exportPayload.timeline.map((item) => (
               <div key={item.keys.event} className="border border-slate-300 rounded-lg p-3 break-inside-avoid">
                 <div className="font-mono text-[10px] text-slate-600 mb-1">
-                  [{item.keys.event}] {keys(item.keys.evidence)} {keys(item.keys.findings)}
+                  {item.keys.event} · {item.time} · {item.assessment}
+                  {item.keys.statements.length > 0 && ` · ${t.userStatement} ${keys(item.keys.statements)}`}
+                  {item.keys.evidence.length > 0 && ` · ${t.evidence} ${keys(item.keys.evidence)}`}
                 </div>
-                <p className="text-slate-500">{item.time}</p>
-                <p className="font-medium mt-1">{item.actor} {item.action} {item.target}{item.effect ? ` — ${item.effect}` : ''}</p>
-                <p className="text-slate-600 mt-1">{t.assessment}: {item.assessment}</p>
-
-                {item.statements.map((statement) => (
-                  <div key={statement.id} className="mt-2 pl-3 border-l-2 border-slate-200">
-                    <p><strong>[{statement.id}] {t.userStatement}</strong></p>
-                    <p className="whitespace-pre-wrap text-slate-700">{statement.text}</p>
+                <p className="font-medium">
+                  {item.actor} {item.action} {item.target}
+                  {item.effect && ` — ${item.effect}`}
+                </p>
+                {item.findings.length > 0 && (
+                  <div className="mt-2 text-slate-700 space-y-1">
+                    {item.findings.map((f) => (
+                      <p key={f.id}>
+                        <strong>{t.findingCitation} [{f.id}]:</strong> {f.text}
+                      </p>
+                    ))}
                   </div>
-                ))}
-
-                {item.findings.map((finding) => (
-                  <div key={finding.id} className="mt-2 pl-3 border-l-2 border-indigo-200">
-                    <p><strong>[{finding.id}] {finding.text}</strong> · {finding.assessment}</p>
-                    <p className="text-slate-600">{finding.reasoning}</p>
-                    <p className="text-slate-500">{t.scope}: {finding.scope}</p>
-                    {finding.limits.length > 0 && <p className="text-slate-500">{t.limitations}: {finding.limits.join(' · ')}</p>}
-                  </div>
-                ))}
-
-                {item.evidence.map((evidence) => (
-                  <div key={evidence.id} className="mt-2 pl-3 border-l-2 border-emerald-200">
-                    <p><strong>[{evidence.id}] {evidence.label}</strong> · {t.claimedSource}: {evidence.claimed_source}</p>
-                    {evidence.evidence_time && <p className="text-slate-500">{t.evidenceTime}: {evidence.evidence_time}</p>}
-                    {evidence.content && <p className="whitespace-pre-wrap text-slate-700">{evidence.content}</p>}
-                    <p className="text-slate-500">{t.sourceAttribution}: {evidence.source_attribution}</p>
-                    <p className="text-slate-500">{t.caseMatch}: {evidence.case_object_match}</p>
-                    <p className="text-slate-500">{t.completeness}: {evidence.completeness_context}</p>
-                    <p className="text-slate-500">{t.integrity}: {evidence.integrity_signals}</p>
-                    {evidence.limitations.length > 0 && <p className="text-slate-500">{t.limitations}: {evidence.limitations.join(' · ')}</p>}
-                    {evidence.web_provenance && (
-                      <div className="mt-2 space-y-1 rounded border border-emerald-100 bg-emerald-50/40 p-2 text-slate-600">
-                        <p>{t.sourcePublisher}: {evidence.web_provenance.publisher}</p>
-                        <p>{t.sourcePageTitle}: {evidence.web_provenance.page_title}</p>
-                        <p>{t.sourceUrl}: <span className="break-all">{evidence.web_provenance.source_url}</span></p>
-                        <p>{t.retrievedAt}: {evidence.web_provenance.retrieved_at}</p>
-                        <p>{t.authorityScope}: {evidence.web_provenance.authority_scope}</p>
+                )}
+                {item.evidence.length > 0 && (
+                  <div className="mt-2 text-[11px] text-slate-600 space-y-1">
+                    {item.evidence.map((e) => (
+                      <div key={e.id}>
+                        <strong>{t.evidenceSource} [{e.id}] ({e.label}):</strong> {e.content}
+                        {e.claimed_source && ` [${t.claimedSource}: ${e.claimed_source}]`}
                       </div>
-                    )}
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
             ))}
           </div>
         </section>
 
         <section>
-          <h2 className="text-base font-bold uppercase tracking-wide mb-3">{t.gaps}</h2>
+          <h2 className="text-base font-bold uppercase tracking-wide mb-3">{t.gaps} & {t.actions}</h2>
           <div className="space-y-4">
-            {exportPayload.gaps_and_actions.map((gap) => (
-              <div key={gap.keys.gap} className="border border-slate-300 rounded-lg p-3 break-inside-avoid">
+            {exportPayload.gaps_and_actions.map((item) => (
+              <div key={item.keys.gap} className="border border-slate-300 rounded-lg p-3 break-inside-avoid">
                 <p className="font-mono text-[10px] text-slate-600">
-                  [{gap.keys.gap}] {keys(gap.keys.events)} {keys(gap.keys.findings)} {keys(gap.keys.evidence)}
+                  {item.keys.gap}
+                  {item.keys.findings.length > 0 && ` · ${t.findings} ${keys(item.keys.findings)}`}
+                  {item.keys.events.length > 0 && ` · ${t.timeline} ${keys(item.keys.events)}`}
                 </p>
-                <p className="font-semibold mt-1">{gap.unknown}</p>
-                {gap.actions.map((action) => (
-                  <div key={action.id} className="mt-2 bg-slate-50 rounded p-2">
-                    <p className="font-mono text-[10px] text-slate-600">[{action.id}] {keys(action.related_event_ids)} {keys(action.finding_ids)} {keys(action.evidence_ids)}</p>
-                    <p><strong>{action.title}</strong></p>
-                    <p>{action.description}</p>
+                <h3 className="font-bold text-sm mt-1">{item.unknown}</h3>
+                {item.actions.map((action) => (
+                  <div key={action.id} className="mt-2 pt-2 border-t border-slate-200 text-[11px]">
+                    <span className="font-mono">{action.id}:</span>{' '}
+                    <strong>{action.title}</strong> — {action.description}
                   </div>
                 ))}
               </div>

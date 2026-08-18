@@ -1,0 +1,9 @@
+{
+  "description": "Contested statement - user makes contradictory timeline claims",
+  "statement": "Tôi thanh toán ngày 10/05 lúc 8h sáng, nhưng tin nhắn ngân hàng báo trừ tiền lúc 22h đêm ngày 12/05 và bên bán nói chưa nhận được.",
+  "expected": {
+    "must_have_event": true,
+    "must_have_gap": true,
+    "gap_relevance_keywords": ["thanh toán", "ngân hàng", "ngày", "xác nhận", "payment", "bank"]
+  }
+}

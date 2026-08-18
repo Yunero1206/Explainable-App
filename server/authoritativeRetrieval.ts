@@ -21,6 +21,7 @@ import {
 import { INFERENCE_MODEL } from './inference/modelConfig.js';
 import { sanitizeGeminiResponseJsonSchema } from './inference/geminiJsonSchema.js';
 import { runGeminiStructuredInteraction } from './inference/geminiStructuredInteraction.js';
+import { cleanAndParseJson } from './inference/jsonUtils.js';
 
 const MAX_REQUESTS = 6;
 const MAX_RESULTS_PER_REQUEST = 5;
@@ -76,9 +77,6 @@ function geminiJsonSchema(schema: z.ZodType): unknown {
   return sanitizeGeminiResponseJsonSchema(z.toJSONSchema(schema, { io: 'input' }));
 }
 
-function cleanJson(text: string): unknown {
-  return JSON.parse(text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim());
-}
 
 export function isSafePublicSearchQuery(value: string): boolean {
   const query = value.trim();
@@ -393,7 +391,7 @@ export const runAuthoritativeRetrieval: AuthoritativeRetriever = async (input) =
       responseJsonSchema: geminiJsonSchema(RetrievalPlanSchema),
       stage: 'retrieval_planning',
     });
-    requests = RetrievalPlanSchema.parse(cleanJson(planText)).requests;
+    requests = RetrievalPlanSchema.parse(cleanAndParseJson(planText)).requests;
   } catch (error: unknown) {
     return {
       ...emptyRetrievalResult('provider_error'),

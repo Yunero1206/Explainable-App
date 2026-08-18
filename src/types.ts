@@ -159,6 +159,29 @@ export interface AttachmentFile {
   extractedText?: string;
 }
 
+export interface StructuredReasoningStep {
+  id: string;
+  kind: 'fact' | 'public_rule' | 'assumption' | 'derivation' | 'scenario' | 'conclusion';
+  kindLabel: string;
+  text: string;
+  depends_on: string[];
+  source_ids: string[];
+  claim_ids: string[];
+  gap_ids: string[];
+}
+
+export interface StructuredRevisionMessage {
+  assistant_message: string;
+  summary?: string;
+  goal?: string;
+  reasoning_steps?: StructuredReasoningStep[];
+  delta_summary?: {
+    event_ids: string[];
+    evidence_ids: string[];
+    statement_ids: string[];
+  };
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -169,6 +192,11 @@ export interface ChatMessage {
   source_ids?: string[];
   isAnalyzing?: boolean;
   error?: string;
+  structured?: StructuredRevisionMessage;
+  retryPayload?: {
+    text: string;
+    attachments: AttachmentFile[];
+  };
 }
 
 export interface PresentationCaseData {

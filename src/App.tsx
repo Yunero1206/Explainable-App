@@ -5,6 +5,7 @@ import {
   parseCaseId,
   parseCaseNumber,
   parseCaseTitle,
+  parseLedgerV3,
   parseStructuralInstant,
 } from './ledger/schema.js';
 import type { LedgerV3Case } from './ledger/types.js';
@@ -59,6 +60,12 @@ export default function App() {
   const [isLeftMobileOpen, setIsLeftMobileOpen] = useState(false);
   const [isRightMobileOpen, setIsRightMobileOpen] = useState(false);
   const [runMode, setRunMode] = useState<ModelRunMode>('analysis_only');
+  const [focusSection, setFocusSection] = useState<string | null>(null);
+
+  const handleOpenSection = (section: string) => {
+    setFocusSection(section);
+    setIsRightMobileOpen(true);
+  };
 
   React.useEffect(() => {
     let cancelled = false;
@@ -223,8 +230,49 @@ export default function App() {
     }
   };
 
+  const handleImportCase = async (jsonContent: string) => {
+    try {
+      const parsed: unknown = JSON.parse(jsonContent);
+      let candidate: unknown = parsed;
+      if (typeof parsed === 'object' && parsed !== null) {
+        if ('authoritative_record' in parsed) {
+          candidate = (parsed as { authoritative_record: unknown }).authoritative_record;
+        } else if ('ledger' in parsed) {
+          candidate = (parsed as { ledger: unknown }).ledger;
+        }
+      }
+      const ledger = parseLedgerV3(candidate);
+      const metadata = defaultMetadata(ledger);
+      await initializeCase({ ledger, metadata });
+      setLedgers((current) => [ledger, ...current.filter((item) => item.id !== ledger.id)]);
+      setMetadataByCaseId((current) => ({ ...current, [ledger.id]: metadata }));
+      setCurrentCaseId(ledger.id);
+    } catch (error) {
+      console.error('Import case error:', error);
+      alert(t.importCaseError || 'Failed to import case JSON.');
+    }
+  };
+
   const handleSendMessage = async (text: string, attachments: AttachmentFile[]) => {
-    if (currentLedger === null) return;
+    if (currentLedger === null || isAnalyzing) return;
+
+    const totalAttachmentBytes = attachments.reduce((sum, att) => sum + (att.size ?? (att.dataUrl.length * 0.75)), 0);
+    if (totalAttachmentBytes > 12 * 1024 * 1024) {
+      const caseId = currentLedger.id;
+      const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      setAttemptMessages((items) => ({
+        ...items,
+        [caseId]: [{
+          id: `attempt-error-size-${crypto.randomUUID()}`,
+          role: 'assistant',
+          text: '',
+          timestamp,
+          error: 'Total attachment size exceeds the 12MB client limit. Please compress or remove some files.',
+        }],
+      }));
+      return;
+    }
+
     const caseId = currentLedger.id;
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const submittedMessage: ChatMessage = {
@@ -236,6 +284,9 @@ export default function App() {
     };
     setAttemptMessages((items) => ({ ...items, [caseId]: [submittedMessage] }));
     setIsAnalyzing(true);
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 45_000);
 
     try {
       const response = await fetch('/api/intake', {
@@ -249,6 +300,7 @@ export default function App() {
           inference_mode: 'live',
           run_mode: runMode,
         }),
+        signal: controller.signal,
       });
       const raw: unknown = await response.json();
       if (typeof raw !== 'object' || raw === null || !('run' in raw)) {
@@ -267,6 +319,7 @@ export default function App() {
             text: '',
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             error: `${result.error.message} The accepted record was preserved.`,
+            retryPayload: { text, attachments },
           }],
         }));
         return;
@@ -288,7 +341,12 @@ export default function App() {
       setBlobs((items) => [...items.filter((blob) => !acceptedBlobs.some((next) => next.blob_ref === blob.blob_ref)), ...acceptedBlobs]);
       setAttemptMessages((items) => ({ ...items, [caseId]: [] }));
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'The intake could not be committed.';
+      const isAbort = error instanceof Error && error.name === 'AbortError';
+      const message = isAbort
+        ? 'The intake request timed out after 45s.'
+        : error instanceof Error
+          ? error.message
+          : 'The intake could not be committed.';
       setAttemptMessages((items) => ({
         ...items,
         [caseId]: [submittedMessage, {
@@ -297,9 +355,11 @@ export default function App() {
           text: '',
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           error: `${message} The accepted record was preserved.`,
+          retryPayload: { text, attachments },
         }],
       }));
     } finally {
+      window.clearTimeout(timeoutId);
       setIsAnalyzing(false);
     }
   };
@@ -333,6 +393,7 @@ export default function App() {
             onRenameCase={(id, number, title) => void handleRenameCase(id, number, title)}
             onArchiveCase={(id) => void handleArchiveCase(id)}
             onDeleteCase={(id) => void handleDeleteCase(id)}
+            onImportCase={(json) => handleImportCase(json)}
             isMobileOpen={isLeftMobileOpen}
             onCloseMobile={() => setIsLeftMobileOpen(false)}
             testModeNode={(
@@ -350,6 +411,8 @@ export default function App() {
               onLoadSample={() => void handleLoadSample()}
               runMode={runMode}
               onRunModeChange={setRunMode}
+              onRetryMessage={(text, attachments) => void handleSendMessage(text, attachments)}
+              onOpenSection={handleOpenSection}
             />
           </main>
 
@@ -360,6 +423,7 @@ export default function App() {
             onExportJson={() => setIsExportOpen(true)}
             isMobileOpen={isRightMobileOpen}
             onCloseMobile={() => setIsRightMobileOpen(false)}
+            focusSection={focusSection}
           />
         </ErrorBoundary>
       </div>
