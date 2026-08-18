@@ -4,6 +4,8 @@ import path from 'node:path';
 import { createApp } from './server/app.js';
 import { createIntakeService } from './server/intakeService.js';
 
+import { INFERENCE_MODEL } from './server/inference/modelConfig.js';
+
 async function start() {
   const port = Number.parseInt(process.env.PORT ?? '3000', 10);
   const root = process.cwd();
@@ -21,7 +23,7 @@ async function start() {
 
   const server = app.listen(port, () => {
     console.log(`Explainable Trust listening on http://localhost:${port}`);
-    console.log('Intake runs Live automatically with gemini-3.6-flash; GEMINI_API_KEY stays server-side.');
+    console.log(`Intake runs Live automatically with ${INFERENCE_MODEL.modelId}; GEMINI_API_KEY stays server-side.`);
   });
 
   function shutdown() {

@@ -7,9 +7,9 @@ import type { ClaimId, SourceId, EventId, GapId, ActionId, StatementId, Evidence
 
 describe('Proposal Schema and Model Config', () => {
   describe('Exact model configuration', () => {
-    it('exports the exact model configuration', () => {
-      expect(INFERENCE_MODEL.provider).toBe('google-gemini');
-      expect(INFERENCE_MODEL.modelId).toBe('gemini-3.6-flash');
+    it('specifies the generative inference provider and model', () => {
+      expect(INFERENCE_MODEL.provider).toBe('gemini');
+      expect(INFERENCE_MODEL.modelId).toBe('gemini-3.5-flash-lite');
       expect(INFERENCE_MODEL.promptVersion).toBe('explainable-trust-analysis-v4');
     });
   });

@@ -79,7 +79,7 @@ export const DomainTimeTextSchema = z
   .refine((v) => v.trim().length > 0, { message: 'Cannot be blank' })
   .transform((v) => v as T.DomainTimeText);
 
-const SEMANTIC_SENTINELS = new Set(['unknown', 'tbd', 'n/a']);
+export const SEMANTIC_SENTINELS = new Set(['unknown', 'tbd', 'n/a', 'none', 'null', 'nil', 'undefined']);
 export const SemanticTextSchema = z
   .string()
   .refine(

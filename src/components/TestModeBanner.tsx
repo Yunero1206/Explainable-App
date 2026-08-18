@@ -32,7 +32,7 @@ export function ModelRunsSummary({
       <div className="space-y-1 text-[10px] leading-snug">
         <div className={selectedMode === 'analysis_only' ? 'text-slate-900 font-semibold' : 'text-slate-500'}>
           {selectedMode === 'analysis_only' ? '● ' : '○ '}Analysis only
-          <div className="pl-3 font-mono font-normal text-slate-500">gemini-3.6-flash</div>
+          <div className="pl-3 font-mono font-normal text-slate-500">{latestRun?.model_id ?? 'gemini-3.5-flash-lite'}</div>
         </div>
         <div className={selectedMode === 'web_assisted' ? 'text-slate-900 font-semibold' : 'text-slate-500'}>
           {selectedMode === 'web_assisted' ? '● ' : '○ '}Web-assisted

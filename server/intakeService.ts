@@ -353,7 +353,13 @@ export function createIntakeService(dependencies: IntakeServiceDependencies = {}
 
     const baseWithRaw = { ...runBase, provider: result.provider, raw_response_text: result.raw_response_text };
     try {
-      const providerOutput = decodeProviderGenerationProposal(cleanAndParseJson(result.raw_response_text));
+      const availableSourceIds = new Set<string>([
+        ...parent.statements.map((item) => item.id as string),
+        ...parent.evidence.map((item) => item.id as string),
+        ...prepared.statements.map((item) => item.id as string),
+        ...prepared.evidence.map((item) => item.id as string),
+      ]);
+      const providerOutput = decodeProviderGenerationProposal(cleanAndParseJson(result.raw_response_text), availableSourceIds);
       const parsedProposal = parseProviderProposal(providerOutput, validationContext(parent, prepared));
       const languageWarning = assertProposalPreservesSourceLanguage({
         sourceTexts: [
@@ -386,6 +392,7 @@ export function createIntakeService(dependencies: IntakeServiceDependencies = {}
       return { success: true, ledger, run };
     } catch (error: unknown) {
       const messageText = error instanceof Error ? error.message : 'Proposal validation failed.';
+      console.error('[INTAKE_VALIDATION_ERROR]:', messageText, '\n[RAW_GEMINI_OUTPUT]:', result.raw_response_text);
       const run = rejectedRun({
         base: baseWithRaw,
         finishedAt: StructuralInstantSchema.parse(now().toISOString()),

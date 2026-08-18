@@ -61,10 +61,19 @@ export default function App() {
   const [isRightMobileOpen, setIsRightMobileOpen] = useState(false);
   const [runMode, setRunMode] = useState<ModelRunMode>('analysis_only');
   const [focusSection, setFocusSection] = useState<string | null>(null);
+  const activeAbortControllerRef = React.useRef<AbortController | null>(null);
 
   const handleOpenSection = (section: string) => {
     setFocusSection(section);
     setIsRightMobileOpen(true);
+  };
+
+  const handleStopAnalysis = () => {
+    if (activeAbortControllerRef.current) {
+      activeAbortControllerRef.current.abort('User stopped analysis');
+      activeAbortControllerRef.current = null;
+    }
+    setIsAnalyzing(false);
   };
 
   React.useEffect(() => {
@@ -286,7 +295,8 @@ export default function App() {
     setIsAnalyzing(true);
 
     const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), 45_000);
+    activeAbortControllerRef.current = controller;
+    const timeoutId = window.setTimeout(() => controller.abort('Safety timeout'), 300_000);
 
     try {
       const response = await fetch('/api/intake', {
@@ -343,7 +353,7 @@ export default function App() {
     } catch (error: unknown) {
       const isAbort = error instanceof Error && error.name === 'AbortError';
       const message = isAbort
-        ? 'The intake request timed out after 45s.'
+        ? (t.analysisStoppedByUser || 'Quá trình phân tích đã dừng lại theo yêu cầu của bạn. Bản ghi trước đó được giữ nguyên.')
         : error instanceof Error
           ? error.message
           : 'The intake could not be committed.';
@@ -354,12 +364,13 @@ export default function App() {
           role: 'assistant',
           text: '',
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          error: `${message} The accepted record was preserved.`,
+          error: `${message} ${isAbort ? '' : 'The accepted record was preserved.'}`.trim(),
           retryPayload: { text, attachments },
         }],
       }));
     } finally {
       window.clearTimeout(timeoutId);
+      activeAbortControllerRef.current = null;
       setIsAnalyzing(false);
     }
   };
@@ -396,9 +407,8 @@ export default function App() {
             onImportCase={(json) => handleImportCase(json)}
             isMobileOpen={isLeftMobileOpen}
             onCloseMobile={() => setIsLeftMobileOpen(false)}
-            testModeNode={(
-              <ModelRunsSummary selectedMode={runMode} latestRun={latestCurrentRun} />
-            )}
+            runMode={runMode}
+            onRunModeChange={setRunMode}
           />
 
           <main className="flex-1 flex flex-col h-full bg-[#F8FAFC] relative overflow-hidden min-w-0">
@@ -413,6 +423,7 @@ export default function App() {
               onRunModeChange={setRunMode}
               onRetryMessage={(text, attachments) => void handleSendMessage(text, attachments)}
               onOpenSection={handleOpenSection}
+              onStopAnalysis={handleStopAnalysis}
             />
           </main>
 

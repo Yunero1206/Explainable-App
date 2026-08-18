@@ -29,7 +29,7 @@ describe('Stress & Resilience Test Suite (Zero Flow Stoppage)', () => {
       const result = await runGeminiStructuredInteraction(
         { interactions: { create } } as never,
         {
-          model: 'gemini-3.6-flash',
+          model: 'gemini-3.5-flash-lite',
           systemInstruction: 'System rule',
           parts: [{ text: 'Case message' }],
           responseJsonSchema: { type: 'object' },
@@ -51,7 +51,7 @@ describe('Stress & Resilience Test Suite (Zero Flow Stoppage)', () => {
         runGeminiStructuredInteraction(
           { interactions: { create } } as never,
           {
-            model: 'gemini-3.6-flash',
+            model: 'gemini-3.5-flash-lite',
             systemInstruction: 'System rule',
             parts: [{ text: 'Case message' }],
             responseJsonSchema: { type: 'object' },

@@ -11,8 +11,10 @@ import {
   Globe,
   PanelLeftClose,
   PanelLeftOpen,
+  FileText,
 } from 'lucide-react';
 import type { PresentationCaseData } from '../types.js';
+import type { ModelRunMode } from '../runtime/modelRun.js';
 import { useLanguage } from '../contexts/LanguageContext';
 import { LOCALES, type Locale } from '../lib/translations';
 
@@ -27,7 +29,8 @@ interface LeftSidebarProps {
   onImportCase?: (jsonContent: string) => Promise<void>;
   isMobileOpen?: boolean;
   onCloseMobile?: () => void;
-  testModeNode?: React.ReactNode;
+  runMode?: ModelRunMode;
+  onRunModeChange?: (mode: ModelRunMode) => void;
 }
 
 export const LeftSidebar: React.FC<LeftSidebarProps> = ({
@@ -41,7 +44,8 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   onImportCase,
   isMobileOpen = false,
   onCloseMobile,
-  testModeNode,
+  runMode = 'analysis_only',
+  onRunModeChange,
 }) => {
   const { locale, setLocale, t } = useLanguage();
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -341,17 +345,63 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
         )}
       </div>
 
-      {/* Footer: Model and interface-language controls */}
-      <div className="border-t border-slate-200 p-2 space-y-2 shrink-0 bg-slate-50/50">
-        {testModeNode && !isCollapsed && (
-          <div>
-            {testModeNode}
+      {/* Footer: Compact Analysis Mode & Language Selector */}
+      <div className="border-t border-slate-200 p-2.5 space-y-2 shrink-0 bg-slate-50/50">
+        {!isCollapsed ? (
+          <div className="space-y-1.5 pb-0.5">
+            <div className="flex items-center justify-between px-1 text-slate-500">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                {locale === 'vi' ? 'Chế độ phân tích' : 'Analysis Mode'}
+              </span>
+              <span className="text-[9px] font-mono text-indigo-600 font-semibold">Gemini 3.5 Flash Lite</span>
+            </div>
+            <div className="grid grid-cols-2 gap-1 p-0.5 bg-slate-200/80 rounded-lg" role="group" aria-label="Model run mode">
+              <button
+                type="button"
+                onClick={() => onRunModeChange?.('analysis_only')}
+                className={`flex items-center justify-center gap-1.5 py-1 px-2 rounded-md text-[11px] font-medium transition-all cursor-pointer ${
+                  runMode === 'analysis_only'
+                    ? 'bg-white text-slate-900 shadow-2xs font-bold'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+                title={locale === 'vi' ? 'Chỉ phân tích nội bộ từ tài liệu và lời khai' : 'Analysis only from uploaded files and statements'}
+              >
+                <FileText className="w-3 h-3 text-slate-600" />
+                <span>{locale === 'vi' ? 'Nội bộ' : 'Document'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onRunModeChange?.('web_assisted')}
+                className={`flex items-center justify-center gap-1.5 py-1 px-2 rounded-md text-[11px] font-medium transition-all cursor-pointer ${
+                  runMode === 'web_assisted'
+                    ? 'bg-white text-indigo-700 shadow-2xs font-bold'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+                title={locale === 'vi' ? 'Tra cứu web đối soát nguồn chính thống (Tavily)' : 'Web-assisted authoritative search'}
+              >
+                <Globe className="w-3 h-3 text-indigo-600" />
+                <span>{locale === 'vi' ? 'Tra cứu Web' : 'Web search'}</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex justify-center">
+            <button
+              type="button"
+              onClick={() => onRunModeChange?.(runMode === 'analysis_only' ? 'web_assisted' : 'analysis_only')}
+              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                runMode === 'web_assisted' ? 'text-indigo-600 bg-indigo-50 hover:bg-indigo-100' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200'
+              }`}
+              title={`Mode: ${runMode === 'web_assisted' ? 'Web-assisted' : 'Analysis only'}. Click to toggle.`}
+            >
+              {runMode === 'web_assisted' ? <Globe className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
+            </button>
           </div>
         )}
 
         {/* Language Selector */}
         {!isCollapsed ? (
-          <div className="flex items-center justify-between px-1 text-slate-600">
+          <div className="flex items-center justify-between px-1 text-slate-600 pt-1 border-t border-slate-200/60">
             <div className="flex items-center gap-1.5 text-slate-500">
               <Globe className="w-3.5 h-3.5" />
               <span className="text-[10px] font-semibold tracking-wider uppercase">Language</span>
@@ -376,7 +426,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 const nextIdx = (LOCALES.findIndex((l) => l.code === locale) + 1) % LOCALES.length;
                 setLocale(LOCALES[nextIdx].code);
               }}
-              className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-200 rounded text-[10px] font-mono font-bold uppercase"
+              className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-200 rounded text-[10px] font-mono font-bold uppercase cursor-pointer"
               title={`Current language: ${locale}. Click to cycle.`}
             >
               {locale}

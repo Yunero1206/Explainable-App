@@ -39,6 +39,9 @@ export function createApp(dependencies: AppDependencies) {
           : 'analysis_only',
       };
       const result = await dependencies.runIntake(payload);
+      if (response.writableEnded) {
+        return;
+      }
       return response.status(result.success ? 200 : result.run.status === 'provider_error' ? 502 : 422).json(result);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Invalid intake request.';

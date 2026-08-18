@@ -13,13 +13,32 @@ import {
   PrioritySchema,
   AssessmentStateSchema,
   EvidenceMatchStatusSchema,
+  SEMANTIC_SENTINELS,
 } from '../ledger/schema';
 
 // Local references for new entities by family
-export const EventLocalRefSchema = z.string().regex(/^new_event_[1-9][0-9]*$/).transform(v => v as P.EventLocalRef);
-export const ClaimLocalRefSchema = z.string().regex(/^new_claim_[1-9][0-9]*$/).transform(v => v as P.ClaimLocalRef);
-export const GapLocalRefSchema = z.string().regex(/^new_gap_[1-9][0-9]*$/).transform(v => v as P.GapLocalRef);
-export const ActionLocalRefSchema = z.string().regex(/^new_action_[1-9][0-9]*$/).transform(v => v as P.ActionLocalRef);
+export const EventLocalRefSchema = z.string().regex(/^new_event_0*([1-9][0-9]*)$/).transform(v => {
+  const match = v.match(/^new_event_0*([1-9][0-9]*)$/);
+  return (match ? `new_event_${match[1]}` : v) as P.EventLocalRef;
+});
+export const ClaimLocalRefSchema = z.string().regex(/^new_claim_0*([1-9][0-9]*)$/).transform(v => {
+  const match = v.match(/^new_claim_0*([1-9][0-9]*)$/);
+  return (match ? `new_claim_${match[1]}` : v) as P.ClaimLocalRef;
+});
+export const GapLocalRefSchema = z.string().regex(/^new_gap_0*([1-9][0-9]*)$/).transform(v => {
+  const match = v.match(/^new_gap_0*([1-9][0-9]*)$/);
+  return (match ? `new_gap_${match[1]}` : v) as P.GapLocalRef;
+});
+export const ActionLocalRefSchema = z.string().regex(/^new_action_0*([1-9][0-9]*)$/).transform(v => {
+  const match = v.match(/^new_action_0*([1-9][0-9]*)$/);
+  return (match ? `new_action_${match[1]}` : v) as P.ActionLocalRef;
+});
+
+const LimitsArraySchema = z.array(z.string()).transform((arr) => {
+  return arr
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0 && !SEMANTIC_SENTINELS.has(s.toLowerCase()));
+}).pipe(z.array(SemanticTextSchema).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items'));
 
 const SourceIdSchema = z.union([StatementIdSchema, EvidenceIdSchema]);
 
@@ -162,7 +181,7 @@ const AddClaimOperationSchema = z.object({
   assessment: AssessmentStateSchema,
   reasoning: SemanticTextSchema,
   scope: SemanticTextSchema,
-  limits: z.array(SemanticTextSchema).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items'),
+  limits: LimitsArraySchema,
   source_basis_ids: z.array(SourceIdSchema).min(1).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items'),
   reason: SemanticTextSchema,
 }).strict();
@@ -178,7 +197,7 @@ const UpdateClaimOperationSchema = z.object({
   assessment: AssessmentStateSchema.optional(),
   reasoning: SemanticTextSchema.optional(),
   scope: SemanticTextSchema.optional(),
-  limits: z.array(SemanticTextSchema).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items').optional(),
+  limits: LimitsArraySchema.optional(),
   source_basis_ids: z.array(SourceIdSchema).min(1).refine((arr) => new Set(arr).size === arr.length, 'Duplicate items'),
   reason: SemanticTextSchema,
 }).strict().superRefine((val, ctx) => {
@@ -371,6 +390,11 @@ function structuralValidationMessage(raw: unknown, error: z.ZodError): string {
           );
           if (unknownFields.length > 0) {
             return `Proposal structural validation failed at operations[${operationIndex}]: operation_type=${compactJsonValue(record.operation_type)} contains unknown fields: ${[...new Set(unknownFields)].join(', ')}.`;
+          }
+          const specificIssue = branchResult.error.issues[0];
+          if (specificIssue) {
+            const fieldPath = specificIssue.path.length > 0 ? specificIssue.path.join('.') : 'operation';
+            return `Proposal structural validation failed at operations[${operationIndex}]: operation_type=${compactJsonValue(record.operation_type)} has invalid ${fieldPath} (${specificIssue.message}).`;
           }
         }
       }

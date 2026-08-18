@@ -203,6 +203,8 @@ export const translations = {
     evidenceInventory: 'Evidence Inventory',
     allFindings: 'Claims & Findings',
     filterAll: 'All',
+    stopGeneration: 'Stop',
+    analysisStoppedByUser: 'Analysis was stopped at your request. The previous accepted record was preserved.',
   },
   vi: {
     newCase: 'Vụ việc mới',
@@ -390,6 +392,8 @@ export const translations = {
     evidenceInventory: 'Kho bằng chứng',
     allFindings: 'Tuyên bố & Phát hiện',
     filterAll: 'Tất cả',
+    stopGeneration: 'Dừng',
+    analysisStoppedByUser: 'Quá trình phân tích đã dừng lại theo yêu cầu của bạn. Bản ghi trước đó được giữ nguyên.',
   },
   es: {
     newCase: 'Nuevo Caso',
@@ -577,6 +581,8 @@ export const translations = {
     evidenceInventory: 'Inventario de Evidencias',
     allFindings: 'Reclamos y Hallazgos',
     filterAll: 'Todo',
+    stopGeneration: 'Detener',
+    analysisStoppedByUser: 'El análisis se detuvo a petición suya. El registro aceptado anterior se conservó.',
   },
   fr: {
     newCase: 'Nouveau Dossier',
@@ -764,6 +770,8 @@ export const translations = {
     evidenceInventory: 'Inventaire des Preuves',
     allFindings: 'Déclarations et Conclusions',
     filterAll: 'Tous',
+    stopGeneration: 'Arrêter',
+    analysisStoppedByUser: 'L\'analyse a été interrompue à votre demande. Le dossier accepté précédent a été conservé.',
   },
   'zh-CN': {
     newCase: '新案件',
@@ -951,6 +959,8 @@ export const translations = {
     evidenceInventory: '证据清单',
     allFindings: '主张与发现',
     filterAll: '全部',
+    stopGeneration: '停止',
+    analysisStoppedByUser: '分析已按您的要求停止。先前接受的记录已保留。',
   },
   ja: {
     newCase: '新規案件',
@@ -1136,8 +1146,10 @@ export const translations = {
     maxLimit: '最大',
     fileSizeExceeded: '添付ファイルの合計サイズが 12MB の制限を超えています。',
     evidenceInventory: '証拠インベントリ',
-    allFindings: '主張と判定',
+    allFindings: '主張と評価結果',
     filterAll: 'すべて',
+    stopGeneration: '停止',
+    analysisStoppedByUser: '分析はリクエストにより停止されました。以前に承認された記録は保持されました。',
   },
 };
 

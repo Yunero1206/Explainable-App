@@ -5,7 +5,7 @@ describe('Gemini structured interaction adapter', () => {
   it('uses the Interactions API structured-output contract for text and files', async () => {
     const create = vi.fn().mockResolvedValue({ output_text: '{"ok":true}' });
     const result = await runGeminiStructuredInteraction({ interactions: { create } } as never, {
-      model: 'gemini-3.6-flash',
+      model: 'gemini-3.5-flash-lite',
       systemInstruction: 'System rule',
       parts: [
         { text: 'Case text' },
@@ -18,7 +18,7 @@ describe('Gemini structured interaction adapter', () => {
 
     expect(result).toBe('{"ok":true}');
     expect(create).toHaveBeenCalledWith({
-      model: 'gemini-3.6-flash',
+      model: 'gemini-3.5-flash-lite',
       input: [
         { type: 'text', text: 'Case text' },
         { type: 'document', data: 'cGRm', mime_type: 'application/pdf' },
@@ -37,7 +37,7 @@ describe('Gemini structured interaction adapter', () => {
   it('identifies the failed provider stage without exposing request data', async () => {
     const create = vi.fn().mockRejectedValue(new Error('Request contains an invalid argument.'));
     await expect(runGeminiStructuredInteraction({ interactions: { create } } as never, {
-      model: 'gemini-3.6-flash',
+      model: 'gemini-3.5-flash-lite',
       systemInstruction: 'System rule',
       parts: [{ text: 'Private case content' }],
       responseJsonSchema: { type: 'object' },

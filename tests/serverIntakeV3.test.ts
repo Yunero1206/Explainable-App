@@ -46,7 +46,7 @@ describe('Ledger V3 intake boundary', () => {
     expect(result.run).toMatchObject({
       status: 'accepted',
       provider: 'deterministic-replay',
-      model_id: 'gemini-3.6-flash',
+      model_id: 'gemini-3.5-flash-lite',
       committed_revision_id: 'R01',
     });
   });

@@ -2,6 +2,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { CaseIntakeChat } from '../src/components/CaseIntakeChat';
+import { LeftSidebar } from '../src/components/LeftSidebar';
 import { RightCaseRecord } from '../src/components/RightCaseRecord';
 import { ModelRunsSummary } from '../src/components/TestModeBanner';
 import { LanguageProvider } from '../src/contexts/LanguageContext';
@@ -72,6 +73,20 @@ describe('case reference UI', () => {
         focusedReference: { kind: 'statement', id: 'U01' },
       })
     ));
+    const sidebarMarkup = renderToStaticMarkup(React.createElement(
+      LanguageProvider,
+      null,
+      React.createElement(LeftSidebar, {
+        cases: [],
+        currentCaseId: null,
+        onSelectCase: () => undefined,
+        onNewCase: () => undefined,
+        onRenameCase: () => undefined,
+        onArchiveCase: () => undefined,
+        onDeleteCase: () => undefined,
+        runMode: 'web_assisted',
+      })
+    ));
     const modelMarkup = renderToStaticMarkup(React.createElement(ModelRunsSummary));
     const traceMarkup = renderToStaticMarkup(React.createElement(ModelRunsSummary, {
       selectedMode: 'web_assisted',
@@ -95,11 +110,11 @@ describe('case reference UI', () => {
 
     expect(chatMarkup).toContain('data-case-key="U01"');
     expect(modelMarkup).toContain('Model Runs');
-    expect(modelMarkup).toContain('gemini-3.6-flash');
+    expect(modelMarkup).toContain('gemini-3.5-flash-lite');
     expect(modelMarkup).toContain('Analysis only');
     expect(modelMarkup).toContain('Web-assisted');
     expect(modelMarkup).toContain('Gemini + Tavily Search');
-    expect(chatMarkup).toContain('aria-label="Model run mode"');
+    expect(sidebarMarkup).toContain('aria-label="Model run mode"');
     expect(traceMarkup).toContain('Retrieval trace');
     expect(traceMarkup).toContain('PNJ public buyback policy');
     expect(traceMarkup).toContain('Rejected: 1');

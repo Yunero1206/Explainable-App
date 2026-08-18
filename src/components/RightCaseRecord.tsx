@@ -168,6 +168,16 @@ export const RightCaseRecord: React.FC<RightCaseRecordProps> = ({
     );
   }, [caseData.gaps, query]);
 
+  const allActions = useMemo(() => {
+    return caseData.gaps.flatMap((gap) =>
+      gap.actions.map((action) => ({
+        ...action,
+        gapId: gap.id,
+        gapUnknown: gap.what_is_unknown,
+      }))
+    );
+  }, [caseData.gaps]);
+
   const assessmentBadge = (assessment: AssessmentState) => {
     const text = translateAssessment(assessment, locale);
     switch (assessment) {
@@ -206,110 +216,47 @@ export const RightCaseRecord: React.FC<RightCaseRecordProps> = ({
 
   const renderContent = () => (
     <div className="h-full flex flex-col bg-white text-slate-800 text-xs border-l border-slate-200 select-none overflow-hidden">
-      {/* Header with Case Title & Navigation */}
-      <div className="bg-white border-b border-slate-200 px-3 pt-2.5 pb-2 flex flex-col gap-2 shrink-0">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-            {/* Storyline Mode Button */}
-            <button
-              type="button"
-              onClick={() => setActiveTab('storyline')}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors shrink-0 cursor-pointer ${
-                activeTab === 'storyline'
-                  ? 'bg-indigo-600 text-white font-bold shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>{t.storylineView || 'Dòng thời gian'}</span>
-            </button>
-
-            {/* Graph DAG Mode Button */}
-            <button
-              type="button"
-              onClick={() => setActiveTab('graph')}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors shrink-0 cursor-pointer ${
-                activeTab === 'graph'
-                  ? 'bg-indigo-600 text-white font-bold shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              <GitFork className="w-3.5 h-3.5" />
-              <span>{t.graph || 'Đồ thị DAG'}</span>
-            </button>
-
-            {/* Categorized Tab Buttons */}
-            <button
-              type="button"
-              onClick={() => setActiveTab('record')}
-              className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-colors shrink-0 cursor-pointer ${
-                activeTab === 'record'
-                  ? 'bg-indigo-50 text-indigo-700 font-bold'
-                  : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-              }`}
-            >
-              {t.timeline} ({caseData.events.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('findings')}
-              className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-colors shrink-0 cursor-pointer ${
-                activeTab === 'findings'
-                  ? 'bg-indigo-50 text-indigo-700 font-bold'
-                  : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-              }`}
-            >
-              {t.findings} ({caseData.claims.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('evidence')}
-              className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-colors shrink-0 cursor-pointer ${
-                activeTab === 'evidence'
-                  ? 'bg-indigo-50 text-indigo-700 font-bold'
-                  : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-              }`}
-            >
-              {t.evidence} ({caseData.evidence.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('gaps')}
-              className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-colors shrink-0 cursor-pointer ${
-                activeTab === 'gaps'
-                  ? 'bg-indigo-50 text-indigo-700 font-bold'
-                  : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-              }`}
-            >
-              {t.gaps} ({caseData.gaps.length})
-            </button>
-          </div>
-
-          {onExportJson && (
-            <button
-              type="button"
-              onClick={onExportJson}
-              className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer shrink-0"
-              title={t.exportCase}
-            >
-              <Download className="w-4 h-4" />
-            </button>
-          )}
+      {/* Top Header: Dual-Mode Workspace Switcher & Export */}
+      <div className="bg-white border-b border-slate-200 px-3 pt-2.5 pb-2.5 flex items-center justify-between gap-2 shrink-0">
+        {/* Primary Dual-Mode Switcher */}
+        <div className="flex items-center p-0.5 bg-slate-100 rounded-xl border border-slate-200/70">
+          <button
+            type="button"
+            onClick={() => {
+              if (activeTab === 'graph') setActiveTab('storyline');
+            }}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+              activeTab !== 'graph'
+                ? 'bg-white text-slate-900 shadow-2xs font-bold'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+            <span>{locale === 'vi' ? 'Hồ sơ & Diễn biến' : (t.storylineView || 'Case & Timeline')}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('graph')}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+              activeTab === 'graph'
+                ? 'bg-white text-indigo-700 shadow-2xs font-bold'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <GitFork className="w-3.5 h-3.5 text-indigo-600" />
+            <span>{t.graph || 'Đồ thị DAG'}</span>
+          </button>
         </div>
 
-        {/* User Goal Focus Banner in Storyline Mode */}
-        {caseData.objective && (
-          <div className="flex items-start gap-2 bg-gradient-to-r from-indigo-50/80 to-sky-50/80 border border-indigo-100/80 rounded-lg p-2 text-slate-700">
-            <Target className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
-            <div className="flex-1 min-w-0">
-              <span className="text-[10px] uppercase font-bold text-indigo-900 tracking-wider block">
-                {t.userGoal}:
-              </span>
-              <p className="text-xs font-medium text-slate-900 leading-snug line-clamp-2">
-                {caseData.objective}
-              </p>
-            </div>
-          </div>
+        {onExportJson && (
+          <button
+            type="button"
+            onClick={onExportJson}
+            className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer shrink-0"
+            title={t.exportCase}
+          >
+            <Download className="w-4 h-4" />
+          </button>
         )}
       </div>
 
@@ -333,16 +280,17 @@ export const RightCaseRecord: React.FC<RightCaseRecordProps> = ({
         </div>
       ) : (
         <>
-          {/* Quick Search Bar */}
-          <div className="px-3 py-2 bg-slate-50/70 border-b border-slate-200 shrink-0">
+          {/* Quick Search & Smart Entity Filter Pills */}
+          <div className="px-3 py-2.5 bg-slate-50/80 border-b border-slate-200 shrink-0 space-y-2">
+            {/* Search Input */}
             <div className="relative flex items-center">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 pointer-events-none" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={t.searchPlaceholder}
-                className="w-full pl-8 pr-7 py-1 text-xs bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
+                placeholder={locale === 'vi' ? 'Tìm sự kiện, bằng chứng, phát hiện, gaps...' : t.searchPlaceholder}
+                className="w-full pl-8 pr-7 py-1 text-xs bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-1 focus:ring-indigo-500 shadow-2xs"
               />
               {searchQuery && (
                 <button
@@ -354,196 +302,254 @@ export const RightCaseRecord: React.FC<RightCaseRecordProps> = ({
                 </button>
               )}
             </div>
+
+            {/* Smart Entity Filter Pills (Auto-wrapping palette to prevent scrollbar clipping) */}
+            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+              <button
+                type="button"
+                onClick={() => setActiveTab('storyline')}
+                className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-all cursor-pointer ${
+                  activeTab === 'storyline'
+                    ? 'bg-slate-900 text-white shadow-2xs font-bold'
+                    : 'bg-white text-slate-600 border border-slate-200/80 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                {locale === 'vi' ? 'Tất cả' : 'All'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('record')}
+                className={`inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold rounded-lg transition-all cursor-pointer ${
+                  activeTab === 'record'
+                    ? 'bg-indigo-600 text-white shadow-2xs font-bold'
+                    : 'bg-white text-slate-600 border border-slate-200/80 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <Clock className="w-3 h-3 text-slate-400" />
+                <span>{t.timeline} ({caseData.events.length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('findings')}
+                className={`inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold rounded-lg transition-all cursor-pointer ${
+                  activeTab === 'findings'
+                    ? 'bg-indigo-600 text-white shadow-2xs font-bold'
+                    : 'bg-white text-slate-600 border border-slate-200/80 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <ShieldCheck className="w-3 h-3 text-indigo-500" />
+                <span>{t.findings} ({caseData.claims.length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('evidence')}
+                className={`inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold rounded-lg transition-all cursor-pointer ${
+                  activeTab === 'evidence'
+                    ? 'bg-emerald-600 text-white shadow-2xs font-bold'
+                    : 'bg-white text-slate-600 border border-slate-200/80 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <FileText className="w-3 h-3 text-emerald-500" />
+                <span>{t.evidence} ({caseData.evidence.length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('gaps')}
+                className={`inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold rounded-lg transition-all cursor-pointer ${
+                  activeTab === 'gaps'
+                    ? 'bg-amber-600 text-white shadow-2xs font-bold'
+                    : 'bg-white text-slate-600 border border-slate-200/80 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <AlertTriangle className="w-3 h-3 text-amber-500" />
+                <span>{t.gaps} ({caseData.gaps.length})</span>
+              </button>
+            </div>
           </div>
 
           {/* Main Tab & Storyline Content */}
           <div className="flex-1 overflow-y-auto p-3 bg-slate-50/50 space-y-3">
-        {/* ALL-IN-ONE STORYLINE VIEW (Default for elderly & intuitive tracking) */}
+        {/* ALL-IN-ONE STORYLINE & EXECUTIVE OVERVIEW */}
         {activeTab === 'storyline' && (
-          filteredEvents.length === 0 ? (
-            <div className="p-8 text-center bg-white rounded-xl border border-slate-200 text-slate-400 text-xs">
-              <Clock className="w-8 h-8 mx-auto text-slate-300 mb-2" />
-              <p>{t.emptyTimeline}</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {filteredEvents.map((event, index) => {
-                const eventReference: CaseReference = { kind: 'event', id: event.id };
-                const linkedEvidence = caseData.evidence.filter((item) => event.evidence_ids.includes(item.id));
-                const linkedClaims = caseData.claims.filter((item) => event.finding_ids.includes(item.id));
-                const linkedGaps = caseData.gaps.filter(
-                  (gap) =>
-                    gap.related_event_ids.includes(event.id) ||
-                    gap.target_claim_ids.some((cid) => event.finding_ids.includes(cid))
-                );
+          <div className="space-y-3">
+            {/* Executive Case Goal & Quick Stats */}
+            {caseData.objective && (
+              <div className="bg-gradient-to-br from-indigo-50/90 via-sky-50/60 to-white border border-indigo-100 rounded-2xl p-3.5 space-y-2.5 shadow-2xs">
+                <div className="flex items-start gap-2">
+                  <div className="p-1.5 bg-indigo-600 text-white rounded-lg shrink-0 mt-0.5 shadow-2xs">
+                    <Target className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[10px] uppercase font-bold text-indigo-900 tracking-wider block">
+                      {t.userGoal}:
+                    </span>
+                    <p className="text-xs font-semibold text-slate-900 leading-snug">
+                      {caseData.objective}
+                    </p>
+                  </div>
+                </div>
 
-                return (
-                  <article
-                    key={event.id}
-                    data-case-reference={caseReferenceTarget(eventReference)}
-                    className={`relative p-3.5 bg-white rounded-2xl border border-slate-200/90 shadow-2xs space-y-3 transition-all ${
-                      isHighlighted('event', event.id) ? 'ring-2 ring-indigo-500 bg-indigo-50/40 shadow-sm' : 'hover:border-slate-300'
-                    }`}
+                {/* Quick Navigation Stats Chips */}
+                <div className="flex items-center gap-1.5 flex-wrap pt-2 border-t border-indigo-100/80 text-[10px]">
+                  <span
+                    onClick={() => setActiveTab('record')}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white text-slate-700 border border-slate-200 hover:border-indigo-400 font-medium cursor-pointer shadow-2xs transition-colors"
                   >
-                    {/* Event Step Number & Time Header */}
-                    <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-5 h-5 rounded-full bg-slate-900 text-white font-bold text-[10px] flex items-center justify-center">
-                          {index + 1}
-                        </span>
-                        <span className="font-mono text-xs font-semibold text-slate-700">
-                          {event.time && event.time !== 'Unknown' ? event.time : '—'}
-                        </span>
-                      </div>
-                      {assessmentBadge(event.assessment)}
-                    </div>
+                    <Clock className="w-3 h-3 text-slate-400" />
+                    <span>{t.timeline}: <strong className="text-slate-900 font-bold">{caseData.events.length}</strong></span>
+                  </span>
+                  <span
+                    onClick={() => setActiveTab('findings')}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white text-slate-700 border border-slate-200 hover:border-indigo-400 font-medium cursor-pointer shadow-2xs transition-colors"
+                  >
+                    <ShieldCheck className="w-3 h-3 text-indigo-500" />
+                    <span>{t.findings}: <strong className="text-indigo-600 font-bold">{caseData.claims.length}</strong></span>
+                  </span>
+                  <span
+                    onClick={() => setActiveTab('evidence')}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white text-slate-700 border border-slate-200 hover:border-emerald-400 font-medium cursor-pointer shadow-2xs transition-colors"
+                  >
+                    <FileText className="w-3 h-3 text-emerald-500" />
+                    <span>{t.evidence}: <strong className="text-emerald-600 font-bold">{caseData.evidence.length}</strong></span>
+                  </span>
+                  {caseData.gaps.length > 0 && (
+                    <span
+                      onClick={() => setActiveTab('gaps')}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-50 text-amber-900 border border-amber-200 hover:border-amber-400 font-medium cursor-pointer shadow-2xs transition-colors"
+                    >
+                      <AlertTriangle className="w-3 h-3 text-amber-600" />
+                      <span>{t.gaps}: <strong className="text-amber-800 font-bold">{caseData.gaps.length}</strong></span>
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
 
-                    {/* Main Story Narrative */}
-                    <div className="space-y-1">
-                      <p className="text-sm font-semibold text-slate-900 leading-snug">
-                        <span>{event.actor}</span> <span className="text-indigo-700 font-bold">{event.action}</span> <span>{event.target}</span>
-                      </p>
-                      {event.effect && (
-                        <p className="text-xs text-slate-600 bg-slate-50 p-2 rounded-xl border border-slate-100/80 leading-relaxed">
-                          {event.effect}
+            {/* Top Priority Actions from Gaps (Surfaced immediately so users don't need to scroll endlessly) */}
+            {allActions.length > 0 && (
+              <div className="bg-amber-50/80 border border-amber-200/90 rounded-2xl p-3 space-y-2 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-amber-950 flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                    {locale === 'vi' ? 'Hành động đề xuất cần làm' : 'Recommended Next Actions'} ({allActions.length})
+                  </span>
+                  <span
+                    onClick={() => setActiveTab('gaps')}
+                    className="text-[10px] text-amber-800 hover:text-amber-950 font-semibold underline cursor-pointer"
+                  >
+                    {locale === 'vi' ? 'Xem chi tiết Gaps' : 'All Gaps'} →
+                  </span>
+                </div>
+
+                <div className="space-y-1.5">
+                  {allActions.slice(0, 3).map((action) => (
+                    <div
+                      key={`${action.gapId}:${action.id}`}
+                      data-case-reference={caseReferenceTarget({ kind: 'action', id: action.id })}
+                      onClick={() => onSelectReference({ kind: 'action', id: action.id })}
+                      className={`p-2 rounded-xl bg-white border transition-all cursor-pointer flex items-start justify-between gap-2 shadow-2xs ${
+                        isHighlighted('action', action.id) ? 'border-amber-400 ring-2 ring-amber-400' : 'border-amber-200/80 hover:border-amber-300'
+                      }`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <CaseKeyButton reference={{ kind: 'action', id: action.id }} onSelect={onSelectReference} active={isActive({ kind: 'action', id: action.id })} />
+                          <span className="text-xs font-semibold text-slate-900 truncate">{action.title}</span>
+                        </div>
+                        {action.description && (
+                          <p className="text-[11px] text-slate-600 line-clamp-1 mt-0.5 pl-6">
+                            {action.description}
+                          </p>
+                        )}
+                      </div>
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                        action.priority === 'high' ? 'bg-red-50 text-red-700 border border-red-200' :
+                        action.priority === 'medium' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                        'bg-slate-100 text-slate-700 border border-slate-200'
+                      }`}>
+                        {translatePriority(action.priority, locale)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Clean, Scannable Chronological Event Stream */}
+            {filteredEvents.length === 0 ? (
+              <div className="p-8 text-center bg-white rounded-xl border border-slate-200 text-slate-400 text-xs">
+                <Clock className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                <p>{t.emptyTimeline}</p>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-700 px-1 pt-1">
+                  <span>{locale === 'vi' ? 'Dòng diễn biến sự việc' : 'Chronological Events'} ({filteredEvents.length})</span>
+                  <span
+                    onClick={() => setActiveTab('record')}
+                    className="text-[10px] text-indigo-600 hover:text-indigo-800 font-semibold cursor-pointer"
+                  >
+                    {locale === 'vi' ? 'Bảng sự kiện chi tiết' : 'Full Timeline'} →
+                  </span>
+                </div>
+
+                {filteredEvents.map((event, index) => {
+                  const eventReference: CaseReference = { kind: 'event', id: event.id };
+                  const linkedGaps = caseData.gaps.filter(
+                    (gap) =>
+                      gap.related_event_ids.includes(event.id) ||
+                      gap.target_claim_ids.some((cid) => event.finding_ids.includes(cid))
+                  );
+
+                  return (
+                    <article
+                      key={event.id}
+                      data-case-reference={caseReferenceTarget(eventReference)}
+                      className={`p-3 bg-white rounded-2xl border border-slate-200/90 shadow-2xs space-y-2 transition-all ${
+                        isHighlighted('event', event.id) ? 'ring-2 ring-indigo-500 bg-indigo-50/40 shadow-sm' : 'hover:border-slate-300'
+                      }`}
+                    >
+                      {/* Event Step Number & Time Header */}
+                      <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-4 h-4 rounded-full bg-slate-900 text-white font-bold text-[9px] flex items-center justify-center">
+                            {index + 1}
+                          </span>
+                          <span className="font-mono text-xs font-semibold text-slate-700">
+                            {event.time && event.time !== 'Unknown' ? event.time : '—'}
+                          </span>
+                        </div>
+                        {assessmentBadge(event.assessment)}
+                      </div>
+
+                      {/* Main Story Narrative */}
+                      <div>
+                        <p className="text-xs font-medium text-slate-900 leading-snug">
+                          <span className="font-semibold text-slate-900">{event.actor}</span>{' '}
+                          <span className="text-indigo-700 font-semibold">{event.action}</span>{' '}
+                          <span className="font-semibold text-slate-900">{event.target}</span>
                         </p>
-                      )}
-                    </div>
-
-                    {/* Integrated Evidence Cards */}
-                    {linkedEvidence.length > 0 && (
-                      <div className="space-y-1.5 pt-1">
-                        <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
-                          <FileCheck className="w-3.5 h-3.5 text-emerald-600" />
-                          {t.attachedEvidence || 'Giấy tờ / Bằng chứng liên quan'}:
-                        </span>
-                        <div className="space-y-1.5">
-                          {linkedEvidence.map((ev) => (
-                            <div
-                              key={ev.id}
-                              data-case-reference={caseReferenceTarget({ kind: 'evidence', id: ev.id })}
-                              onClick={() => onSelectReference({ kind: 'evidence', id: ev.id })}
-                              className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-start gap-2 ${
-                                isHighlighted('evidence', ev.id)
-                                  ? 'border-emerald-400 bg-emerald-50/70 ring-1 ring-emerald-400'
-                                  : 'border-slate-200 bg-slate-50/70 hover:bg-slate-100 hover:border-slate-300'
-                              }`}
-                            >
-                              {ev.acquisition_method === 'authoritative_web_retrieval' ? (
-                                <Globe className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
-                              ) : (
-                                <FileText className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                              )}
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center justify-between gap-1">
-                                  <span className="font-semibold text-slate-900 text-xs truncate">{ev.label}</span>
-                                  <span className="font-mono text-[9px] px-1 bg-slate-200 text-slate-700 rounded">[{ev.id}]</span>
-                                </div>
-                                {ev.content && (
-                                  <p className="text-[11px] text-slate-600 line-clamp-2 italic mt-0.5">
-                                    "{ev.content}"
-                                  </p>
-                                )}
-                                <span className="text-[10px] text-slate-400 block mt-1">
-                                  Nguồn: {ev.claimed_source}
-                                </span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
+                        {event.effect && (
+                          <p className="text-[11px] text-slate-600 bg-slate-50 p-2 rounded-xl border border-slate-100/80 leading-relaxed mt-1.5">
+                            {event.effect}
+                          </p>
+                        )}
                       </div>
-                    )}
 
-                    {/* Integrated Claims/Findings */}
-                    {linkedClaims.length > 0 && (
-                      <div className="space-y-1.5 pt-1">
-                        <div className="flex flex-wrap gap-1.5 items-center">
-                          {linkedClaims.map((claim) => (
-                            <div
-                              key={claim.id}
-                              data-case-reference={caseReferenceTarget({ kind: 'finding', id: claim.id })}
-                              onClick={() => onSelectReference({ kind: 'finding', id: claim.id })}
-                              className="inline-flex items-center gap-1.5 p-2 rounded-xl bg-indigo-50/60 border border-indigo-200/70 text-slate-900 text-xs cursor-pointer hover:bg-indigo-100/70 transition-colors w-full"
-                            >
-                              <span className="font-mono font-bold text-indigo-700 shrink-0">[{claim.id}]</span>
-                              <span className="font-medium flex-1 text-xs">{claim.text}</span>
-                              {assessmentBadge(claim.assessment)}
-                            </div>
-                          ))}
-                        </div>
+                      {/* Interactive Reference Chips Bar (Click to open details without bloating timeline) */}
+                      <div className="flex flex-wrap items-center gap-1 pt-1.5 border-t border-slate-100">
+                        {key(eventReference, `${event.time} · ${event.actor} ${event.action} ${event.target}`)}
+                        {event.user_statement_ids.map((id) => key({ kind: 'statement', id }))}
+                        {event.evidence_ids.map((id) => key({ kind: 'evidence', id }, caseData.evidence.find((item) => item.id === id)?.label))}
+                        {event.finding_ids.map((id) => key({ kind: 'finding', id }, caseData.claims.find((item) => item.id === id)?.text))}
+                        {linkedGaps.map((gap) => key({ kind: 'gap', id: gap.id }, gap.what_is_unknown))}
                       </div>
-                    )}
-
-                    {/* Integrated Gaps & Next Actions (Điểm còn thiếu & Việc cần làm) */}
-                    {linkedGaps.length > 0 && (
-                      <div className="pt-2 border-t border-slate-100 space-y-2">
-                        {linkedGaps.map((gap) => (
-                          <div
-                            key={gap.id}
-                            data-case-reference={caseReferenceTarget({ kind: 'gap', id: gap.id })}
-                            className={`p-3 rounded-xl border space-y-2 transition-all ${
-                              isHighlighted('gap', gap.id)
-                                ? 'bg-amber-50 border-amber-300 ring-2 ring-amber-400'
-                                : 'bg-amber-50/50 border-amber-200/80'
-                            }`}
-                          >
-                            <div className="flex items-start gap-1.5">
-                              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                              <div className="flex-1">
-                                <span className="text-[11px] font-bold text-amber-900 block">
-                                  {t.missingEvidenceFor || 'Điểm còn thiếu để đạt mục tiêu'}:
-                                </span>
-                                <p className="text-xs font-semibold text-slate-900 leading-snug">
-                                  {gap.what_is_unknown}
-                                </p>
-                              </div>
-                            </div>
-
-                            {/* Actions inside Gap */}
-                            {gap.actions.map((action) => (
-                              <div
-                                key={`${gap.id}:${action.id}`}
-                                data-case-reference={caseReferenceTarget({ kind: 'action', id: action.id })}
-                                onClick={() => onSelectReference({ kind: 'action', id: action.id })}
-                                className={`p-2.5 rounded-lg border bg-white space-y-1 cursor-pointer transition-all ${
-                                  isHighlighted('action', action.id)
-                                    ? 'border-indigo-400 ring-2 ring-indigo-400'
-                                    : 'border-slate-200 hover:border-slate-300'
-                                }`}
-                              >
-                                <div className="flex items-center justify-between gap-1">
-                                  <span className="text-[11px] font-bold text-slate-900 flex items-center gap-1">
-                                    <ArrowRight className="w-3.5 h-3.5 text-indigo-600" />
-                                    {action.title}
-                                  </span>
-                                  <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
-                                    action.priority === 'high' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-700'
-                                  }`}>
-                                    {translatePriority(action.priority, locale)}
-                                  </span>
-                                </div>
-                                <p className="text-[11px] text-slate-600 leading-relaxed pl-4">
-                                  {action.description}
-                                </p>
-                              </div>
-                            ))}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Reference Chips Bar */}
-                    <div className="flex flex-wrap gap-1 pt-1 border-t border-slate-100">
-                      {key(eventReference, `${event.time} · ${event.actor} ${event.action} ${event.target}`)}
-                      {event.user_statement_ids.map((id) => key({ kind: 'statement', id }))}
-                      {event.evidence_ids.map((id) => key({ kind: 'evidence', id }))}
-                      {event.finding_ids.map((id) => key({ kind: 'finding', id }))}
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          )
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         )}
 
         {/* Tab 1: Timeline Events */}

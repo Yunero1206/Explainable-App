@@ -220,11 +220,17 @@ export function createProposalPrompt(input: ProposalProviderInput): string {
       'Preserve every independent material occurrence as its own timeline event. Do not compress distinct dates, quantities, baselines, actors, tests, complaints, outcomes, conditions, or competing explanations into a range or omnibus summary.',
       'Create findings as independent propositions. Never combine multiple facts, opposing accounts, uncertainty, and causal interpretation into one finding.',
       'Declare each new claim before the event that uses it, then connect every event to its assessed finding or findings with finding_refs.',
+      'Local references MUST follow exact naming patterns: "new_claim_1", "new_claim_2" for claims; "new_event_1", "new_event_2" for events; "new_gap_1", "new_gap_2" for gaps; "new_action_1", "new_action_2" for actions. Never use leading zeroes (e.g. do not write new_claim_01) and never use raw IDs.',
+      'assessment values MUST be one of the exact 5 English enum strings: "Reported", "Corroborated", "Contested", "Established within current record", "Mutually acknowledged". NEVER translate assessment enum values into Vietnamese or any other language.',
+      'For add_claim.limits: provide an array of specific strings describing epistemic limitations (e.g. ["Chưa có biên bản đồng kiểm"]), or an empty array [] if no specific limitation applies. NEVER output placeholder words like "n/a", "none", "unknown", "tbd", or empty strings.',
+      'source_basis_ids MUST be a non-empty array of exact canonical source IDs from new_intake.statements (e.g. ["U01"]) or new_intake.evidence (e.g. ["E01"]). Every add_claim, add_event, add_gap, and add_action must include at least one valid source basis ID.',
+      'finding_refs in add_event MUST be a non-empty array referencing declared claim local refs (e.g. ["new_claim_1"]) or existing claim IDs (e.g. ["C01"]). target_claim_refs in add_gap MUST reference claim refs/IDs. target_gap_refs in add_action MUST reference gap refs/IDs.',
+      'For reasoning.steps: each step id MUST be "S01", "S02", "S03", etc. depends_on MUST only reference earlier step IDs in the list. kind MUST be one of "fact", "public_rule", "assumption", "derivation", "scenario", "conclusion". fact and public_rule require source_basis_ids. assumption requires gap_refs. derivation, scenario, and conclusion require depends_on.',
       'Use only supplied canonical source IDs and existing canonical entity IDs.',
       'When the user corrects an accepted Event, Claim, Gap, or Action, emit update_event, update_claim, update_gap, or update_action against its canonical ID. Never represent a correction by adding a second semantic copy. If the target is ambiguous, give a blocked direct answer that asks for the canonical ID; do not guess.',
       'Declare local refs before referencing them.',
       'Every new source must receive a complete disposition batch with one or more disposition_source operations. The same source may relate to multiple distinct claims or gaps. not_yet_classified must be used alone for that source.',
-      'Every new user-submitted evidence source must receive exactly one inspect_source operation. Authoritative web evidence already has a server-owned inspection; never emit inspect_source for an evidence item whose acquisition_method is authoritative_web_retrieval.',
+      'Every new user-submitted evidence source must receive exactly one inspect_source operation. The evidence_id field MUST be copied verbatim from new_intake.evidence[].id or accepted_sources.evidence[].id — never invented, paraphrased, or guessed. Authoritative web evidence already has a server-owned inspection; never emit inspect_source for an evidence item whose acquisition_method is authoritative_web_retrieval.',
       'Every new claim must receive at least one claim disposition.',
       'Use operation_type and relationship_type values exactly as declared by the response schema; never invent or paraphrase enum values.',
       'For disposition_source, use supports_claim, qualifies_claim, or conflicts_with_claim only with a non-null claim ID/ref; raises_gap only with a non-null gap ID/ref; corrects_statement only with a non-null statement ID; and not_yet_classified only with target_ref null.',
@@ -463,7 +469,7 @@ export function createProviderGenerationJsonSchema() {
       reason: stringValue,
     }, ['target_ref', 'resulting_status', 'source_basis_ids', 'reason']),
     inspect_source: operationObjectSchema('inspect_source', {
-      evidence_id: stringValue,
+      evidence_id: { type: 'string', pattern: '^E[0-9]{2,}$' },
       source_attribution: stringValue,
       case_object_match: stringValue,
       match_status: { type: 'string', enum: ['matched', 'mismatched', 'unclear', 'not_assessed'] },
@@ -548,7 +554,108 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * result immediately afterwards. Canonical array proposals remain supported
  * for deterministic replay and injected test providers.
  */
-export function decodeProviderGenerationProposal(raw: unknown): unknown {
+// ---------------------------------------------------------------------------
+// Canonical ID normalization
+// ---------------------------------------------------------------------------
+
+/**
+ * All canonical ID prefixes and their minimum digit-pad width (always 2).
+ * Pattern: /^<prefix>[0-9]{2,}$/
+ */
+const CANONICAL_ID_PREFIXES = [
+  'EV',  // EventId    — must come before 'E' to avoid prefix collision
+  'EI',  // InspectionId
+  'IN',  // IntakeId
+  'REL', // RelationshipId
+  'MR',  // ModelRunId
+  'E',   // EvidenceId
+  'U',   // StatementId
+  'C',   // ClaimId
+  'G',   // GapId
+  'A',   // ActionId
+  'R',   // RevisionId
+] as const;
+
+const CANONICAL_ID_RE = /^(EV|EI|IN|REL|MR|E|U|C|G|A|R)([0-9]+)$/;
+
+/**
+ * Attempt to normalize a single string value that should be a canonical ID.
+ *
+ * Recovery stages (applied only when the value does NOT already match):
+ *   1. Zero-pad: "E1" -> "E01", "C5" -> "C05"
+ *   2. Suffix lookup in the provided available-ID set (handles wrong prefix,
+ *      wrong case, extra characters, e.g. "EV01" when "E01" was meant).
+ *   3. Single-ID fallback: when `pool` has exactly one entry, use it directly
+ *      (covers the common new-case scenario where Gemini cannot infer the ID).
+ *
+ * The caller is responsible for passing only the pool that is appropriate for
+ * the field being normalized (e.g. source IDs for source_basis_ids, evidence
+ * IDs for evidence_id, etc.).
+ */
+function normalizeCanonicalId(
+  value: string,
+  pool?: ReadonlySet<string>,
+): string {
+  if (CANONICAL_ID_RE.test(value)) {
+    // Already a correctly-prefixed ID; zero-pad if needed.
+    return value.replace(CANONICAL_ID_RE, (_, prefix: string, digits: string) =>
+      prefix + digits.padStart(2, '0'),
+    );
+  }
+
+  if (pool === undefined || pool.size === 0) return value;
+
+  // Build suffix -> canonical map once per call site (small sets, no caching needed).
+  const suffixMap = new Map<string, string>();
+  for (const id of pool) {
+    const m = CANONICAL_ID_RE.exec(id);
+    if (m) {
+      const digits = m[2];
+      suffixMap.set(digits, id);                    // '01' -> 'E01'
+      suffixMap.set(String(Number(digits)), id);    // '1'  -> 'E01'
+    }
+  }
+
+  // Stage 2: numeric suffix lookup
+  const numericPart = value.replace(/^[^0-9]*/, '');
+  const bySuffix = suffixMap.get(numericPart);
+  if (bySuffix !== undefined) return bySuffix;
+
+  // Stage 3: single-entry pool fallback
+  if (pool.size === 1) return [...pool][0];
+
+  return value; // give up; let Zod report the precise error
+}
+
+/** Normalize every string element of an array field in-place. */
+function normalizeIdArray(
+  operation: Record<string, unknown>,
+  field: string,
+  pool?: ReadonlySet<string>,
+): Record<string, unknown> {
+  const arr = operation[field];
+  if (!Array.isArray(arr)) return operation;
+  const normalized = arr.map((item) =>
+    typeof item === 'string' ? normalizeCanonicalId(item, pool) : item,
+  );
+  return { ...operation, [field]: normalized };
+}
+
+/** Normalize a single string ID field. */
+function normalizeIdField(
+  operation: Record<string, unknown>,
+  field: string,
+  pool?: ReadonlySet<string>,
+): Record<string, unknown> {
+  const val = operation[field];
+  if (typeof val !== 'string') return operation;
+  return { ...operation, [field]: normalizeCanonicalId(val, pool) };
+}
+
+export function decodeProviderGenerationProposal(
+  raw: unknown,
+  availableSourceIds?: ReadonlySet<string>,
+): unknown {
   if (!isRecord(raw) || Array.isArray(raw.operations)) return raw;
   if (!isRecord(raw.operations)) {
     throw new Error('Proposal generation envelope invalid: operations must be a canonical array or a by-type object.');
@@ -562,17 +669,55 @@ export function decodeProviderGenerationProposal(raw: unknown): unknown {
     throw new Error(`Proposal generation envelope invalid: missing buckets [${missingBuckets.join(', ')}]; unknown buckets [${unknownBuckets.join(', ')}].`);
   }
 
+  // Partition available source IDs into sub-pools for field-specific recovery.
+  const evidenceIdPool = availableSourceIds === undefined
+    ? undefined
+    : new Set([...availableSourceIds].filter((id) => /^E[0-9]/.test(id)));
+
   const operations: unknown[] = [];
   for (const operationType of OPERATION_BUCKET_ORDER) {
     const bucket = buckets[operationType];
     if (!Array.isArray(bucket)) {
       throw new Error(`Proposal generation envelope invalid: operations.${operationType} must be an array.`);
     }
-    for (const operation of bucket) {
-      if (!isRecord(operation) || operation.operation_type !== operationType) {
+    for (const rawOp of bucket) {
+      if (!isRecord(rawOp) || rawOp.operation_type !== operationType) {
         throw new Error(`Proposal generation envelope invalid: operations.${operationType} contains a mismatched operation_type.`);
       }
-      operations.push(operation);
+
+      // -----------------------------------------------------------------------
+      // Normalize canonical ID fields that Gemini commonly mis-formats.
+      // source_basis_ids / source_id: any source (Statement U* or Evidence E*)
+      // evidence_id:                  evidence only (E*)
+      // target_id / target_ref:       entity-specific (already in pool or head)
+      // *_refs arrays:                mixed local-refs + canonical IDs
+      // -----------------------------------------------------------------------
+      let op = rawOp;
+
+      // source_basis_ids appears on every mutating operation
+      op = normalizeIdArray(op, 'source_basis_ids', availableSourceIds);
+
+      if (operationType === 'inspect_source') {
+        op = normalizeIdField(op, 'evidence_id', evidenceIdPool);
+      }
+      if (operationType === 'disposition_source') {
+        op = normalizeIdField(op, 'source_id', availableSourceIds);
+      }
+      // target_id / target_ref reference existing canonical entities;
+      // normalize the numeric suffix so zero-padding is consistent.
+      if ('target_id' in op && typeof op.target_id === 'string') {
+        op = normalizeIdField(op, 'target_id');
+      }
+      if ('target_ref' in op && typeof op.target_ref === 'string') {
+        op = normalizeIdField(op, 'target_ref');
+      }
+      // Ref arrays contain local refs (new_X_N) AND canonical IDs; only
+      // normalize entries that already look like a canonical ID attempt.
+      for (const refField of ['finding_refs', 'target_claim_refs', 'target_gap_refs'] as const) {
+        if (refField in op) op = normalizeIdArray(op, refField);
+      }
+
+      operations.push(op);
     }
   }
 

@@ -29,7 +29,7 @@ export interface ModelRunAudit {
   committed_revision_id: RevisionId | null;
   run_mode: ModelRunMode;
   provider: 'google-gemini' | 'deterministic-replay';
-  model_id: 'gemini-3.5-flash' | 'gemini-3.6-flash';
+  model_id: string;
   prompt_version: 'explainable-trust-proposal-v1' | 'explainable-trust-analysis-v2' | 'explainable-trust-analysis-v3' | 'explainable-trust-analysis-v4' | 'explainable-trust-analysis-v5';
   started_at: StructuralInstant;
   finished_at: StructuralInstant;
@@ -99,7 +99,7 @@ export const ModelRunAuditSchema = z.object({
   provider: z.enum(['google-gemini', 'deterministic-replay']),
   // Keep historical model/prompt IDs readable so upgrading Live does not
   // invalidate model-run audits already stored in IndexedDB.
-  model_id: z.enum(['gemini-3.5-flash', 'gemini-3.6-flash']),
+  model_id: z.string().min(1),
   prompt_version: z.enum([
     'explainable-trust-proposal-v1',
     'explainable-trust-analysis-v2',
