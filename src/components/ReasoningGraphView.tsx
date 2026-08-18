@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ReactFlow,
   MiniMap,
@@ -807,12 +808,40 @@ export const ReasoningGraphView: React.FC<ReasoningGraphViewProps> = ({
         claim.supporting_evidence.forEach((evId) => {
           if (!rawEdges.some((e) => e.source === evId && e.target === claim.id)) {
             rawEdges.push({
-              id: `edge-${evId}->${claim.id}`,
+              id: `edge-${evId}->${claim.id}-sup`,
               source: evId,
               target: claim.id,
               type: 'smoothstep',
-              style: { stroke: '#10b981', strokeWidth: 1.5 },
+              style: { stroke: '#10b981', strokeWidth: 1.8 },
               markerEnd: { type: MarkerType.ArrowClosed, color: '#10b981' },
+            });
+          }
+        });
+
+        // Edge direct from conflicting evidence to claim (ArbGraph conflict edge)
+        claim.conflicting_evidence.forEach((evId) => {
+          if (!rawEdges.some((e) => e.source === evId && e.target === claim.id && e.style?.stroke === '#f43f5e')) {
+            rawEdges.push({
+              id: `edge-${evId}->${claim.id}-con`,
+              source: evId,
+              target: claim.id,
+              type: 'smoothstep',
+              style: { stroke: '#f43f5e', strokeWidth: 2, strokeDasharray: '5,5' },
+              markerEnd: { type: MarkerType.ArrowClosed, color: '#f43f5e' },
+            });
+          }
+        });
+
+        // Edge direct from qualifying evidence to claim (ArgRAG qualifying edge)
+        claim.qualifying_evidence.forEach((evId) => {
+          if (!rawEdges.some((e) => e.source === evId && e.target === claim.id && e.style?.stroke === '#f59e0b')) {
+            rawEdges.push({
+              id: `edge-${evId}->${claim.id}-qua`,
+              source: evId,
+              target: claim.id,
+              type: 'smoothstep',
+              style: { stroke: '#f59e0b', strokeWidth: 1.5, strokeDasharray: '3,3' },
+              markerEnd: { type: MarkerType.ArrowClosed, color: '#f59e0b' },
             });
           }
         });
@@ -981,288 +1010,470 @@ export const ReasoningGraphView: React.FC<ReasoningGraphViewProps> = ({
     };
   }, [selectedNode, initialEdges, initialNodes]);
 
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsFullscreen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [isFullscreen]);
+
   const isEmpty = initialNodes.length === 0;
 
-  return (
-    <div
-      className={`relative flex flex-col h-full w-full bg-slate-50 overflow-hidden ${className} ${
-        isFullscreen ? 'fixed inset-0 z-50 bg-white p-4' : ''
-      }`}
-    >
-      {/* Top Control Bar */}
-      <div className="bg-white border-b border-slate-200 px-3 py-2 flex flex-wrap items-center justify-between gap-2 shrink-0 z-10">
-        {/* Mode & Layout Selectors */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {/* Graph Mode Buttons */}
-          <div className="inline-flex rounded-lg bg-slate-100 p-0.5 border border-slate-200">
-            <button
-              type="button"
-              onClick={() => {
-                setGraphMode('reasoning_dag');
-                resetSelection();
-              }}
-              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer ${
-                graphMode === 'reasoning_dag'
-                  ? 'bg-white text-indigo-700 shadow-2xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <GitFork className="w-3.5 h-3.5" />
-              <span>{t.reasoningDag || 'Reasoning DAG'}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setGraphMode('full_provenance');
-                resetSelection();
-              }}
-              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer ${
-                graphMode === 'full_provenance'
-                  ? 'bg-white text-indigo-700 shadow-2xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Layers className="w-3.5 h-3.5" />
-              <span>{t.fullProvenanceGraph || 'Full Provenance'}</span>
-            </button>
-          </div>
-
-          {/* Direction Toggle */}
-          <button
-            type="button"
-            onClick={() => setLayoutDirection((prev) => (prev === 'TB' ? 'LR' : 'TB'))}
-            className="inline-flex items-center gap-1 px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-medium transition-colors cursor-pointer border border-slate-200"
-            title={layoutDirection === 'TB' ? t.layoutTopToBottom : t.layoutLeftToRight}
-          >
-            {layoutDirection === 'TB' ? (
-              <ArrowDownUp className="w-3 h-3 text-indigo-600" />
-            ) : (
-              <ArrowLeftRight className="w-3 h-3 text-indigo-600" />
-            )}
-            <span>{layoutDirection === 'TB' ? 'TB' : 'LR'}</span>
-          </button>
-
-          {/* Category Filter Dropdown */}
-          <div className="flex items-center gap-1 bg-slate-100 rounded-lg px-2 py-0.5 border border-slate-200">
-            <Filter className="w-3 h-3 text-slate-500" />
-            <select
-              value={filterCategory}
-              onChange={(e) => setFilterCategory(e.target.value)}
-              className="bg-transparent text-[11px] font-medium text-slate-700 focus:outline-hidden cursor-pointer"
-            >
-              <option value="all">{t.allNodes || 'Tất cả nút'}</option>
-              {graphMode === 'reasoning_dag' && <option value="step">{t.reasoningSteps || 'Bước lập luận'}</option>}
-              <option value="evidence">{t.evidence || 'Bằng chứng'}</option>
-              <option value="statement">{t.userStatement || 'Lời khai'}</option>
-              <option value="finding">{t.findings || 'Phát hiện'}</option>
-              <option value="event">{t.timeline || 'Sự kiện'}</option>
-              <option value="gap">{t.gaps || 'Khoảng trống'}</option>
-              <option value="action">{t.actions || 'Hành động'}</option>
-            </select>
-          </div>
+  const renderCanvasContent = () => (
+    <div className="relative flex-1 w-full h-full min-h-[350px]">
+      {isEmpty ? (
+        <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center text-slate-400 bg-white">
+          <GitFork className="w-10 h-10 text-slate-300 mb-2" />
+          <p className="text-xs font-medium text-slate-600">
+            {t.noGraphData || 'Chưa có dữ liệu lập luận hoặc đồ thị cho phiên bản này.'}
+          </p>
         </div>
+      ) : (
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onNodeClick={handleNodeClick}
+          onPaneClick={resetSelection}
+          nodeTypes={nodeTypes}
+          fitView
+          fitViewOptions={{ padding: 0.2 }}
+          minZoom={0.2}
+          maxZoom={2}
+          className="bg-slate-50"
+        >
+          <Background color="#cbd5e1" gap={16} size={1} variant={BackgroundVariant.Dots} />
+          <Controls className="!bg-white !border !border-slate-200 !rounded-xl !shadow-xs !p-1" />
+          <MiniMap
+            nodeStrokeColor="#6366f1"
+            nodeColor={(n) => {
+              const cat = (n.data as CustomNodeData)?.category;
+              if (cat === 'step') return '#6366f1';
+              if (cat === 'evidence') return '#eab308';
+              if (cat === 'finding') return '#a855f7';
+              if (cat === 'gap') return '#f43f5e';
+              if (cat === 'action') return '#10b981';
+              return '#94a3b8';
+            }}
+            nodeBorderRadius={4}
+            className="!bg-white !border !border-slate-200 !rounded-xl !shadow-xs !bottom-3 !right-3"
+            style={{ width: 120, height: 80 }}
+          />
+        </ReactFlow>
+      )}
 
-        {/* Search & Actions */}
+      {/* Bottom Floating Graph Legend Bar (ArbGraph / ArgRAG Provenance Legend) */}
+      <div className="absolute bottom-3 left-3 z-10 hidden sm:flex items-center gap-3 px-3 py-1.5 bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-xl shadow-xs text-[10px] text-slate-700 font-medium pointer-events-auto">
+        <span className="font-bold text-slate-900 border-r border-slate-200 pr-2">{t.legendTitle || 'Chú giải'}:</span>
         <div className="flex items-center gap-1.5">
-          <div className="relative flex items-center">
-            <Search className="w-3 h-3 text-slate-400 absolute left-2 pointer-events-none" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={t.searchPlaceholder || 'Tìm nút...'}
-              className="w-28 sm:w-36 pl-6 pr-2 py-0.5 text-[11px] bg-slate-100 border border-slate-200 rounded-lg text-slate-800 focus:outline-hidden focus:bg-white focus:ring-1 focus:ring-indigo-500"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-1.5 text-slate-400 hover:text-slate-600 cursor-pointer"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            )}
-          </div>
-
-          {/* Fullscreen Toggle */}
-          <button
-            type="button"
-            onClick={() => setIsFullscreen(!isFullscreen)}
-            className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer border border-slate-200"
-            title={isFullscreen ? t.exitFullscreen : t.fullscreenGraph}
-          >
-            {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-          </button>
-
-          {isModal && onCloseModal && (
-            <button
-              type="button"
-              onClick={onCloseModal}
-              className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
+          <span className="w-3.5 h-0.5 bg-emerald-500 inline-block rounded-full"></span>
+          <span>{t.legendSupporting || 'Bảo chứng'}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-3.5 h-0.5 border-b-2 border-dashed border-rose-500 inline-block"></span>
+          <span>{t.legendConflicting || 'Mâu thuẫn'}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-3.5 h-0.5 border-b-2 border-dotted border-amber-500 inline-block"></span>
+          <span>{t.legendQualifying || 'Giới hạn'}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-3.5 h-0.5 bg-indigo-500 inline-block rounded-full"></span>
+          <span>{t.legendRaisesGap || 'Điểm thiếu'}</span>
         </div>
       </div>
 
-      {/* Main Canvas Area */}
-      <div className="relative flex-1 w-full h-full min-h-[350px]">
-        {isEmpty ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center text-slate-400 bg-white">
-            <GitFork className="w-10 h-10 text-slate-300 mb-2" />
-            <p className="text-xs font-medium text-slate-600">
-              {t.noGraphData || 'Chưa có dữ liệu lập luận hoặc đồ thị cho phiên bản này.'}
-            </p>
-          </div>
-        ) : (
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onNodeClick={handleNodeClick}
-            onPaneClick={resetSelection}
-            nodeTypes={nodeTypes}
-            fitView
-            fitViewOptions={{ padding: 0.2 }}
-            minZoom={0.2}
-            maxZoom={2}
-            className="bg-slate-50"
-          >
-            <Background color="#cbd5e1" gap={16} size={1} variant={BackgroundVariant.Dots} />
-            <Controls className="!bg-white !border !border-slate-200 !rounded-xl !shadow-xs !p-1" />
-            <MiniMap
-              nodeStrokeColor="#6366f1"
-              nodeColor={(n) => {
-                const cat = (n.data as CustomNodeData)?.category;
-                if (cat === 'step') return '#6366f1';
-                if (cat === 'evidence') return '#eab308';
-                if (cat === 'finding') return '#a855f7';
-                if (cat === 'gap') return '#f43f5e';
-                if (cat === 'action') return '#10b981';
-                return '#94a3b8';
-              }}
-              nodeBorderRadius={4}
-              className="!bg-white !border !border-slate-200 !rounded-xl !shadow-xs !bottom-3 !right-3"
-              style={{ width: 120, height: 80 }}
-            />
-          </ReactFlow>
-        )}
-
-        {/* Selected Node Inspector Drawer */}
-        {selectedNode && (
-          <aside className="absolute top-3 right-3 bottom-3 w-80 max-w-[90%] bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200 shadow-xl p-4 flex flex-col justify-between overflow-y-auto z-20 transition-all animate-in slide-in-from-right-4 duration-200">
-            <div className="space-y-3">
-              {/* Header */}
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-slate-900 text-white">
-                    {selectedNode.id}
-                  </span>
-                  <span className="text-xs font-bold text-slate-700 capitalize">
-                    {selectedNode.category}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={resetSelection}
-                  className="text-slate-400 hover:text-slate-600 p-1 rounded-md cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+      {/* Selected Node Inspector Drawer */}
+      {selectedNode && (
+        <aside className="absolute top-3 right-3 bottom-3 w-80 max-w-[90%] bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200 shadow-xl p-4 flex flex-col justify-between overflow-y-auto z-20 transition-all animate-in slide-in-from-right-4 duration-200">
+          <div className="space-y-3">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-slate-900 text-white">
+                  {selectedNode.id}
+                </span>
+                <span className="text-xs font-bold text-slate-700 capitalize">
+                  {selectedNode.category}
+                </span>
               </div>
+              <button
+                type="button"
+                onClick={resetSelection}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-md cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
 
-              {/* Title & Body */}
-              <div className="space-y-1.5">
-                <h4 className="text-xs font-bold text-slate-900 leading-snug">
-                  {selectedNode.title}
-                </h4>
-                {selectedNode.description && (
-                  <p className="text-[11px] text-slate-600 leading-relaxed">
-                    {selectedNode.description}
-                  </p>
-                )}
-              </div>
-
-              {/* Status or Assessment */}
-              {(selectedNode.assessment || selectedNode.status || selectedNode.priority) && (
-                <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                  {selectedNode.assessment && (
-                    <span className="text-[10px] bg-purple-100 text-purple-800 font-semibold px-2 py-0.5 rounded-md">
-                      {selectedNode.assessment}
-                    </span>
-                  )}
-                  {selectedNode.status && (
-                    <span className="text-[10px] bg-rose-100 text-rose-800 font-semibold px-2 py-0.5 rounded-md">
-                      {selectedNode.status}
-                    </span>
-                  )}
-                  {selectedNode.priority && (
-                    <span className="text-[10px] bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-md">
-                      {selectedNode.priority}
-                    </span>
-                  )}
-                </div>
-              )}
-
-              {/* Upstream Dependencies */}
-              {upstreamNodes.length > 0 && (
-                <div className="space-y-1 pt-2 border-t border-slate-100">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                    {t.upstreamDependencies || 'Nguồn phụ thuộc (Upstream)'} ({upstreamNodes.length})
-                  </span>
-                  <div className="space-y-1">
-                    {upstreamNodes.map((n) => (
-                      <div
-                        key={n.id}
-                        className="p-1.5 rounded-lg bg-slate-50 border border-slate-100 text-[11px] flex items-center justify-between gap-1.5"
-                      >
-                        <span className="font-mono font-bold text-indigo-700">{n.id}</span>
-                        <span className="text-slate-600 truncate flex-1">{n.title}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Downstream Impact */}
-              {downstreamNodes.length > 0 && (
-                <div className="space-y-1 pt-2 border-t border-slate-100">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                    {t.downstreamImpact || 'Tác động suy diễn (Downstream)'} ({downstreamNodes.length})
-                  </span>
-                  <div className="space-y-1">
-                    {downstreamNodes.map((n) => (
-                      <div
-                        key={n.id}
-                        className="p-1.5 rounded-lg bg-slate-50 border border-slate-100 text-[11px] flex items-center justify-between gap-1.5"
-                      >
-                        <span className="font-mono font-bold text-indigo-700">{n.id}</span>
-                        <span className="text-slate-600 truncate flex-1">{n.title}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+            {/* Title & Body */}
+            <div className="space-y-1.5">
+              <h4 className="text-xs font-bold text-slate-900 leading-snug">
+                {selectedNode.title}
+              </h4>
+              {selectedNode.description && (
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  {selectedNode.description}
+                </p>
               )}
             </div>
 
-            {/* Bottom Open Reference Action */}
-            {selectedNode.reference && (
-              <div className="pt-3 border-t border-slate-100 mt-2">
-                <button
-                  type="button"
-                  onClick={() => onSelectReference(selectedNode.reference!)}
-                  className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-                >
-                  <span>{t.openReference || 'Mở chi tiết'} [{selectedNode.id}]</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </button>
+            {/* Status or Assessment */}
+            {(selectedNode.assessment || selectedNode.status || selectedNode.priority) && (
+              <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                {selectedNode.assessment && (
+                  <span className="text-[10px] bg-purple-100 text-purple-800 font-semibold px-2 py-0.5 rounded-md">
+                    {selectedNode.assessment}
+                  </span>
+                )}
+                {selectedNode.status && (
+                  <span className="text-[10px] bg-rose-100 text-rose-800 font-semibold px-2 py-0.5 rounded-md">
+                    {selectedNode.status}
+                  </span>
+                )}
+                {selectedNode.priority && (
+                  <span className="text-[10px] bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-md">
+                    {selectedNode.priority}
+                  </span>
+                )}
               </div>
             )}
-          </aside>
-        )}
-      </div>
+
+            {/* Upstream Dependencies */}
+            {upstreamNodes.length > 0 && (
+              <div className="space-y-1 pt-2 border-t border-slate-100">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                  {t.upstreamDependencies || 'Nguồn phụ thuộc (Upstream)'} ({upstreamNodes.length})
+                </span>
+                <div className="space-y-1">
+                  {upstreamNodes.map((n) => (
+                    <div
+                      key={n.id}
+                      className="p-1.5 rounded-lg bg-slate-50 border border-slate-100 text-[11px] flex items-center justify-between gap-1.5"
+                    >
+                      <span className="font-mono font-bold text-indigo-700">{n.id}</span>
+                      <span className="text-slate-600 truncate flex-1">{n.title}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Downstream Impact */}
+            {downstreamNodes.length > 0 && (
+              <div className="space-y-1 pt-2 border-t border-slate-100">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                  {t.downstreamImpact || 'Tác động suy diễn (Downstream)'} ({downstreamNodes.length})
+                </span>
+                <div className="space-y-1">
+                  {downstreamNodes.map((n) => (
+                    <div
+                      key={n.id}
+                      className="p-1.5 rounded-lg bg-slate-50 border border-slate-100 text-[11px] flex items-center justify-between gap-1.5"
+                    >
+                      <span className="font-mono font-bold text-indigo-700">{n.id}</span>
+                      <span className="text-slate-600 truncate flex-1">{n.title}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Bottom Open Reference Action */}
+          {selectedNode.reference && (
+            <div className="pt-3 border-t border-slate-100 mt-2">
+              <button
+                type="button"
+                onClick={() => onSelectReference(selectedNode.reference!)}
+                className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+              >
+                <span>{t.openReference || 'Mở chi tiết'} [{selectedNode.id}]</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+        </aside>
+      )}
     </div>
+  );
+
+  return (
+    <>
+      {/* Normal In-Tab Container */}
+      <div className={`relative flex flex-col h-full w-full bg-slate-50 overflow-hidden ${className}`}>
+        {/* Top Control Bar (Standardized & Balanced 2 Rows) */}
+        <div className="bg-white border-b border-slate-200 px-3 py-2 flex flex-col gap-2 shrink-0 z-10">
+          {/* Row 1: Mode Switcher (Left) + View Controls [TB/LR & Maximize] (Right) */}
+          <div className="flex items-center justify-between gap-2 w-full">
+            {/* Graph Mode Buttons */}
+            <div className="inline-flex rounded-lg bg-slate-100 p-0.5 border border-slate-200/80 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setGraphMode('reasoning_dag');
+                  resetSelection();
+                }}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer ${
+                  graphMode === 'reasoning_dag'
+                    ? 'bg-white text-indigo-700 shadow-2xs font-bold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title={locale === 'vi' ? 'Chuỗi suy luận logic (Reasoning DAG)' : (t.reasoningDag || 'Reasoning DAG')}
+              >
+                <GitFork className="w-3.5 h-3.5 shrink-0" />
+                <span>{locale === 'vi' ? 'Chuỗi lập luận' : (t.reasoningDag || 'Reasoning DAG')}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setGraphMode('full_provenance');
+                  resetSelection();
+                }}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer ${
+                  graphMode === 'full_provenance'
+                    ? 'bg-white text-indigo-700 shadow-2xs font-bold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title={locale === 'vi' ? 'Toàn cảnh mạng lưới hồ sơ (Full Provenance)' : (t.fullProvenanceGraph || 'Full Provenance')}
+              >
+                <Layers className="w-3.5 h-3.5 shrink-0" />
+                <span>{locale === 'vi' ? 'Mạng lưới' : (t.fullProvenanceGraph || 'Provenance')}</span>
+              </button>
+            </div>
+
+            {/* View Actions (TB/LR Direction + Maximize Fullscreen) */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              {/* TB / LR Layout Direction Toggle */}
+              <button
+                type="button"
+                onClick={() => setLayoutDirection((prev) => (prev === 'TB' ? 'LR' : 'TB'))}
+                className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer border border-slate-200/80"
+                title={layoutDirection === 'TB' ? `${t.layoutTopToBottom || 'Bố cục dọc'} (TB)` : `${t.layoutLeftToRight || 'Bố cục ngang'} (LR)`}
+              >
+                {layoutDirection === 'TB' ? (
+                  <ArrowDownUp className="w-3.5 h-3.5 text-indigo-600" />
+                ) : (
+                  <ArrowLeftRight className="w-3.5 h-3.5 text-indigo-600" />
+                )}
+                <span>{layoutDirection === 'TB' ? 'TB' : 'LR'}</span>
+              </button>
+
+              {/* Fullscreen / Expand Popup Trigger Button */}
+              <button
+                type="button"
+                onClick={() => setIsFullscreen(true)}
+                className="inline-flex items-center justify-center p-1.5 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-700 rounded-lg transition-colors cursor-pointer border border-slate-200/80"
+                title={locale === 'vi' ? 'Mở rộng toàn màn hình (Popup)' : 'Expand Fullscreen Modal'}
+              >
+                <Maximize2 className="w-3.5 h-3.5" />
+              </button>
+
+              {isModal && onCloseModal && (
+                <button
+                  type="button"
+                  onClick={onCloseModal}
+                  className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Row 2: Filter (Left) + Search (Takes entire remaining width) */}
+          <div className="flex items-center gap-1.5 w-full">
+            {/* Category Filter Dropdown (Compact) */}
+            <div className="flex items-center gap-1 bg-slate-100 rounded-lg px-2 py-1 border border-slate-200/80 shrink-0">
+              <Filter className="w-3 h-3 text-slate-500 shrink-0" />
+              <select
+                value={filterCategory}
+                onChange={(e) => setFilterCategory(e.target.value)}
+                className="bg-transparent text-[11px] font-medium text-slate-700 focus:outline-hidden cursor-pointer max-w-[85px] sm:max-w-[105px]"
+              >
+                <option value="all">{t.allNodes || 'Tất cả'}</option>
+                {graphMode === 'reasoning_dag' && <option value="step">{t.reasoningSteps || 'Lập luận'}</option>}
+                <option value="evidence">{t.evidence || 'Bằng chứng'}</option>
+                <option value="statement">{t.userStatement || 'Lời khai'}</option>
+                <option value="finding">{t.findings || 'Phát hiện'}</option>
+                <option value="event">{t.timeline || 'Sự kiện'}</option>
+                <option value="gap">{t.gaps || 'Gaps'}</option>
+                <option value="action">{t.actions || 'Actions'}</option>
+              </select>
+            </div>
+
+            {/* Search Input (Expands across the rest of the row cleanly) */}
+            <div className="relative flex-1 flex items-center min-w-0">
+              <Search className="w-3 h-3 text-slate-400 absolute left-2 pointer-events-none" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={locale === 'vi' ? 'Tìm nút trong sơ đồ...' : 'Search nodes...'}
+                className="w-full pl-6 pr-6 py-1 text-[11px] bg-slate-100 border border-slate-200/80 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-hidden focus:bg-white focus:ring-1 focus:ring-indigo-500 shadow-2xs"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-1.5 text-slate-400 hover:text-slate-600 cursor-pointer p-0.5"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Canvas Area */}
+        {renderCanvasContent()}
+      </div>
+
+      {/* Fullscreen Popup Modal (Rendered directly via createPortal to break out of all container bounds) */}
+      {isFullscreen &&
+        createPortal(
+          <div className="fixed inset-0 z-[9999] bg-slate-950/70 backdrop-blur-xs flex flex-col p-2 sm:p-4 md:p-6 animate-in fade-in duration-150">
+            <div className="relative flex flex-col h-full w-full bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+              {/* Fullscreen Modal Header */}
+              <div className="bg-slate-50 border-b border-slate-200 px-4 py-3 flex flex-wrap items-center justify-between gap-3 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-indigo-600 text-white rounded-xl shadow-xs">
+                    <GitFork className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 leading-tight">
+                      {graphMode === 'reasoning_dag'
+                        ? (t.reasoningDag || 'Chuỗi lập luận DAG')
+                        : (t.fullProvenanceGraph || 'Toàn cảnh mạng lưới hồ sơ')}
+                    </h3>
+                    <p className="text-[11px] text-slate-500">
+                      {caseData?.authoritative_record
+                        ? `Case #${caseData.authoritative_record.case_number} · ${filteredNodes.length} ${locale === 'vi' ? 'nút' : 'nodes'} · ${filteredEdges.length} ${locale === 'vi' ? 'liên kết' : 'connections'}`
+                        : 'Interactive graph visualization'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Modal Controls */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* Graph Mode Buttons */}
+                  <div className="inline-flex rounded-lg bg-white p-0.5 border border-slate-200 shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setGraphMode('reasoning_dag');
+                        resetSelection();
+                      }}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                        graphMode === 'reasoning_dag'
+                          ? 'bg-indigo-600 text-white shadow-xs font-bold'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <GitFork className="w-3.5 h-3.5" />
+                      <span>{t.reasoningDag || 'Chuỗi lập luận DAG'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setGraphMode('full_provenance');
+                        resetSelection();
+                      }}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                        graphMode === 'full_provenance'
+                          ? 'bg-indigo-600 text-white shadow-xs font-bold'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <Layers className="w-3.5 h-3.5" />
+                      <span>{t.fullProvenanceGraph || 'Toàn cảnh mạng lưới'}</span>
+                    </button>
+                  </div>
+
+                  {/* Direction Toggle */}
+                  <button
+                    type="button"
+                    onClick={() => setLayoutDirection((prev) => (prev === 'TB' ? 'LR' : 'TB'))}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer border border-slate-200 shadow-2xs"
+                    title={layoutDirection === 'TB' ? t.layoutTopToBottom : t.layoutLeftToRight}
+                  >
+                    {layoutDirection === 'TB' ? (
+                      <ArrowDownUp className="w-3.5 h-3.5 text-indigo-600" />
+                    ) : (
+                      <ArrowLeftRight className="w-3.5 h-3.5 text-indigo-600" />
+                    )}
+                    <span>{layoutDirection === 'TB' ? 'Bố cục dọc (TB)' : 'Bố cục ngang (LR)'}</span>
+                  </button>
+
+                  {/* Category Filter */}
+                  <div className="flex items-center gap-1.5 bg-white rounded-lg px-2.5 py-1.5 border border-slate-200 shadow-2xs">
+                    <Filter className="w-3.5 h-3.5 text-slate-500" />
+                    <select
+                      value={filterCategory}
+                      onChange={(e) => setFilterCategory(e.target.value)}
+                      className="bg-transparent text-xs font-medium text-slate-700 focus:outline-hidden cursor-pointer"
+                    >
+                      <option value="all">{t.allNodes || 'Tất cả nút'}</option>
+                      {graphMode === 'reasoning_dag' && <option value="step">{t.reasoningSteps || 'Bước lập luận'}</option>}
+                      <option value="evidence">{t.evidence || 'Bằng chứng'}</option>
+                      <option value="statement">{t.userStatement || 'Lời khai'}</option>
+                      <option value="finding">{t.findings || 'Phát hiện'}</option>
+                      <option value="event">{t.timeline || 'Sự kiện'}</option>
+                      <option value="gap">{t.gaps || 'Khoảng trống'}</option>
+                      <option value="action">{t.actions || 'Hành động'}</option>
+                    </select>
+                  </div>
+
+                  {/* Search Input */}
+                  <div className="relative flex items-center">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder={t.searchPlaceholder || 'Tìm kiếm...'}
+                      className="w-36 sm:w-48 pl-8 pr-7 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-1 focus:ring-indigo-500 shadow-2xs"
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Close / Collapse Button */}
+                  <button
+                    type="button"
+                    onClick={() => setIsFullscreen(false)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                    title="Thu nhỏ toàn màn hình (ESC)"
+                  >
+                    <Minimize2 className="w-3.5 h-3.5" />
+                    <span>{locale === 'vi' ? 'Thu nhỏ (ESC)' : 'Collapse (ESC)'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Full Modal Canvas Area */}
+              {renderCanvasContent()}
+            </div>
+          </div>,
+          document.body
+        )}
+    </>
   );
 };

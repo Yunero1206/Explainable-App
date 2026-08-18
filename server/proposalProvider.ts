@@ -216,13 +216,14 @@ export function createProposalPrompt(input: ProposalProviderInput): string {
       'First classify the current turn as record, correct, research, decide, or explain. That intent controls which ledger entities are material; do not force every turn through the same entity chain.',
       'The source content -> material event -> independent finding sequence is available for record turns only. Never force that sequence on correction, research, decide, or explain turns.',
       'For record turns, preserve source-backed occurrences and propositions. For correct turns, update the existing canonical entity whenever the same occurrence, proposition, blocker, or action is being corrected. For research, decide, or explain turns, events are optional and must represent only actual case occurrences—not the question, analysis, retrieval, or model run.',
+      'STRICT OCCURRENCE BOUNDARY (NO PSEUDO-EVENTS): Timeline events MUST represent only real-world material occurrences (e.g. accident, formal decision, published statement, transaction, physical injury). NEVER create an event for the user interacting with this app, asking a question, submitting a prompt, requesting analysis, or expressing emotion. If the intake only contains questions, commentary, hearsay reporting, or requests for research without a newly reported real-world factual occurrence, emit ZERO add_event operations (operations.add_event = []).',
       'Reason from source content. Never create an event or finding merely because a statement, file, upload, or inspection exists.',
       'Preserve every independent material occurrence as its own timeline event. Do not compress distinct dates, quantities, baselines, actors, tests, complaints, outcomes, conditions, or competing explanations into a range or omnibus summary.',
-      'Create findings as independent propositions. Never combine multiple facts, opposing accounts, uncertainty, and causal interpretation into one finding.',
+      'STRICT CLAIM ATOMICITY (NO OMNIBUS FINDINGS): Create findings as distinct, atomic propositions. Never combine multiple facts, opposing accounts, uncertainty, and causal interpretation into one finding. Specifically, never combine alternative procedural states (e.g. "không khởi tố" vs "đã khởi tố nhưng được miễn trách nhiệm hình sự" are two separate findings), or distinct statutory elements (e.g. alcohol intoxication, fleeing the scene, and failure to render aid are distinct findings with independent evidence requirements). Each distinct legal condition or fact must be its own finding.',
       'Declare each new claim before the event that uses it, then connect every event to its assessed finding or findings with finding_refs.',
       'Local references MUST follow exact naming patterns: "new_claim_1", "new_claim_2" for claims; "new_event_1", "new_event_2" for events; "new_gap_1", "new_gap_2" for gaps; "new_action_1", "new_action_2" for actions. Never use leading zeroes (e.g. do not write new_claim_01) and never use raw IDs.',
       'assessment values MUST be one of the exact 5 English enum strings: "Reported", "Corroborated", "Contested", "Established within current record", "Mutually acknowledged". NEVER translate assessment enum values into Vietnamese or any other language.',
-      'For add_claim.limits: provide an array of specific strings describing epistemic limitations (e.g. ["Chưa có biên bản đồng kiểm"]), or an empty array [] if no specific limitation applies. NEVER output placeholder words like "n/a", "none", "unknown", "tbd", or empty strings.',
+      'For add_claim.reasoning: provide the explicit Toulmin logical warrant (explaining precisely why the grounding sources necessitate this claim, avoiding logical leaps). For add_claim.limits: provide specific rebuttal conditions, blindspots, or opposing arguments that would refute this claim (e.g. ["Bên bán xuất trình được biên bản kiểm hàng nguyên vẹn"]), or [] if no specific limitation applies. NEVER output placeholder words like "n/a", "none", "unknown", "tbd", or empty strings.',
       'source_basis_ids MUST be a non-empty array of exact canonical source IDs from new_intake.statements (e.g. ["U01"]) or new_intake.evidence (e.g. ["E01"]). Every add_claim, add_event, add_gap, and add_action must include at least one valid source basis ID.',
       'finding_refs in add_event MUST be a non-empty array referencing declared claim local refs (e.g. ["new_claim_1"]) or existing claim IDs (e.g. ["C01"]). target_claim_refs in add_gap MUST reference claim refs/IDs. target_gap_refs in add_action MUST reference gap refs/IDs.',
       'For reasoning.steps: each step id MUST be "S01", "S02", "S03", etc. depends_on MUST only reference earlier step IDs in the list. kind MUST be one of "fact", "public_rule", "assumption", "derivation", "scenario", "conclusion". fact and public_rule require source_basis_ids. assumption requires gap_refs. derivation, scenario, and conclusion require depends_on.',
@@ -230,8 +231,8 @@ export function createProposalPrompt(input: ProposalProviderInput): string {
       'When the user corrects an accepted Event, Claim, Gap, or Action, emit update_event, update_claim, update_gap, or update_action against its canonical ID. Never represent a correction by adding a second semantic copy. If the target is ambiguous, give a blocked direct answer that asks for the canonical ID; do not guess.',
       'Declare local refs before referencing them.',
       'Every new source must receive a complete disposition batch with one or more disposition_source operations. The same source may relate to multiple distinct claims or gaps. not_yet_classified must be used alone for that source.',
-      'Every new user-submitted evidence source must receive exactly one inspect_source operation. The evidence_id field MUST be copied verbatim from new_intake.evidence[].id or accepted_sources.evidence[].id — never invented, paraphrased, or guessed. Authoritative web evidence already has a server-owned inspection; never emit inspect_source for an evidence item whose acquisition_method is authoritative_web_retrieval.',
-      'Every new claim must receive at least one claim disposition.',
+      'STRICT INSPECT_SOURCE BOUNDARY: inspect_source applies EXCLUSIVELY to user-uploaded files/evidence (E* IDs from new_intake.evidence). When new_intake.evidence is empty (statement/text only), operations.inspect_source MUST be empty ([]). NEVER emit inspect_source for statements (U* IDs). Authoritative web evidence already has a server-owned inspection; never emit inspect_source for an evidence item whose acquisition_method is authoritative_web_retrieval.',
+      'MANDATORY 1-TO-1 CLAIM DISPOSITION: For EVERY claim declared in operations.add_claim (e.g. "new_claim_1", "new_claim_2", etc.), you MUST emit at least one matching disposition_source in operations.disposition_source with relationship_type "supports_claim", "qualifies_claim", or "conflicts_with_claim" and target_ref matching that exact local ref. If there are multiple new claims, there MUST be at least one claim disposition per new claim. Any new claim without a corresponding disposition_source will cause the entire proposal to fail validation with "New claim ... lacks a valid source disposition targeting it".',
       'Use operation_type and relationship_type values exactly as declared by the response schema; never invent or paraphrase enum values.',
       'For disposition_source, use supports_claim, qualifies_claim, or conflicts_with_claim only with a non-null claim ID/ref; raises_gap only with a non-null gap ID/ref; corrects_statement only with a non-null statement ID; and not_yet_classified only with target_ref null.',
       'A report establishes what that source reported, not objective truth. Use only the five declared assessment states. STRICT EPISTEMIC NEUTRALITY: Never guess or speculate on outcome probability, never declare premature victory or defeat, never assign legal fault or guarantee compensation, and never infer certainty beyond the submitted record. Always explain what is verified vs what remains missing.',
@@ -242,8 +243,9 @@ export function createProposalPrompt(input: ProposalProviderInput): string {
       'When authoritative_retrieval.status is blocked, provider_error, or no_authoritative_source, do not create a current-public-fact finding from model knowledge. Preserve the unresolved public need as a user-intent Gap with an Action for direct official confirmation or a user upload.',
       'When authoritative_retrieval.status is not_requested, this is analysis-only mode. Never answer a time-sensitive public policy, price, law, rule, availability, or location fact from model memory; mark it conditional or blocked and preserve the public need as a Gap when it matters.',
       'When user evidence and authoritative web evidence differ, preserve the conflict and their distinct scopes. Do not overwrite the user report or silently choose one source.',
-      'Keep real-world event time separate from intake time. Preserve relative time as supplied; use a bounded unknown description when event time is absent.',
+      'UNIFORM DOMAIN_TIME FORMAT: Format all domain_time values using a consistent date-first order: "[Ngày/Buổi/Thời điểm] (kèm ngày cụ thể nếu có), lúc [Giờ:Phút]" (ví dụ: "Tối hôm qua, lúc 19:15", "Hôm qua, lúc 18:30", "Ngày 12/08/2026, lúc 14:00", hoặc "Tháng 08/2026"). NEVER invert order like "19h15 tối hôm qua" in one event and "Hôm qua lúc 18h30" in another. Always place the calendar date / relative day period first, followed by comma and time.',
       'USER INTENT GOVERNS GAPS. Infer the concrete goal, decision, or outcome the user seeks from the intake and accepted context. Create a gap only when a genuinely missing fact or evidence item blocks that specific goal. Do not create generic completeness, corroboration, provenance, or verification gaps merely because a finding is reported or single-sourced.',
+      'TWO-TIER GAPS & ACTIONS (PUBLIC LAW VS CASE RECORDS): Distinguish between (1) Public Regulatory/Statutory Gaps (which ask what public laws, decrees, or official standards require) and (2) Case-Specific Factual/Evidentiary Gaps (which ask for case-specific police conclusions, inspection reports, or official decisions). When authoritative web retrieval is available, public statutory rules should be addressed through public_rule reasoning steps and findings; case gaps should focus strictly on the missing case-specific records (e.g. biên bản hiện trường, kết luận giám định, quyết định đình chỉ/khởi tố). Never dump public law questions into a generic user-upload request.',
       'Write gap.question as one concise, natural, and practical description of what concrete proof is missing to advance toward the user goal. Avoid robotic or academic wording.',
       'The gap relevance, resolving evidence, acquisition guidance, and collection boundary are internal support fields. Keep them narrowly aligned to the same user intent. Never invent a collection method, authority, process, deadline, threshold, or boundary that the user statement or accepted record does not support.',
       'Re-evaluate every existing open gap against the current user intent. If it no longer blocks the goal, transition it to no_longer_material. If it remains material but uses a generic legacy question, update it to the intent-linked product-facing description. Never rewrite accepted source content or silently discard the gap.',
@@ -674,6 +676,39 @@ export function decodeProviderGenerationProposal(
     ? undefined
     : new Set([...availableSourceIds].filter((id) => /^E[0-9]/.test(id)));
 
+  // Auto-heal missing claim dispositions: If Gemini declared add_claim with valid source_basis_ids
+  // but omitted the corresponding disposition_source entry, synthesize it deterministically.
+  const claimDispositions = new Set<string>();
+  if (Array.isArray(buckets.disposition_source)) {
+    for (const disp of buckets.disposition_source) {
+      if (isRecord(disp) && typeof disp.target_ref === 'string') {
+        claimDispositions.add(disp.target_ref);
+      }
+    }
+  }
+  if (Array.isArray(buckets.add_claim)) {
+    for (const claim of buckets.add_claim) {
+      if (isRecord(claim) && typeof claim.local_ref === 'string' && !claimDispositions.has(claim.local_ref)) {
+        const rawSourceIds = Array.isArray(claim.source_basis_ids) ? claim.source_basis_ids : [];
+        const sourceId = rawSourceIds.length > 0 && typeof rawSourceIds[0] === 'string'
+          ? normalizeCanonicalId(rawSourceIds[0], availableSourceIds)
+          : (availableSourceIds && availableSourceIds.size > 0 ? [...availableSourceIds][0] : 'U01');
+        const relType = claim.assessment === 'Contested' ? 'conflicts_with_claim' : 'supports_claim';
+        const synthesized: Record<string, unknown> = {
+          operation_type: 'disposition_source',
+          relationship_type: relType,
+          source_id: sourceId,
+          target_ref: claim.local_ref,
+          reason: typeof claim.reason === 'string' && claim.reason.trim().length > 0
+            ? claim.reason
+            : 'Source basis for declared claim.',
+        };
+        (buckets.disposition_source as unknown[]).push(synthesized);
+        claimDispositions.add(claim.local_ref);
+      }
+    }
+  }
+
   const operations: unknown[] = [];
   for (const operationType of OPERATION_BUCKET_ORDER) {
     const bucket = buckets[operationType];
@@ -698,6 +733,10 @@ export function decodeProviderGenerationProposal(
       op = normalizeIdArray(op, 'source_basis_ids', availableSourceIds);
 
       if (operationType === 'inspect_source') {
+        const rawEvId = typeof op.evidence_id === 'string' ? op.evidence_id : '';
+        if (evidenceIdPool === undefined || evidenceIdPool.size === 0 || /^U[0-9]/i.test(rawEvId)) {
+          continue;
+        }
         op = normalizeIdField(op, 'evidence_id', evidenceIdPool);
       }
       if (operationType === 'disposition_source') {

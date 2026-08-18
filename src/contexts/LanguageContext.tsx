@@ -36,7 +36,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     localStorage.setItem('locale', newLocale);
   };
 
-  const t = translations[locale] || translations['en'];
+  const t = { ...translations['en'], ...(translations[locale] || {}) } as typeof translations['en'];
 
   return (
     <LanguageContext.Provider value={{ locale, setLocale, t }}>

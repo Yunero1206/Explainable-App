@@ -50,6 +50,7 @@ export interface EvidenceItem {
   case_object_match_status?: 'matched' | 'mismatched' | 'unclear' | 'not_assessed';
   completeness_context: string;
   integrity_signals: string;
+  fixity_hash?: string;
   limitations: string[];
   file_name?: string;
   file_type?: string;

@@ -16,6 +16,7 @@ import {
   HelpCircle,
   GitFork,
   Square,
+  FileCheck,
 } from 'lucide-react';
 import type { AttachmentFile, CaseReference, ChatMessage, StructuredReasoningStep } from '../types.js';
 import type { ModelRunMode } from '../runtime/modelRun.js';
@@ -397,82 +398,84 @@ export const CaseIntakeChat: React.FC<CaseIntakeChatProps> = ({
               <div
                 key={msg.id}
                 data-chat-message-id={msg.id}
-                className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} space-y-1.5 w-full scroll-m-8`}
+                className="w-full scroll-m-8"
               >
                 {/* User Message */}
                 {isUser ? (
-                  <div
-                    className={`w-full max-w-2xl bg-slate-900 text-slate-100 rounded-2xl px-4 py-3 shadow-2xs space-y-2 border transition-all ${
-                      msg.source_ids?.includes(highlightedStatementId ?? '')
-                        ? 'border-sky-300 ring-2 ring-sky-400 ring-offset-2'
-                        : 'border-slate-800'
-                    }`}
-                  >
-                    {msg.source_ids && msg.source_ids.length > 0 && onSelectReference && (
-                      <div className="flex flex-wrap gap-1.5">
-                        {msg.source_ids.map((id) => {
-                          const reference = caseReferenceFromId(id);
-                          return reference === null ? null : (
-                            <CaseKeyButton
-                              key={`${reference.kind}:${reference.id}`}
-                              reference={reference}
-                              onSelect={onSelectReference}
-                              active={focusedReference?.kind === reference.kind && focusedReference.id === reference.id}
-                            />
-                          );
-                        })}
-                      </div>
-                    )}
-                    <div className="flex items-start justify-between gap-3">
-                      <div
-                        className="flex-1 cursor-pointer select-text"
-                        onClick={() => toggleSubmissionExpand(msg.id)}
-                      >
-                        {isExpanded ? (
-                          <p className="text-xs sm:text-sm text-slate-100 leading-relaxed whitespace-pre-wrap font-sans">
-                            {msg.text}
-                          </p>
-                        ) : (
-                          <p className="text-xs sm:text-sm text-slate-200 line-clamp-2 leading-relaxed font-sans">
-                            {msg.text}
-                          </p>
+                  <div className="flex justify-end w-full">
+                    <div
+                      className={`w-full max-w-[70%] sm:max-w-[72%] bg-blue-600 text-white rounded-2xl rounded-tr-sm px-4 py-3 shadow-2xs space-y-2 border transition-all ${
+                        msg.source_ids?.includes(highlightedStatementId ?? '')
+                          ? 'border-white ring-2 ring-blue-300 ring-offset-2'
+                          : 'border-blue-500'
+                      }`}
+                    >
+                      {msg.source_ids && msg.source_ids.length > 0 && onSelectReference && (
+                        <div className="flex flex-wrap gap-1.5 pb-1 border-b border-white/20">
+                          {msg.source_ids.map((id) => {
+                            const reference = caseReferenceFromId(id);
+                            return reference === null ? null : (
+                              <CaseKeyButton
+                                key={`${reference.kind}:${reference.id}`}
+                                reference={reference}
+                                onSelect={onSelectReference}
+                                active={focusedReference?.kind === reference.kind && focusedReference.id === reference.id}
+                              />
+                            );
+                          })}
+                        </div>
+                      )}
+                      <div className="flex items-start justify-between gap-3">
+                        <div
+                          className="flex-1 cursor-pointer select-text"
+                          onClick={() => toggleSubmissionExpand(msg.id)}
+                        >
+                          {isExpanded ? (
+                            <p className="text-xs sm:text-sm text-white leading-relaxed whitespace-pre-wrap font-sans font-normal">
+                              {msg.text}
+                            </p>
+                          ) : (
+                            <p className="text-xs sm:text-sm text-blue-50 line-clamp-2 leading-relaxed font-sans font-normal">
+                              {msg.text}
+                            </p>
+                          )}
+                        </div>
+
+                        {(msg.text.length > 100 || (msg.attachments && msg.attachments.length > 0)) && (
+                          <button
+                            type="button"
+                            onClick={() => toggleSubmissionExpand(msg.id)}
+                            className="text-white/80 hover:text-white p-0.5 cursor-pointer shrink-0 mt-0.5"
+                            title={isExpanded ? t.collapseMessage : t.expandMessage}
+                          >
+                            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                          </button>
                         )}
                       </div>
 
-                      {(msg.text.length > 100 || (msg.attachments && msg.attachments.length > 0)) && (
-                        <button
-                          type="button"
-                          onClick={() => toggleSubmissionExpand(msg.id)}
-                          className="text-slate-400 hover:text-slate-200 p-0.5 cursor-pointer shrink-0 mt-0.5"
-                          title={isExpanded ? t.collapseMessage : t.expandMessage}
-                        >
-                          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                        </button>
+                      {/* Attachments preview */}
+                      {msg.attachments && msg.attachments.length > 0 && (
+                        <div className="flex flex-wrap gap-2 pt-1 border-t border-white/20">
+                          {msg.attachments.map((att) => (
+                            <div
+                              key={att.id}
+                              className="inline-flex items-center gap-1.5 bg-white/15 text-white border border-white/20 px-2 py-1 rounded-lg text-xs font-mono"
+                            >
+                              {att.type.startsWith('image/') ? (
+                                <ImageIcon className="w-3.5 h-3.5 text-blue-100" />
+                              ) : (
+                                <FileText className="w-3.5 h-3.5 text-blue-100" />
+                              )}
+                              <span className="truncate max-w-[160px]">{att.name}</span>
+                            </div>
+                          ))}
+                        </div>
                       )}
                     </div>
-
-                    {/* Attachments */}
-                    {msg.attachments && msg.attachments.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 pt-1 border-t border-slate-800/80">
-                        {msg.attachments.map((att) => (
-                          <div
-                            key={att.id}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-800 text-slate-300 rounded-lg text-xs font-mono border border-slate-700"
-                          >
-                            {att.type.startsWith('image/') ? (
-                              <ImageIcon className="w-3.5 h-3.5 text-slate-300" />
-                            ) : (
-                              <FileText className="w-3.5 h-3.5 text-slate-400" />
-                            )}
-                            <span className="truncate max-w-[160px]">{att.name}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 ) : (
                   /* Assistant Message: Structured Reasoning & Delta */
-                  <div className="w-full max-w-2xl bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-4 sm:p-5 space-y-3.5 text-slate-800">
+                  <div className="w-full bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-4 sm:p-5 space-y-3.5 text-slate-800">
                     {msg.error ? (
                       <div className="space-y-3">
                         <div className="flex items-center gap-2 text-amber-700 font-medium text-xs">
@@ -514,20 +517,6 @@ export const CaseIntakeChat: React.FC<CaseIntakeChatProps> = ({
                                 <span>{t.reasoningChain} ({msg.structured.reasoning_steps.length})</span>
                               </div>
                               <div className="flex items-center gap-1.5">
-                                {onOpenSection && (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      onOpenSection('graph');
-                                    }}
-                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[10px] border border-indigo-200 transition-colors cursor-pointer"
-                                    title={t.openDagGraph || 'Xem đồ thị DAG'}
-                                  >
-                                    <GitFork className="w-3 h-3" />
-                                    <span>{t.openDagGraph || 'Xem đồ thị DAG'}</span>
-                                  </button>
-                                )}
                                 {isReasoningOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
                               </div>
                             </button>
@@ -548,20 +537,19 @@ export const CaseIntakeChat: React.FC<CaseIntakeChatProps> = ({
                                         {stepKindBadge(step)}
                                         {step.depends_on.length > 0 && (
                                           <span className="text-[10px] text-slate-400 font-mono">
-                                            ← {step.depends_on.join(', ')}
+                                            ← [{step.depends_on.join(', ')}]
                                           </span>
                                         )}
                                       </div>
-                                      <p className="text-slate-800 text-[11px] leading-relaxed">
-                                        {step.text}
-                                      </p>
-                                      {references.length > 0 && (
+                                      <p className="text-slate-800 text-xs leading-relaxed">{step.text}</p>
+                                      {references.length > 0 && onSelectReference && (
                                         <div className="flex flex-wrap gap-1 pt-0.5">
-                                          {references.map((ref) => (
+                                          {references.map((reference) => (
                                             <CaseKeyButton
-                                              key={`${ref.kind}:${ref.id}`}
-                                              reference={ref}
-                                              onSelect={onSelectReference ?? (() => {})}
+                                              key={`${reference.kind}:${reference.id}`}
+                                              reference={reference}
+                                              onSelect={onSelectReference}
+                                              active={focusedReference?.kind === reference.kind && focusedReference.id === reference.id}
                                             />
                                           ))}
                                         </div>
@@ -574,33 +562,61 @@ export const CaseIntakeChat: React.FC<CaseIntakeChatProps> = ({
                           </div>
                         )}
 
-                        {/* Summary & Goal Box */}
+                        {/* Storyline Executive Summary Card */}
                         {(msg.structured.summary || msg.structured.goal) && (
-                          <div className="text-[11px] bg-slate-50 p-2.5 rounded-xl border border-slate-100 space-y-1 text-slate-600 leading-relaxed">
+                          <div className="p-3.5 rounded-xl border border-slate-200/80 bg-slate-50/60 space-y-2">
                             {msg.structured.summary && (
-                              <p><span className="font-semibold text-slate-800">{t.summary}: </span>{msg.structured.summary}</p>
+                              <p className="text-xs text-slate-700 leading-relaxed">
+                                <strong className="text-slate-900">{t.summary}:</strong> {renderTextWithChips(msg.structured.summary)}
+                              </p>
                             )}
                             {msg.structured.goal && (
-                              <p><span className="font-semibold text-slate-800">{t.userGoal}: </span>{msg.structured.goal}</p>
+                              <p className="text-xs text-slate-600 leading-relaxed border-t border-slate-200/60 pt-2">
+                                <strong className="text-slate-900">{t.userGoal}:</strong> {renderTextWithChips(msg.structured.goal)}
+                              </p>
                             )}
                           </div>
                         )}
 
-                        {/* Delta Pills Footer */}
+                        {/* Direct Navigation Quick-Buttons */}
+                        <div className="flex items-center gap-2 pt-1 border-t border-slate-100 flex-wrap">
+                          {onOpenSection && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => onOpenSection('storyline')}
+                                className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 hover:text-indigo-600 bg-slate-50 hover:bg-indigo-50 border border-slate-200/80 hover:border-indigo-200 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                              >
+                                <FileCheck className="w-3.5 h-3.5 text-indigo-500" />
+                                <span>{t.storylineView || 'Toàn cảnh hồ sơ'}</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => onOpenSection('graph')}
+                                className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 hover:text-indigo-600 bg-slate-50 hover:bg-indigo-50 border border-slate-200/80 hover:border-indigo-200 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                              >
+                                <GitFork className="w-3.5 h-3.5 text-indigo-500" />
+                                <span>{t.graph || 'Sơ đồ suy luận'}</span>
+                              </button>
+                            </>
+                          )}
+                        </div>
+
+                        {/* Version Delta Footer */}
                         {msg.structured.delta_summary && (
-                          <div className="flex items-center gap-2 flex-wrap pt-1 text-[10px] text-slate-500 border-t border-slate-100">
+                          <div className="flex items-center gap-2 flex-wrap pt-2 text-[10px] text-slate-500 border-t border-slate-100">
                             <span className="font-semibold text-slate-700 inline-flex items-center gap-1">
-                              <GitCommit className="w-3 h-3 text-slate-400" />
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                               {t.deltaChanges}:
                             </span>
-                            {msg.structured.delta_summary.event_ids.map((id) => (
+                            {msg.structured.delta_summary.event_ids?.map((id) => (
                               <CaseKeyButton
                                 key={`event:${id}`}
                                 reference={{ kind: 'event', id }}
                                 onSelect={onSelectReference ?? (() => {})}
                               />
                             ))}
-                            {msg.structured.delta_summary.evidence_ids.map((id) => (
+                            {msg.structured.delta_summary.evidence_ids?.map((id) => (
                               <CaseKeyButton
                                 key={`evidence:${id}`}
                                 reference={{ kind: 'evidence', id }}
@@ -611,15 +627,29 @@ export const CaseIntakeChat: React.FC<CaseIntakeChatProps> = ({
                         )}
                       </div>
                     ) : (
-                      /* Fallback Text Rendering */
-                      <div className="font-normal text-xs sm:text-sm text-slate-800 leading-relaxed flex-1 space-y-1">
-                        {msg.text
-                          ? msg.text.split('\n').map((line, idx) => (
-                              <div key={idx}>{renderTextWithChips(line)}</div>
-                            ))
-                          : null}
+                      /* Fallback Raw Text */
+                      <div className="text-xs sm:text-sm text-slate-900 leading-relaxed whitespace-pre-wrap">
+                        {renderTextWithChips(msg.text)}
                       </div>
                     )}
+
+                    {/* Metadata Footer */}
+                    <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100 text-[10px] text-slate-600">
+                      <span>{msg.timestamp}</span>
+                      {msg.structured?.delta_summary?.event_ids && msg.structured.delta_summary.event_ids.length > 0 && onSelectReference ? (
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-slate-600">↳ {t.deltaChanges}:</span>
+                          {msg.structured.delta_summary.event_ids.map((id) => (
+                            <CaseKeyButton
+                              key={id}
+                              reference={{ kind: 'event', id }}
+                              onSelect={onSelectReference}
+                              active={focusedReference?.kind === 'event' && focusedReference.id === id}
+                            />
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                 )}
               </div>
@@ -628,27 +658,27 @@ export const CaseIntakeChat: React.FC<CaseIntakeChatProps> = ({
 
           {/* Optimistic Pending User Message */}
           {isLoading && pendingIntake && (
-            <div className="flex flex-col items-end space-y-1.5 w-full scroll-m-8 animate-fadeIn">
-              <div className="w-full max-w-2xl bg-slate-900 text-slate-100 rounded-2xl px-4 py-3 shadow-2xs space-y-2 border border-slate-800 opacity-90">
+            <div className="flex justify-end w-full scroll-m-8 animate-fadeIn">
+              <div className="w-full max-w-[70%] sm:max-w-[72%] bg-blue-600 text-white rounded-2xl rounded-tr-sm px-4 py-3 shadow-2xs space-y-2 border border-blue-500 opacity-90">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 select-text">
-                    <p className="text-xs sm:text-sm text-slate-100 whitespace-pre-wrap leading-relaxed font-sans">
+                    <p className="text-xs sm:text-sm text-white whitespace-pre-wrap leading-relaxed font-sans font-normal">
                       {pendingIntake.text}
                     </p>
                   </div>
                 </div>
 
                 {pendingIntake.attachments.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 pt-1 border-t border-slate-800/80">
+                  <div className="flex flex-wrap gap-1.5 pt-1 border-t border-white/20">
                     {pendingIntake.attachments.map((att) => (
                       <div
                         key={att.id}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-800 text-slate-300 rounded-lg text-xs font-mono border border-slate-700"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white/15 text-white rounded-lg text-xs font-mono border border-white/20"
                       >
                         {att.type.startsWith('image/') ? (
-                          <ImageIcon className="w-3.5 h-3.5 text-slate-300" />
+                          <ImageIcon className="w-3.5 h-3.5 text-blue-100" />
                         ) : (
-                          <FileText className="w-3.5 h-3.5 text-slate-400" />
+                          <FileText className="w-3.5 h-3.5 text-blue-100" />
                         )}
                         <span className="truncate max-w-[160px]">{att.name}</span>
                       </div>

@@ -165,7 +165,7 @@ describe('case reference interactions', () => {
 
     await waitFor(() => {
       const message = document.querySelector<HTMLElement>('[data-chat-message-id^="intake-"]');
-      expect(message?.firstElementChild?.className).toContain('ring-sky-400');
+      expect(message?.querySelector('.ring-blue-300')).not.toBeNull();
     });
     expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
   });
@@ -194,7 +194,7 @@ describe('case reference interactions', () => {
 
     expect(screen.getByText('Đang tái dựng hồ sơ vụ việc...')).toBeTruthy();
     expect(screen.getByText('Hỗ trợ ảnh, PDF, tệp văn bản và ảnh chụp màn hình')).toBeTruthy();
-    expect(screen.getByText('Trích dẫn phát hiện')).toBeTruthy();
+    expect(screen.getAllByText(/cơ sở của luận điểm/i).length).toBeGreaterThan(0);
     expect(screen.getByText('Xuất vụ việc')).toBeTruthy();
     expect(screen.getAllByText(finding.text).length).toBeGreaterThan(0);
   });

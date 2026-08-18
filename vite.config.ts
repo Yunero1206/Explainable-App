@@ -11,12 +11,16 @@ export default defineConfig(() => {
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
     },
     build: {
+      chunkSizeWarningLimit: 800,
       rollupOptions: {
         output: {
-          manualChunks: {
-            'vendor-react': ['react', 'react-dom'],
-            'vendor-xyflow': ['@xyflow/react', 'dagre'],
-            'vendor-lucide': ['lucide-react'],
+          manualChunks(id) {
+            if (id.includes('@xyflow') || id.includes('dagre')) {
+              return 'vendor-xyflow';
+            }
+            if (id.includes('lucide-react')) {
+              return 'vendor-lucide';
+            }
           },
         },
       },

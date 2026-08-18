@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { FileCode, Printer, FileText, Check, X } from 'lucide-react';
-import { buildCaseViewExport } from '../presentation/exportCase.js';
+import { FileCode, Printer, FileText, Check, X, ShieldCheck } from 'lucide-react';
+import { buildCaseViewExport, buildForensicProvenanceMarkdown } from '../presentation/exportCase.js';
 import type { PresentationCaseData } from '../types.js';
 import { useLanguage } from '../contexts/LanguageContext.js';
 
@@ -9,8 +9,9 @@ function keys(values: string[]): string {
 }
 
 export function ExportModal({ caseData, onClose }: { caseData: PresentationCaseData; onClose: () => void }) {
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
   const [copiedMd, setCopiedMd] = useState(false);
+  const [copiedForensic, setCopiedForensic] = useState(false);
   const exportPayload = buildCaseViewExport(caseData);
   const exportJson = JSON.stringify(exportPayload, null, 2);
 
@@ -59,6 +60,17 @@ export function ExportModal({ caseData, onClose }: { caseData: PresentationCaseD
     }
   };
 
+  const copyForensicDossier = async () => {
+    const dossier = buildForensicProvenanceMarkdown(caseData, locale);
+    try {
+      await navigator.clipboard.writeText(dossier);
+      setCopiedForensic(true);
+      setTimeout(() => setCopiedForensic(false), 2000);
+    } catch (e) {
+      console.error('Failed to copy forensic dossier', e);
+    }
+  };
+
   return (
     <>
       <style>{`
@@ -85,7 +97,7 @@ export function ExportModal({ caseData, onClose }: { caseData: PresentationCaseD
           aria-modal="true"
           aria-label={t.exportCase}
           onMouseDown={(event) => event.stopPropagation()}
-          className="absolute top-14 right-4 w-80 bg-white border border-slate-200 rounded-2xl shadow-2xl p-3 space-y-2"
+          className="absolute top-14 right-4 w-96 bg-white border border-slate-200 rounded-2xl shadow-2xl p-3.5 space-y-2.5"
         >
           <div className="px-1 py-1 flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
             <div>
@@ -97,33 +109,61 @@ export function ExportModal({ caseData, onClose }: { caseData: PresentationCaseD
             </button>
           </div>
 
-          <div className="grid grid-cols-3 gap-2 pt-1">
+          <div className="grid grid-cols-2 gap-2 pt-1">
             <button
               type="button"
               onClick={downloadJson}
-              className="rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 p-2.5 text-center transition-colors cursor-pointer flex flex-col items-center justify-center gap-1.5"
+              className="rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 p-2.5 text-left transition-colors cursor-pointer flex items-center gap-2.5"
             >
-              <FileCode className="w-4 h-4 text-slate-700" />
-              <span className="block text-xs font-semibold text-slate-900">JSON</span>
-              <span className="block text-[9px] text-slate-500">{t.timelineAndGaps}</span>
+              <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600 shrink-0">
+                <FileCode className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <span className="block text-xs font-bold text-slate-900">JSON Sổ cái</span>
+                <span className="block text-[10px] text-slate-500 truncate">{t.timelineAndGaps}</span>
+              </div>
             </button>
+
             <button
               type="button"
               onClick={copyMarkdownReport}
-              className="rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 p-2.5 text-center transition-colors cursor-pointer flex flex-col items-center justify-center gap-1.5"
+              className="rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 p-2.5 text-left transition-colors cursor-pointer flex items-center gap-2.5"
             >
-              {copiedMd ? <Check className="w-4 h-4 text-emerald-600" /> : <FileText className="w-4 h-4 text-slate-700" />}
-              <span className="block text-xs font-semibold text-slate-900">{copiedMd ? t.copied : 'Markdown'}</span>
-              <span className="block text-[9px] text-slate-500">Report</span>
+              <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600 shrink-0">
+                {copiedMd ? <Check className="w-4 h-4 text-emerald-600" /> : <FileText className="w-4 h-4" />}
+              </div>
+              <div className="min-w-0">
+                <span className="block text-xs font-bold text-slate-900">{copiedMd ? t.copied : 'Markdown'}</span>
+                <span className="block text-[10px] text-slate-500 truncate">Báo cáo tóm tắt</span>
+              </div>
             </button>
+
+            <button
+              type="button"
+              onClick={copyForensicDossier}
+              className="rounded-xl border border-amber-200 bg-amber-50/40 hover:bg-amber-50 hover:border-amber-300 p-2.5 text-left transition-colors cursor-pointer flex items-center gap-2.5 sm:col-span-1"
+            >
+              <div className="p-2 rounded-lg bg-amber-100 text-amber-800 shrink-0">
+                {copiedForensic ? <Check className="w-4 h-4 text-amber-800" /> : <ShieldCheck className="w-4 h-4" />}
+              </div>
+              <div className="min-w-0">
+                <span className="block text-xs font-bold text-amber-950">{copiedForensic ? t.copied : 'Giám định (Dossier)'}</span>
+                <span className="block text-[10px] text-amber-700 truncate">PROV-O & Fixity SHA-256</span>
+              </div>
+            </button>
+
             <button
               type="button"
               onClick={() => window.print()}
-              className="rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 p-2.5 text-center transition-colors cursor-pointer flex flex-col items-center justify-center gap-1.5"
+              className="rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 p-2.5 text-left transition-colors cursor-pointer flex items-center gap-2.5"
             >
-              <Printer className="w-4 h-4 text-slate-700" />
-              <span className="block text-xs font-semibold text-slate-900">{t.print}</span>
-              <span className="block text-[9px] text-slate-500">{t.sameCaseView}</span>
+              <div className="p-2 rounded-lg bg-slate-100 text-slate-700 shrink-0">
+                <Printer className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <span className="block text-xs font-bold text-slate-900">{t.print}</span>
+                <span className="block text-[10px] text-slate-500 truncate">{t.sameCaseView}</span>
+              </div>
             </button>
           </div>
         </div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Check, Copy, ExternalLink, FileText, Quote, X } from 'lucide-react';
+import { AlertTriangle, Check, Copy, ExternalLink, FileText, Layers, Link2, Quote, Scale, ShieldCheck, X } from 'lucide-react';
 import type { CaseReference, PresentationCaseData } from '../types.js';
 import { CaseKeyButton } from './CaseKeyButton.js';
 import { useLanguage } from '../contexts/LanguageContext.js';
@@ -39,6 +39,28 @@ export function ReferenceDetailModal({
     ].filter((id, index, all) => all.indexOf(id) === index)
       .map((id) => ({ kind: 'evidence' as const, id })),
   ];
+
+  // Statutory Rule Anchors (LEGIT & IRAC integration)
+  const statutoryEvidence = finding === undefined
+    ? []
+    : caseData.evidence.filter((ev) =>
+        (finding.supporting_evidence.includes(ev.id) || finding.qualifying_evidence.includes(ev.id)) &&
+        (ev.web_provenance?.authority_kind === 'public_authority' ||
+          ev.web_provenance?.authority_scope?.toLowerCase().includes('statutory') ||
+          ev.claimed_source?.toLowerCase().includes('luật') ||
+          ev.claimed_source?.toLowerCase().includes('nghị định') ||
+          ev.claimed_source?.toLowerCase().includes('thông tư') ||
+          ev.claimed_source?.toLowerCase().includes('quy định') ||
+          ev.claimed_source?.toLowerCase().includes('statute') ||
+          ev.claimed_source?.toLowerCase().includes('act'))
+      );
+
+  const supportingCount = finding?.supporting_evidence.length || 0;
+  const conflictingCount = finding?.conflicting_evidence.length || 0;
+
+  const isStrong = conflictingCount === 0 && supportingCount > 0;
+  const isConflicted = conflictingCount > 0;
+
   const linkedEvents = evidence === undefined
     ? []
     : caseData.events.filter((event) => event.evidence_ids.includes(evidence.id));
@@ -74,7 +96,7 @@ export function ReferenceDetailModal({
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <div className="w-full max-w-3xl max-h-[86vh] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+      <div className="w-full max-w-3xl max-h-[88vh] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
         <header className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
           <div className="min-w-0 space-y-1">
             <div className="flex items-center gap-2">
@@ -97,46 +119,172 @@ export function ReferenceDetailModal({
           </button>
         </header>
 
-        <div className="max-h-[72vh] overflow-y-auto p-5 space-y-5">
+        <div className="max-h-[74vh] overflow-y-auto p-5 space-y-4">
           {finding && (
             <>
-              <section className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4">
-                <div className="mb-2 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-indigo-700">
-                  <Quote className="h-3.5 w-3.5" />
-                  {t.findings}
+              {/* BLOCK 1: TOULMIN CLAIM & ASSESSMENT */}
+              <section className="rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4 space-y-2.5 shadow-2xs">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-indigo-700">
+                    <Quote className="h-3.5 w-3.5" />
+                    <span>{t.toulminClaim || 'Luận điểm cần xác lập'}</span>
+                  </div>
+
+                  {/* Evidentiary Strength Gauge */}
+                  <div
+                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${
+                      isConflicted
+                        ? 'bg-rose-50 text-rose-700 border-rose-200'
+                        : isStrong
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-slate-100 text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    {isConflicted ? (
+                      <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                    ) : isStrong ? (
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    ) : (
+                      <FileText className="w-3.5 h-3.5 text-slate-500" />
+                    )}
+                    <span>
+                      {isConflicted
+                        ? t.strengthContested || 'Đang có mâu thuẫn'
+                        : isStrong
+                        ? t.strengthEstablished || 'Có căn cứ bảo chứng'
+                        : t.strengthReported || 'Chỉ mới ghi nhận'}
+                    </span>
+                    <span className="font-mono text-[10px] opacity-75">
+                      (+{supportingCount} / -{conflictingCount})
+                    </span>
+                  </div>
                 </div>
-                <blockquote className="whitespace-pre-wrap text-sm leading-relaxed text-slate-900">
+
+                <blockquote className="whitespace-pre-wrap text-sm font-semibold leading-relaxed text-slate-900 bg-white/90 p-3 rounded-xl border border-indigo-100/80">
                   {finding.text}
                 </blockquote>
               </section>
 
-              {findingSourceReferences.length > 0 && (
-                <section className="space-y-2">
-                  <h4 className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t.sourceCitations}</h4>
-                  <div className="flex flex-wrap gap-1.5">
-                    {findingSourceReferences.map((source) => (
-                      <CaseKeyButton key={`${source.kind}:${source.id}`} reference={source} onSelect={closeThenSelect} />
+              {/* BLOCK 2: TOULMIN GROUNDING DATA (Căn cứ thực tế đầu vào) */}
+              <section className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 space-y-2.5">
+                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-slate-700">
+                  <Layers className="h-3.5 w-3.5 text-slate-600" />
+                  <span>{t.toulminData || '1. Căn cứ thực tế đầu vào'}</span>
+                </div>
+
+                <div className="grid gap-2.5 sm:grid-cols-2 text-xs">
+                  {/* Independent Evidence */}
+                  <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-1.5">
+                    <div className="flex items-center gap-1.5 font-bold text-emerald-800 text-[11px]">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>{t.independentEvidenceBasis || 'Tài liệu chứng cứ độc lập'}:</span>
+                    </div>
+                    {finding.supporting_evidence.length === 0 ? (
+                      <p className="text-slate-400 italic text-[11px]">Chưa có tài liệu độc lập xác thực.</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5 pt-0.5">
+                        {finding.supporting_evidence.map((id) => (
+                          <CaseKeyButton key={id} reference={{ kind: 'evidence', id }} onSelect={closeThenSelect} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* User Statements */}
+                  <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-1.5">
+                    <div className="flex items-center gap-1.5 font-bold text-blue-800 text-[11px]">
+                      <FileText className="w-3.5 h-3.5 text-blue-600" />
+                      <span>{t.unverifiedStatementBasis || 'Thông tin tự khai'}:</span>
+                    </div>
+                    {finding.user_statement_ids.length === 0 ? (
+                      <p className="text-slate-400 italic text-[11px]">—</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5 pt-0.5">
+                        {finding.user_statement_ids.map((id) => (
+                          <CaseKeyButton key={id} reference={{ kind: 'statement', id }} onSelect={closeThenSelect} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </section>
+
+              {/* BLOCK 3: TOULMIN LOGICAL WARRANT (Cầu nối suy luận) */}
+              <section className="rounded-2xl border border-indigo-100 bg-white p-4 space-y-2 shadow-2xs">
+                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-indigo-900">
+                  <Link2 className="h-3.5 w-3.5 text-indigo-600" />
+                  <span>{t.toulminWarrant || '2. Cầu nối logic'}</span>
+                </div>
+                <p className="text-xs text-slate-700 leading-relaxed pl-3 border-l-2 border-indigo-400">
+                  {finding.reasoning || t.whyThisFinding}
+                </p>
+                {finding.scope && (
+                  <p className="text-[11px] text-slate-500 pl-3 pt-0.5">
+                    <strong>{t.scope}:</strong> {finding.scope}
+                  </p>
+                )}
+              </section>
+
+              {/* BLOCK 4: TOULMIN REBUTTALS & BLINDSPOTS (Điều kiện bị bác bỏ) */}
+              <section className="rounded-2xl border border-rose-200/80 bg-rose-50/30 p-4 space-y-2">
+                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-rose-900">
+                  <AlertTriangle className="h-3.5 w-3.5 text-rose-600" />
+                  <span>{t.toulminRebuttal || '3. Điều kiện bị đối phương bác bỏ & Điểm mù'}</span>
+                </div>
+                <p className="text-[11px] text-rose-700 font-medium">
+                  {t.toulminRebuttalDesc || 'Luận điểm này có thể bị đối phương bẻ gãy nếu:'}
+                </p>
+                <ul className="space-y-1.5 text-xs text-slate-700">
+                  {finding.limits.length === 0 ? (
+                    <li className="text-slate-500 italic">• Chưa phát hiện điều kiện phản biện rõ ràng.</li>
+                  ) : (
+                    finding.limits.map((limit, idx) => (
+                      <li key={idx} className="flex items-start gap-2 bg-white/90 border border-rose-100 rounded-lg p-2 text-rose-950 font-medium">
+                        <span className="text-rose-500 font-bold">⚠️</span>
+                        <span>{limit}</span>
+                      </li>
+                    ))
+                  )}
+                </ul>
+              </section>
+
+              {/* BLOCK 5: STATUTORY RULE ANCHORS (Nếu có) */}
+              {statutoryEvidence.length > 0 && (
+                <section className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 space-y-2.5">
+                  <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-amber-900">
+                    <Scale className="h-4 w-4 text-amber-700" />
+                    <span>{t.statutoryRuleAnchor || '4. Căn cứ điều luật & Quy chuẩn áp dụng'}</span>
+                  </div>
+                  <div className="space-y-2">
+                    {statutoryEvidence.map((sev) => (
+                      <div key={sev.id} className="rounded-lg bg-white/90 border border-amber-200/80 p-3 text-xs text-slate-800 space-y-1">
+                        <div className="flex items-center justify-between gap-2 font-semibold text-amber-950">
+                          <span>[{sev.id}] {sev.label}</span>
+                          {sev.web_provenance && (
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-100 text-amber-800">
+                              {sev.web_provenance.authority_kind === 'public_authority' ? 'Cơ quan công quyền' : 'Chính sách chính thức'}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-slate-700 italic leading-relaxed">{sev.content}</p>
+                        {sev.web_provenance && (
+                          <div className="pt-1 flex items-center justify-between text-[11px] text-slate-500">
+                            <span>{t.sourcePublisher}: <strong className="text-slate-800">{sev.web_provenance.publisher}</strong></span>
+                            <a
+                              href={sev.web_provenance.source_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 font-semibold text-indigo-600 hover:text-indigo-800"
+                            >
+                              URL <ExternalLink className="w-3 h-3" />
+                            </a>
+                          </div>
+                        )}
+                      </div>
                     ))}
                   </div>
                 </section>
               )}
-
-              <section className="grid gap-3 text-xs text-slate-700 sm:grid-cols-2">
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 sm:col-span-2">
-                  <span className="mb-1 block font-semibold text-slate-900">{t.whyThisFinding}</span>
-                  <p className="leading-relaxed">{finding.reasoning}</p>
-                </div>
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <span className="mb-1 block font-semibold text-slate-900">{t.scope}</span>
-                  <p className="leading-relaxed">{finding.scope}</p>
-                </div>
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <span className="mb-1 block font-semibold text-slate-900">{t.limitations}</span>
-                  <ul className="space-y-1">
-                    {finding.limits.length === 0 ? <li>—</li> : finding.limits.map((limit) => <li key={limit}>{limit}</li>)}
-                  </ul>
-                </div>
-              </section>
             </>
           )}
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   admitAuthoritativeSources,
   createTavilySearchPayload,
+  extractFocusedExcerpt,
   isSafePublicSearchQuery,
 } from '../server/authoritativeRetrieval.js';
 import type { PublicRetrievalRequest, RetrievedWebCandidate } from '../src/retrieval/types.js';
@@ -38,7 +39,7 @@ describe('authoritative retrieval policy', () => {
     expect(isSafePublicSearchQuery('https://pnj.com.vn buyback')).toBe(false);
   });
 
-  it('builds a fixed-cost Tavily payload containing only the sanitized public query and official domains', () => {
+  it('builds a fixed-cost Tavily payload containing only the sanitized public query and official domains with clean markdown extraction', () => {
     const payload = createTavilySearchPayload(pnjRequest);
     expect(payload).toMatchObject({
       query: pnjRequest.search_query,
@@ -46,11 +47,50 @@ describe('authoritative retrieval policy', () => {
       auto_parameters: false,
       include_domains: ['pnj.com.vn'],
       include_answer: false,
-      include_raw_content: false,
+      include_raw_content: 'markdown',
       include_images: false,
       include_usage: true,
     });
     expect(JSON.stringify(payload)).not.toContain(pnjRequest.public_question);
+  });
+
+  it('extracts the relevant focused statutory/policy section from raw markdown content', () => {
+    const rawMarkdown = `
+# CỔNG THÔNG TIN ĐIỆN TỬ VĂN BẢN PHÁP LUẬT
+[Trang chủ](https://vbpl.vn) | [Tin tức](https://vbpl.vn/news) | [Liên hệ](https://vbpl.vn/contact)
+
+## CHƯƠNG XXI: CÁC TỘI XÂM PHẠM AN TOÀN GIAO THÔNG
+
+Điều 259. Tội vi phạm quy định về điều khiển phương tiện giao thông đường sắt.
+Người nào chỉ huy, điều khiển phương tiện giao thông đường sắt mà vi phạm quy định...
+
+Điều 260. Tội vi phạm quy định về tham gia giao thông đường bộ.
+1. Người nào tham gia giao thông đường bộ mà vi phạm quy định về an toàn giao thông đường bộ gây thiệt hại cho người khác thuộc một trong các trường hợp sau đây, thì bị phạt tiền từ 30.000.000 đồng đến 100.000.000 đồng, phạt cải tạo không giam giữ đến 03 năm hoặc phạt tù từ 01 năm đến 05 năm:
+a) Làm chết người;
+b) Gây thương tích hoặc gây tổn hại cho sức khỏe của 01 người mà tỷ lệ tổn thương cơ thể 61% trở lên.
+
+Điều 261. Tội cản trở giao thông đường bộ.
+Người nào đào, bới, cắt xẻ trái phép các công trình giao thông đường bộ...
+
+[Bản quyền thuộc Cổng thông tin điện tử Bộ Tư Pháp](https://moj.gov.vn)
+`;
+    const snippet = 'Điều 260. Tội vi phạm quy định về tham gia giao thông đường bộ...';
+    const query = 'quy định điều 260 bộ luật hình sự';
+
+    const excerpt = extractFocusedExcerpt(rawMarkdown, snippet, query);
+    expect(excerpt).toContain('Điều 260. Tội vi phạm quy định về tham gia giao thông đường bộ.');
+    expect(excerpt).toContain('Làm chết người');
+    expect(excerpt).not.toContain('Trang chủ');
+    expect(excerpt).not.toContain('CHƯƠNG XXI');
+  });
+
+  it('falls back to search snippet when raw_content is empty or unparseable', () => {
+    const snippet = 'Chính sách bảo hành vàng PNJ áp dụng trên toàn quốc tại hệ thống cửa hàng.';
+    const query = 'chính sách bảo hành PNJ';
+
+    expect(extractFocusedExcerpt(null, snippet, query)).toBe(snippet);
+    expect(extractFocusedExcerpt('', snippet, query)).toBe(snippet);
+    expect(extractFocusedExcerpt('   ', snippet, query)).toBe(snippet);
   });
 
   it('admits a direct Tavily result from the first-party domain with claim-specific authority', () => {

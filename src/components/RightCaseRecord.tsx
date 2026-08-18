@@ -799,11 +799,11 @@ export const RightCaseRecord: React.FC<RightCaseRecordProps> = ({
 
   return (
     <>
-      <aside className="hidden lg:block w-80 xl:w-96 shrink-0 h-full">{renderContent()}</aside>
+      <aside className="hidden lg:block w-[420px] xl:w-[480px] 2xl:w-[560px] shrink-0 h-full">{renderContent()}</aside>
       {isMobileOpen && (
         <div className="lg:hidden fixed inset-0 z-40 flex justify-end">
           <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs" onClick={onCloseMobile} />
-          <div className="relative w-80 sm:w-96 max-w-full h-full bg-slate-100 shadow-2xl z-50">{renderContent()}</div>
+          <div className="relative w-80 sm:w-[440px] max-w-full h-full bg-slate-100 shadow-2xl z-50">{renderContent()}</div>
         </div>
       )}
     </>

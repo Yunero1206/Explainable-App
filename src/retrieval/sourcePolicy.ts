@@ -31,6 +31,12 @@ const PUBLIC_AUTHORITY_DOMAIN_ALLOWLIST = [
   'chinhphu.vn',
   'quochoi.vn',
   'vbpl.vn',
+  'congbao.chinhphu.vn',
+  'baochinhphu.vn',
+  'toaan.gov.vn',
+  'vksndtc.gov.vn',
+  'moj.gov.vn',
+  'bocongan.gov.vn',
 ] as const;
 
 function normalizedWords(value: string): string[] {

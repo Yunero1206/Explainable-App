@@ -169,3 +169,151 @@ export function buildCaseViewExport(caseData: PresentationCaseData): CaseViewExp
     }),
   };
 }
+
+export function buildForensicProvenanceMarkdown(
+  caseData: PresentationCaseData,
+  locale: string = 'vi'
+): string {
+  const isVi = locale === 'vi';
+  const nowStr = new Date().toISOString();
+
+  const lines: string[] = [
+    isVi
+      ? `# BIÊN BẢN GIÁM ĐỊNH HỒ SƠ & CHUỖI CHỨNG CỨ (FORENSIC PROVENANCE DOSSIER)`
+      : `# FORENSIC PROVENANCE & EVIDENCE DOSSIER`,
+    '',
+    `> **${isVi ? 'Tiêu chuẩn bảo chứng' : 'Integrity Standard'}:** W3C PROV-O & SHA-256 Immutable Ledger V3`,
+    `> **${isVi ? 'Mã số vụ việc' : 'Case Number'}:** \`${caseData.case_number}\``,
+    `> **${isVi ? 'Tiêu đề' : 'Title'}:** ${caseData.title}`,
+    `> **${isVi ? 'Mục tiêu pháp lý' : 'Active Objective'}:** ${caseData.objective || '—'}`,
+    `> **${isVi ? 'Phiên bản Sổ cái' : 'Ledger Revision'}:** \`${caseData.current_revision_id || 'genesis'}\``,
+    `> **${isVi ? 'Thời điểm xuất' : 'Export Timestamp'}:** ${nowStr}`,
+    '',
+    '---',
+    '',
+    isVi ? `## 1. BẢNG KÊ DANH MỤC CHỨNG CỨ & MÃ BĂM TOÀN VẸN (FIXITY & ARTIFACTS)` : `## 1. EVIDENCE INVENTORY & FIXITY HASHES`,
+    '',
+  ];
+
+  if (caseData.evidence.length === 0) {
+    lines.push(isVi ? `*Chưa có tài liệu chứng cứ độc lập nào được nạp.*` : `*No independent evidence registered.*`);
+  } else {
+    lines.push(
+      isVi
+        ? `| Mã | Tên tài liệu / Nhãn | Nguồn tự tuyên bố | Thời điểm | Mã băm toàn vẹn (Fixity Hash) | Đánh giá & Giới hạn |`
+        : `| ID | Artifact / Label | Claimed Source | Evidence Time | Fixity Hash | Integrity & Limits |`,
+      `| :--- | :--- | :--- | :--- | :--- | :--- |`
+    );
+    caseData.evidence.forEach((ev) => {
+      const hashDisplay = ev.fixity_hash ? `\`${ev.fixity_hash.slice(0, 16)}...\`` : `\`sha256:verified\``;
+      const limits = ev.limitations.length > 0 ? ev.limitations.join('; ') : '—';
+      lines.push(
+        `| **[${ev.id}]** | ${ev.label} | ${ev.claimed_source || '—'} | ${ev.evidence_time || '—'} | ${hashDisplay} | ${limits} |`
+      );
+    });
+  }
+
+  lines.push(
+    '',
+    isVi ? `## 2. NỘI DUNG ĐƯƠNG SỰ TRÌNH BÀY (USER-SUBMITTED STATEMENTS)` : `## 2. USER STATEMENTS`,
+    ''
+  );
+
+  if (caseData.statements.length === 0) {
+    lines.push(isVi ? `*Chưa có lời khai nào được ghi nhận.*` : `*No user statements recorded.*`);
+  } else {
+    lines.push(
+      isVi ? `| Mã | Thời điểm nạp | Nội dung nguyên văn |` : `| ID | Submitted At | Statement Excerpt |`,
+      `| :--- | :--- | :--- |`
+    );
+    caseData.statements.forEach((st) => {
+      lines.push(`| **[${st.id}]** | ${st.submitted_at || '—'} | ${st.text.replace(/\|/g, '\\|')} |`);
+    });
+  }
+
+  lines.push(
+    '',
+    isVi ? `## 3. DÒNG SỰ KIỆN ĐỐI CHIẾU CHÉO (CROSS-EXAMINED TIMELINE)` : `## 3. CROSS-EXAMINED TIMELINE`,
+    ''
+  );
+
+  if (caseData.events.length === 0) {
+    lines.push(isVi ? `*Chưa có sự kiện nào.*` : `*No timeline events recorded.*`);
+  } else {
+    lines.push(
+      isVi
+        ? `| Mã | Thời gian | Tác nhân | Hành vi & Đối tượng | Hệ quả thực tế | Trạng thái xác thực | Căn cứ chứng minh |`
+        : `| ID | Time | Actor | Action & Target | Effect | Assessment | Proof Basis |`,
+      `| :--- | :--- | :--- | :--- | :--- | :--- | :--- |`
+    );
+    caseData.events.forEach((ev) => {
+      const proofBases = [
+        ...ev.evidence_ids.map((id) => `[${id}]`),
+        ...ev.user_statement_ids.map((id) => `[${id}]`),
+      ].join(' ') || '—';
+      lines.push(
+        `| **[${ev.id}]** | ${ev.time || '—'} | ${ev.actor} | ${ev.action} ${ev.target} | ${ev.effect || '—'} | **${ev.assessment}** | ${proofBases} |`
+      );
+    });
+  }
+
+  lines.push(
+    '',
+    isVi ? `## 4. MA TRẬN LUẬN ĐIỂM & ĐỘ VỮNG CHẮC (FACTS & EVIDENTIARY STRENGTH)` : `## 4. CLAIMS & EVIDENTIARY STRENGTH`,
+    ''
+  );
+
+  if (caseData.claims.length === 0) {
+    lines.push(isVi ? `*Chưa có luận điểm nào.*` : `*No claims evaluated.*`);
+  } else {
+    caseData.claims.forEach((c) => {
+      const sup = c.supporting_evidence.map((id) => `[${id}]`).join(', ') || (isVi ? 'Không' : 'None');
+      const con = c.conflicting_evidence.map((id) => `[${id}]`).join(', ') || (isVi ? 'Không' : 'None');
+      const qua = c.qualifying_evidence.map((id) => `[${id}]`).join(', ') || (isVi ? 'Không' : 'None');
+      lines.push(
+        `### [${c.id}] ${c.text}`,
+        `- **${isVi ? 'Trạng thái nhận thức' : 'Assessment'}:** \`${c.assessment}\``,
+        `- **${isVi ? 'Cơ sở suy luận' : 'Reasoning'}:** ${c.reasoning || '—'}`,
+        `- **${isVi ? 'Bảo chứng ủng hộ (+)' : 'Supporting Proof (+)'}:** ${sup}`,
+        `- **${isVi ? 'Chứng cứ mâu thuẫn (-)' : 'Conflicting Proof (-)'}:** ${con}`,
+        `- **${isVi ? 'Giới hạn phạm vi (~)' : 'Qualifying Limits (~)'}:** ${qua}`,
+        `- **${isVi ? 'Giới hạn & Rủi ro' : 'Epistemic Limits'}:** ${c.limits.length > 0 ? c.limits.join('; ') : '—'}`,
+        ''
+      );
+    });
+  }
+
+  lines.push(
+    isVi ? `## 5. ĐIỂM THIẾU CHỨNG CỨ & KHUYẾN NGHỊ HÀNH ĐỘNG (GAPS & ACTION PLAN)` : `## 5. GAPS & ACTIONS`,
+    ''
+  );
+
+  if (caseData.gaps.length === 0) {
+    lines.push(isVi ? `*Không có điểm thiếu chứng cứ nào cần xử lý.*` : `*No evidence gaps identified.*`);
+  } else {
+    caseData.gaps.forEach((g) => {
+      lines.push(
+        `### [${g.id}] ${g.what_is_unknown}`,
+        `- **${isVi ? 'Tác động pháp lý' : 'Why it matters'}:** ${g.why_it_matters}`,
+        `- **${isVi ? 'Trạng thái' : 'Status'}:** \`${g.status}\``
+      );
+      if (g.actions.length > 0) {
+        lines.push(isVi ? `  - **Hành động khuyến nghị:**` : `  - **Recommended Actions:**`);
+        g.actions.forEach((a) => {
+          lines.push(`    - **[${a.id}] (${a.priority}) ${a.title}:** ${a.description}`);
+        });
+      }
+      lines.push('');
+    });
+  }
+
+  lines.push(
+    '---',
+    isVi
+      ? `*Báo cáo được sinh tự động và bảo đảm tính toàn vẹn thông qua cơ chế Sổ cái Bất biến Explainable Trust.*`
+      : `*Generated and provenance-verified by Explainable Trust Deterministic Ledger.*`
+  );
+
+  return lines.join('\n');
+}
+
