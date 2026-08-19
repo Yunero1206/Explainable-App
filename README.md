@@ -88,5 +88,12 @@ Open **`http://localhost:3000`** in your browser.
 
 ---
 
-## 📄 License
-This project is licensed under the [MIT License](LICENSE). Created with ❤️ for transparent, explainable, and accountable human-AI collaboration.
+## 📄 Usage & Rights
+
+Copyright © 2026 Phạm Thanh Phú. All rights reserved.
+
+The current source code is publicly available for portfolio review and evaluation. No permission is granted to reuse, adapt, redistribute, sublicense, or commercialize the current source unless explicitly authorized by the copyright holder.
+
+For reuse, adaptation, or commercial licensing, please contact the author.
+
+Earlier tagged releases or copies distributed under a different license remain subject to the terms that applied to those versions at the time of distribution.
