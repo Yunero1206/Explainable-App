@@ -89,4 +89,4 @@ Open **`http://localhost:3000`** in your browser.
 ---
 
 ## 📄 License
-MIT License. Created with ❤️ for transparent, explainable, and accountable human-AI collaboration.
+This project is licensed under the [MIT License](LICENSE). Created with ❤️ for transparent, explainable, and accountable human-AI collaboration.

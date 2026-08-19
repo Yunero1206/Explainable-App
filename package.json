@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "description": "Local-first explainable evidence ledger with deterministic acceptance boundaries.",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "node --import tsx server.ts",
