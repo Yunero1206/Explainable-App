@@ -76,16 +76,10 @@ function canonicalizeSources(
   requested: readonly SourceId[],
   canonicalOrder: readonly SourceId[]
 ): SourceId[] {
-  const requestedSet = new Set<string>();
-  for (const sourceId of requested) {
-    if (requestedSet.has(sourceId)) {
-      throw new Error('Duplicate source ID in deterministic application: ' + sourceId);
-    }
-    requestedSet.add(sourceId);
-  }
+  const requestedSet = new Set<string>(requested);
 
   const available = new Set<string>(canonicalOrder);
-  for (const sourceId of requested) {
+  for (const sourceId of requestedSet) {
     if (!available.has(sourceId)) {
       throw new Error('Source is unavailable in candidate revision: ' + sourceId);
     }
@@ -140,7 +134,7 @@ function applyValidatedProposal(input: ApplyProposalInput): LedgerV3Case {
     const key = entityKey(entityType, id);
     const previous = changes.get(key);
     const combined = previous === undefined
-      ? [...sourceIds]
+      ? [...new Set(sourceIds)]
       : [...previous.sourceIds, ...sourceIds.filter((sourceId) => !previous.sourceIds.includes(sourceId))];
     changes.set(key, {
       reason,
@@ -188,6 +182,10 @@ function applyValidatedProposal(input: ApplyProposalInput): LedgerV3Case {
         const index = events.findIndex((event) => event.id === operation.target_id);
         if (index < 0) throw new Error('Event update target not found: ' + operation.target_id);
         const current = events[index];
+        const combinedSources = [
+          ...current.source_support_ids,
+          ...operation.source_basis_ids.filter((id) => !current.source_support_ids.includes(id)),
+        ];
         events[index] = {
           ...current,
           ...(operation.domain_time === undefined ? {} : { domain_time: operation.domain_time }),
@@ -200,7 +198,7 @@ function applyValidatedProposal(input: ApplyProposalInput): LedgerV3Case {
             ? {}
             : { finding_ids: operation.finding_refs.map(resolveClaim) }),
           source_support_ids: canonicalizeSources(
-            [...current.source_support_ids, ...operation.source_basis_ids],
+            combinedSources,
             canonicalSourceOrder
           ),
         };

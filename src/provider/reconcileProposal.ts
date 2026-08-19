@@ -300,13 +300,16 @@ export function reconcileProposal(input: {
 
   const operations = actionPass.map((operation): ProposalOperation => {
     if (operation.operation_type === 'add_event' || operation.operation_type === 'update_event') {
-      return { ...operation, finding_refs: operation.finding_refs?.map(mapClaim) } as ProposalOperation;
+      const mapped = operation.finding_refs?.map(mapClaim);
+      return { ...operation, finding_refs: mapped === undefined ? undefined : [...new Set(mapped)] } as ProposalOperation;
     }
     if (operation.operation_type === 'add_gap' || operation.operation_type === 'update_gap') {
-      return { ...operation, target_claim_refs: operation.target_claim_refs?.map(mapClaim) } as ProposalOperation;
+      const mapped = operation.target_claim_refs?.map(mapClaim);
+      return { ...operation, target_claim_refs: mapped === undefined ? undefined : [...new Set(mapped)] } as ProposalOperation;
     }
     if (operation.operation_type === 'add_action' || operation.operation_type === 'update_action') {
-      return { ...operation, target_gap_refs: operation.target_gap_refs?.map(mapGap) } as ProposalOperation;
+      const mapped = operation.target_gap_refs?.map(mapGap);
+      return { ...operation, target_gap_refs: mapped === undefined ? undefined : [...new Set(mapped)] } as ProposalOperation;
     }
     if (operation.operation_type === 'disposition_source' && operation.target_ref !== null) {
       if (operation.relationship_type === 'supports_claim' || operation.relationship_type === 'qualifies_claim' || operation.relationship_type === 'conflicts_with_claim') {
@@ -323,8 +326,8 @@ export function reconcileProposal(input: {
     ...input.proposal.reasoning,
     steps: input.proposal.reasoning.steps.map((step) => ({
       ...step,
-      claim_refs: step.claim_refs.map(mapClaim),
-      gap_refs: step.gap_refs.map(mapGap),
+      claim_refs: [...new Set(step.claim_refs.map(mapClaim))],
+      gap_refs: [...new Set(step.gap_refs.map(mapGap))],
     })),
   };
 

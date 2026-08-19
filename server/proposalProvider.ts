@@ -640,7 +640,7 @@ function normalizeIdArray(
   const normalized = arr.map((item) =>
     typeof item === 'string' ? normalizeCanonicalId(item, pool) : item,
   );
-  return { ...operation, [field]: normalized };
+  return { ...operation, [field]: [...new Set(normalized)] };
 }
 
 /** Normalize a single string ID field. */

@@ -252,4 +252,72 @@ describe('deterministic Ledger V3 proposal application', () => {
     expect(parent.current_revision_id).toBeNull();
     expect(parent.revisions).toHaveLength(0);
   });
+
+  it('successfully applies event and finding updates when the update operation reuses existing source IDs without duplicate error', () => {
+    const parent = buildOneRevisionCase();
+    const intakeId = mkIntakeId('IN02');
+    const statementId = mkStatementId('U02');
+    const prepared = {
+      intake: {
+        id: intakeId,
+        received_at: mkInstant('2026-08-11T02:00:00.000Z'),
+        parts: [{ kind: 'statement' as const, statement_id: statementId, raw_text: mkPNBT('Updating the event and finding with U01 basis') }],
+      },
+      statements: [{
+        id: statementId,
+        source_intake_id: intakeId,
+        text: mkPNBT('Updating the event and finding with U01 basis'),
+      }],
+      evidence: [],
+      revision_id: mkRevisionId('R02'),
+      model_run_id: mkModelRunId('MR02'),
+      created_at: mkInstant('2026-08-11T03:00:00.000Z'),
+      objective: mkST('Update existing finding and event'),
+    };
+
+    const proposal = parseProviderProposal({
+      explanation: {
+        text: 'The finding and event are updated using overlapping source basis U01.',
+        user_goal: 'Update finding.',
+      },
+      operations: [
+        {
+          operation_type: 'update_claim',
+          target_id: 'C01',
+          proposition: 'Updated proposition for C01',
+          source_basis_ids: ['U01'],
+          reason: 'Refined proposition based on existing source U01',
+        },
+        {
+          operation_type: 'update_event',
+          target_id: 'EV01',
+          effect: 'Updated effect',
+          source_basis_ids: ['U01'],
+          finding_refs: ['C01'],
+          reason: 'Update event effect referencing existing U01',
+        },
+        {
+          operation_type: 'disposition_source',
+          relationship_type: 'supports_claim',
+          source_id: 'U02',
+          target_ref: 'C01',
+          reason: 'The new statement supports C01',
+        },
+      ],
+    }, {
+      availableSourceIds: new Set([...parent.revisions[0].input_statement_ids, ...parent.revisions[0].input_evidence_ids, statementId]),
+      existingClaimIds: new Set(parent.revisions[0].claims.map((claim) => claim.id)),
+      existingGapIds: new Set(parent.revisions[0].gaps.map((gap) => gap.id)),
+      existingEventIds: new Set(parent.revisions[0].events.map((event) => event.id)),
+      existingActionIds: new Set(parent.revisions[0].actions.map((action) => action.id)),
+    });
+
+    const result = applyProposal({ parent, prepared, proposal });
+    expect(result.revisions[1].events[0].id).toBe('EV01');
+    expect(result.revisions[1].events[0].effect).toBe('Updated effect');
+    expect(result.revisions[1].events[0].source_support_ids).toContain('U01');
+    expect(new Set(result.revisions[1].events[0].source_support_ids).size).toBe(
+      result.revisions[1].events[0].source_support_ids.length
+    );
+  });
 });
