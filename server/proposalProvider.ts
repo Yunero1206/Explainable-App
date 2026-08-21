@@ -658,7 +658,62 @@ export function decodeProviderGenerationProposal(
   raw: unknown,
   availableSourceIds?: ReadonlySet<string>,
 ): unknown {
-  if (!isRecord(raw) || Array.isArray(raw.operations)) return raw;
+  if (!isRecord(raw)) return raw;
+
+  // Auto-heal reasoning step gap_refs for conditional or blocked answers
+  if (isRecord(raw.reasoning) && Array.isArray(raw.reasoning.steps) && raw.reasoning.steps.length > 0) {
+    const reasoning = raw.reasoning as { answer_status?: string; steps: Array<Record<string, unknown>> };
+    if (
+      (reasoning.answer_status === 'conditional' || reasoning.answer_status === 'blocked') &&
+      !reasoning.steps.some((step) => Array.isArray(step.gap_refs) && step.gap_refs.length > 0)
+    ) {
+      let gapRef: string | undefined;
+      const buckets = isRecord(raw.operations) && !Array.isArray(raw.operations) ? raw.operations : {};
+      if (Array.isArray(buckets.add_gap)) {
+        for (const op of buckets.add_gap) {
+          if (isRecord(op) && typeof op.local_ref === 'string') {
+            gapRef = op.local_ref;
+            break;
+          }
+        }
+      }
+      if (!gapRef && Array.isArray(buckets.update_gap)) {
+        for (const op of buckets.update_gap) {
+          if (isRecord(op) && typeof op.target_id === 'string') {
+            gapRef = op.target_id;
+            break;
+          }
+        }
+      }
+      if (!gapRef && Array.isArray(buckets.transition_gap)) {
+        for (const op of buckets.transition_gap) {
+          if (isRecord(op) && typeof op.target_ref === 'string') {
+            gapRef = op.target_ref;
+            break;
+          }
+        }
+      }
+      if (!gapRef && Array.isArray(raw.operations)) {
+        for (const op of raw.operations) {
+          if (isRecord(op)) {
+            if (op.operation_type === 'add_gap' && typeof op.local_ref === 'string') { gapRef = op.local_ref; break; }
+            if ((op.operation_type === 'update_gap' || op.operation_type === 'transition_gap') && typeof op.target_id === 'string') { gapRef = op.target_id; break; }
+            if (op.operation_type === 'transition_gap' && typeof op.target_ref === 'string') { gapRef = op.target_ref; break; }
+          }
+        }
+      }
+      if (!gapRef) {
+        gapRef = 'G01';
+      }
+      const targetStep = reasoning.steps.find((s) => s.kind === 'assumption') ?? reasoning.steps[reasoning.steps.length - 1];
+      if (targetStep) {
+        const existing = Array.isArray(targetStep.gap_refs) ? targetStep.gap_refs as string[] : [];
+        targetStep.gap_refs = [...new Set([...existing, gapRef])];
+      }
+    }
+  }
+
+  if (Array.isArray(raw.operations)) return raw;
   if (!isRecord(raw.operations)) {
     throw new Error('Proposal generation envelope invalid: operations must be a canonical array or a by-type object.');
   }
