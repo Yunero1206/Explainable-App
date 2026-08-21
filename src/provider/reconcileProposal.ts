@@ -99,23 +99,25 @@ function selectTarget<Id extends string>(input: {
     throw new ProposalReconciliationError(`Multiple existing ${input.family} records match the proposed correction. Name the canonical ID to update.`);
   }
   if (!input.correction || input.candidates.length === 0) return null;
+  const singleThreshold = 0.35;
   if (input.candidates.length === 1) {
-    return similarity(input.proposedText, input.candidates[0].comparisonText) >= 0.2
-      ? input.candidates[0].id
-      : null;
+    const score = similarity(input.proposedExactKey, input.candidates[0].exactKey);
+    return score >= singleThreshold ? input.candidates[0].id : null;
   }
 
   const ranked = input.candidates
-    .map((candidate) => ({ candidate, score: similarity(input.proposedText, candidate.comparisonText) }))
+    .map((candidate) => ({ candidate, score: similarity(input.proposedExactKey, candidate.exactKey) }))
     .sort((left, right) => right.score - left.score || left.candidate.id.localeCompare(right.candidate.id));
   const best = ranked[0];
   const second = ranked[1];
-  if (best.score >= 0.34 && best.score - second.score >= 0.12) return best.candidate.id;
-  if (best.score < 0.25) return null;
-
-  throw new ProposalReconciliationError(
-    `The correction could refer to more than one existing ${input.family}. Include one canonical ID (${input.candidates.map((candidate) => candidate.id).join(', ')}) and retry.`,
-  );
+  const minMatchScore = 0.35;
+  if (best.score >= minMatchScore) {
+    if (best.score - second.score >= 0.12) return best.candidate.id;
+    throw new ProposalReconciliationError(
+      `The correction could refer to more than one existing ${input.family}. Include one canonical ID (${input.candidates.map((candidate) => candidate.id).join(', ')}) and retry.`,
+    );
+  }
+  return null;
 }
 
 function eventCandidate(event: Event): MatchCandidate<EventId> {
