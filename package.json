@@ -1,7 +1,7 @@
 {
   "name": "explainable-trust",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Local-first explainable evidence ledger with deterministic acceptance boundaries.",
   "license": "MIT",
   "type": "module",
