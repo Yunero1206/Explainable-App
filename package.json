@@ -45,6 +45,9 @@
     "vite": "^6.2.3",
     "vitest": "^4.1.10"
   },
+  "optionalDependencies": {
+    "@rollup/rollup-linux-x64-gnu": "*"
+  },
   "engines": {
     "node": ">=20"
   }
