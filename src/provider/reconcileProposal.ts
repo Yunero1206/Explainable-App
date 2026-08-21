@@ -85,7 +85,8 @@ function selectTarget<Id extends string>(input: {
   correction: boolean;
   proposedExactKey: string;
   proposedText: string;
-  candidates: MatchCandidate<Id>[];
+  proposedDomainTime?: string;
+  candidates: (MatchCandidate<Id> & { domainTime?: string })[];
 }): Id | null {
   const direct = explicitId(input.message, input.family);
   if (direct !== null) {
@@ -99,14 +100,23 @@ function selectTarget<Id extends string>(input: {
     throw new ProposalReconciliationError(`Multiple existing ${input.family} records match the proposed correction. Name the canonical ID to update.`);
   }
   if (!input.correction || input.candidates.length === 0) return null;
+
+  const computeScore = (candidate: MatchCandidate<Id> & { domainTime?: string }): number => {
+    if (input.family === 'event' && input.proposedDomainTime !== undefined && candidate.domainTime !== undefined) {
+      const dateScore = similarity(input.proposedDomainTime, candidate.domainTime);
+      if (dateScore < 0.5) return 0;
+    }
+    return similarity(input.proposedExactKey, candidate.exactKey);
+  };
+
   const singleThreshold = 0.35;
   if (input.candidates.length === 1) {
-    const score = similarity(input.proposedExactKey, input.candidates[0].exactKey);
+    const score = computeScore(input.candidates[0]);
     return score >= singleThreshold ? input.candidates[0].id : null;
   }
 
   const ranked = input.candidates
-    .map((candidate) => ({ candidate, score: similarity(input.proposedExactKey, candidate.exactKey) }))
+    .map((candidate) => ({ candidate, score: computeScore(candidate) }))
     .sort((left, right) => right.score - left.score || left.candidate.id.localeCompare(right.candidate.id));
   const best = ranked[0];
   const second = ranked[1];
@@ -120,9 +130,10 @@ function selectTarget<Id extends string>(input: {
   return null;
 }
 
-function eventCandidate(event: Event): MatchCandidate<EventId> {
+function eventCandidate(event: Event): MatchCandidate<EventId> & { domainTime: string } {
   return {
     id: event.id,
+    domainTime: normalized(event.domain_time),
     exactKey: normalized([event.domain_time, event.actor, event.action, event.target].join(' | ')),
     comparisonText: [event.domain_time, event.actor, event.action, event.target, event.effect].join(' '),
   };
@@ -228,6 +239,7 @@ export function reconcileProposal(input: {
       correction,
       proposedExactKey: normalized([operation.domain_time, operation.actor, operation.action, operation.target].join(' | ')),
       proposedText: [operation.domain_time, operation.actor, operation.action, operation.target, operation.effect].join(' '),
+      proposedDomainTime: normalized(operation.domain_time),
       candidates: head.events.map(eventCandidate),
     });
     if (targetId === null) return { ...operation, finding_refs: operation.finding_refs.map(mapClaim) };

@@ -355,6 +355,14 @@ describe('Shopee 2-Turn Correction & Reconciliation Regression Suite', () => {
     expect(noticeEvent?.id).not.toBe(discoveryEvent?.id);
     expect(noticeEvent?.domain_time).toContain('August 14');
     expect(discoveryEvent?.domain_time).toContain('August 15');
+
+    // Source provenance assertions
+    expect(noticeEvent?.source_support_ids).toContain('U02');
+    expect(discoveryEvent?.source_support_ids).toContain('U02');
+
+    const claim1 = rev2.claims.find((c) => c.id === 'C01');
+    expect(claim1?.reasoning).toContain('U02');
+    expect(claim1?.domain_time).toContain('August 15');
   });
 
   it('2. Corrects a negated claim with later information (warning email supersedes "no warning")', () => {
