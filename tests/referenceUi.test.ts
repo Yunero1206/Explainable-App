@@ -142,4 +142,17 @@ describe('case reference UI', () => {
     expect(markup).not.toContain('Boundary:');
     expect(markup).not.toContain('>Relevance<');
   });
+
+  it('renders gracefully without hooks error when all cases are deleted (caseData=null)', () => {
+    const markup = renderToStaticMarkup(React.createElement(
+      LanguageProvider,
+      null,
+      React.createElement(RightCaseRecord, {
+        caseData: null,
+        onSelectReference: () => undefined,
+      })
+    ));
+
+    expect(markup).toBeDefined();
+  });
 });

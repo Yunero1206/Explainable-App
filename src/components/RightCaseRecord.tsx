@@ -99,14 +99,6 @@ export const RightCaseRecord: React.FC<RightCaseRecordProps> = ({
     }
   }, [focusedReference, activeTab]);
 
-  if (!caseData) {
-    return (
-      <aside className="hidden lg:block w-80 xl:w-96 shrink-0 h-full bg-slate-50 border-l border-slate-200 p-6 text-center text-slate-500 text-xs">
-        <p className="mt-12">{t.noActiveCase}</p>
-      </aside>
-    );
-  }
-
   const isActive = (reference: CaseReference) =>
     focusedReference?.kind === reference.kind && focusedReference.id === reference.id;
   const isHighlighted = (kind: CaseReference['kind'], id: string) =>
@@ -125,6 +117,7 @@ export const RightCaseRecord: React.FC<RightCaseRecordProps> = ({
   const query = searchQuery.trim().toLowerCase();
 
   const filteredEvents = useMemo(() => {
+    if (!caseData) return [];
     if (!query) return caseData.events;
     return caseData.events.filter((e) =>
       e.id.toLowerCase().includes(query) ||
@@ -134,9 +127,10 @@ export const RightCaseRecord: React.FC<RightCaseRecordProps> = ({
       e.effect.toLowerCase().includes(query) ||
       (e.time && e.time.toLowerCase().includes(query))
     );
-  }, [caseData.events, query]);
+  }, [caseData, query]);
 
   const filteredClaims = useMemo(() => {
+    if (!caseData) return [];
     if (!query) return caseData.claims;
     return caseData.claims.filter((c) =>
       c.id.toLowerCase().includes(query) ||
@@ -145,9 +139,10 @@ export const RightCaseRecord: React.FC<RightCaseRecordProps> = ({
       c.target.toLowerCase().includes(query) ||
       c.reasoning.toLowerCase().includes(query)
     );
-  }, [caseData.claims, query]);
+  }, [caseData, query]);
 
   const filteredEvidence = useMemo(() => {
+    if (!caseData) return [];
     if (!query) return caseData.evidence;
     return caseData.evidence.filter((ev) =>
       ev.id.toLowerCase().includes(query) ||
@@ -156,9 +151,10 @@ export const RightCaseRecord: React.FC<RightCaseRecordProps> = ({
       ev.content.toLowerCase().includes(query) ||
       (ev.web_provenance?.publisher && ev.web_provenance.publisher.toLowerCase().includes(query))
     );
-  }, [caseData.evidence, query]);
+  }, [caseData, query]);
 
   const filteredGaps = useMemo(() => {
+    if (!caseData) return [];
     if (!query) return caseData.gaps;
     return caseData.gaps.filter((g) =>
       g.id.toLowerCase().includes(query) ||
@@ -166,9 +162,10 @@ export const RightCaseRecord: React.FC<RightCaseRecordProps> = ({
       g.why_it_matters.toLowerCase().includes(query) ||
       g.actions.some((a) => a.title.toLowerCase().includes(query) || a.description.toLowerCase().includes(query))
     );
-  }, [caseData.gaps, query]);
+  }, [caseData, query]);
 
   const allActions = useMemo(() => {
+    if (!caseData) return [];
     return caseData.gaps.flatMap((gap) =>
       gap.actions.map((action) => ({
         ...action,
@@ -176,7 +173,15 @@ export const RightCaseRecord: React.FC<RightCaseRecordProps> = ({
         gapUnknown: gap.what_is_unknown,
       }))
     );
-  }, [caseData.gaps]);
+  }, [caseData]);
+
+  if (!caseData) {
+    return (
+      <aside className="hidden lg:block w-80 xl:w-96 shrink-0 h-full bg-slate-50 border-l border-slate-200 p-6 text-center text-slate-500 text-xs">
+        <p className="mt-12">{t.noActiveCase}</p>
+      </aside>
+    );
+  }
 
   const assessmentBadge = (assessment: AssessmentState) => {
     const text = translateAssessment(assessment, locale);
