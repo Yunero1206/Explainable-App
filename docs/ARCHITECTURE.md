@@ -52,7 +52,7 @@ flowchart TD
 
 Replay is a deterministic, credential-free product demo. It records user reports conservatively, inspects file metadata without inventing document contents, and supports an explicit `[reject]` input for commit-boundary demonstrations.
 
-Live analysis uses the server-held `GEMINI_API_KEY` and exactly `gemini-3.6-flash`. Source material is treated as untrusted data. The user selects one of two product modes:
+Live analysis uses the server-held `GEMINI_API_KEY` and defaults to `gemini-3.5-flash-lite` (configurable via `GEMINI_MODEL`). Source material is treated as untrusted data. The user selects one of two product modes:
 
 - **Analysis only:** Gemini analyzes the supplied statement and artifacts; no public-web provider is called.
 - **Web-assisted:** Gemini first reads the supplied statement and inline PDF/image artifacts, plans only remaining public needs, and emits a sanitized query plus official domains. Tavily Search receives only that reduced request. Admitted `[E]` excerpts are then available to Gemini's final proposal.
@@ -60,3 +60,13 @@ Live analysis uses the server-held `GEMINI_API_KEY` and exactly `gemini-3.6-flas
 Tavily does not replace Gemini and never receives the raw case. The provider returns an operation proposal constrained by JSON Schema; application code reconciles semantic identity, allocates canonical IDs, validates the complete candidate revision, and remains the only path to acceptance.
 
 See [AUTHORITATIVE_RETRIEVAL.md](AUTHORITATIVE_RETRIEVAL.md) for the source and privacy decision contract.
+
+## Persistence & Export/Import Boundary
+
+- **In-Browser Persistence (`ExplainableTrustV3`)**: Canonical case ledgers, revisions, UI metadata, and attachment blobs are stored locally in the browser's IndexedDB database.
+- **Active Case Export**: The UI provides export capabilities for the currently active case:
+  1. *Forensic Provenance Dossier (.md)*: W3C PROV-O aligned report with SHA-256 fixity hashes for audit trails.
+  2. *Case Report (.md)*: Human-readable markdown summary of timeline, claims, gaps, and actions.
+  3. *Case View JSON (`case-view-2.2.0`)*: A denormalized presentation projection of timeline events, findings, and gaps.
+- **Single-Case Import**: The intake UI accepts individual canonical `LedgerV3` JSON files (`schema_version: 'ledger-3.0.0'`) and hydrates them into IndexedDB.
+- **Workspace Recovery Boundary**: The application maintains workspace state locally in the user's browser. It does *not* offer a monolithic workspace-level backup/restore archive (bulk export/import of all cases, blobs, and model audit records simultaneously). Export and import operate strictly on individual case records.

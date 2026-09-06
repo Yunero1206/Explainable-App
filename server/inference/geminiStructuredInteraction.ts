@@ -60,7 +60,7 @@ function errorMessage(error: unknown): string {
 }
 
 /**
- * Gemini 3.6 structured outputs use the Interactions API contract.
+ * Gemini structured outputs use the Interactions API contract.
  * Includes exponential backoff and jitter for transient failures (429, 503, network timeouts).
  */
 export async function runGeminiStructuredInteraction(
